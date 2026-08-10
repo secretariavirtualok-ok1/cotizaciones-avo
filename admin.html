@@ -490,6 +490,15 @@
             </select>
           </div>
           <div class="field">
+            <label>Moneda *</label>
+            <select id="nc-moneda">
+              <option value="USD">🇺🇸 USD — Dólar</option>
+              <option value="EUR">🇪🇺 EUR — Euro</option>
+              <option value="COP">🇨🇴 COP — Peso colombiano</option>
+              <option value="MXN">🇲🇽 MXN — Peso mexicano</option>
+            </select>
+          </div>
+          <div class="field">
             <label>Vencimiento del enlace *</label>
             <div class="exp-pills" id="nc-exp-pills">
               <span class="exp-pill" data-days="7">7 días</span>
@@ -918,21 +927,39 @@ async function loadPlans() {
   renderPlansGrid('nc-plans-grid', []);
 }
 
-function renderPlansGrid(containerId, selectedIds) {
+function renderPlansGrid(containerId, selectedIds, precios) {
   const el = document.getElementById(containerId);
   if (!el) return;
+  precios = precios || {};
   el.innerHTML = allPlans.filter(p => p.activo).map(p => {
     const checked = selectedIds.includes(p.id);
-    return `<label class="plan-check ${checked?'checked':''}" data-id="${p.id}">
-      <input type="checkbox" value="${p.id}" ${checked?'checked':''} onchange="togglePlanCheck(this)"> ${p.nombre}
-    </label>`;
+    const precio = precios[p.id] || '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1.5px solid ${checked?'var(--navy)':'var(--gray-100)'};border-radius:var(--radius);background:${checked?'var(--gray-50)':'var(--white)'};">
+      <label class="plan-check ${checked?'checked':''}" data-id="${p.id}" style="border:none;padding:0;background:transparent;flex:1;margin:0;">
+        <input type="checkbox" value="${p.id}" ${checked?'checked':''} onchange="togglePlanCheck(this)"> ${p.nombre}
+      </label>
+      <input type="number" id="precio-${p.id}" value="${precio}" placeholder="Precio" min="0" step="0.01"
+        style="width:110px;padding:5px 8px;border:1.5px solid var(--gray-300);border-radius:6px;font-size:12px;text-align:right;"
+        ${checked?'':'disabled'} onchange="syncPrecioVisibility()" />
+    </div>`;
   }).join('');
+  // Habilitar/deshabilitar inputs de precio según checkbox
+  syncPrecioVisibility();
+}
+
+function syncPrecioVisibility() {
+  allPlans.filter(p => p.activo).forEach(p => {
+    const cb = document.querySelector(`input[type=checkbox][value="${p.id}"]`);
+    const pr = document.getElementById(`precio-${p.id}`);
+    if (cb && pr) pr.disabled = !cb.checked;
+  });
 }
 
 function togglePlanCheck(input) {
   const label = input.closest('.plan-check');
   if (input.checked) label.classList.add('checked');
   else label.classList.remove('checked');
+  syncPrecioVisibility();
 }
 
 document.getElementById('nc-sel-all').addEventListener('click', () => {
@@ -1040,7 +1067,14 @@ async function submitNuevaCotizacion() {
   if (planes.length === 0) { showAlert(alertId, 'Selecciona al menos un plan a ofrecer.', 'error'); return; }
 
   const idioma = document.getElementById('nc-idioma').value || 'es';
+  const moneda = document.getElementById('nc-moneda').value || 'USD';
   const jornadas = [...document.querySelectorAll('#nc-jornadas-grid input[type=checkbox]:checked')].map(i => i.value);
+  // Recoger precios por plan
+  const preciosPlanes = {};
+  planes.forEach(planId => {
+    const input = document.getElementById('precio-' + planId);
+    if (input && input.value) preciosPlanes[planId] = parseFloat(input.value);
+  });
 
   btn.textContent = 'Subiendo archivo...'; btn.disabled = true;
 
@@ -1054,9 +1088,11 @@ async function submitNuevaCotizacion() {
       client_id: clientId,
       comercial,
       idioma,
+      moneda,
       word_url: url,
       word_public_id: public_id,
       planes_ofrecidos: planes,
+      precios_planes: preciosPlanes,
       jornadas_ofrecidas: jornadas,
       estado: 'enviada',
       vencimiento,
@@ -1090,6 +1126,7 @@ document.getElementById('nc-reset').addEventListener('click', () => {
   document.getElementById('nc-word').value = '';
   document.querySelectorAll('#nc-jornadas-grid input[type=checkbox]').forEach(i => { i.checked = false; i.closest('.plan-check').classList.remove('checked'); });
   document.getElementById('nc-idioma').value = 'es';
+  document.getElementById('nc-moneda').value = 'USD';
   document.querySelectorAll('.exp-pill').forEach(p => p.classList.remove('selected'));
   renderPlansGrid('nc-plans-grid', []);
   document.getElementById('nc-alert').innerHTML = '';
@@ -1241,6 +1278,7 @@ async function openQuoteModal(quoteId) {
     <div class="detail-item"><label>Primera apertura</label><div class="val">${q.fecha_primera_apertura ? fmtDt(q.fecha_primera_apertura) : '—'}</div></div>
     <div class="detail-item"><label>Plan seleccionado</label><div class="val">${q.plan_seleccionado_nombre || '—'}</div></div>
     <div class="detail-item"><label>Fecha de selección</label><div class="val">${q.fecha_seleccion ? fmtDt(q.fecha_seleccion) : '—'}</div></div>
+    <div class="detail-item"><label>Moneda</label><div class="val">${q.moneda || 'USD'}</div></div>
     <div class="detail-item"><label>Vencimiento</label><div class="val">${q.vencimiento ? fmt(q.vencimiento) : 'Sin vencimiento'}</div></div>
     <div class="detail-item"><label>Total aperturas</label><div class="val">${q.total_aperturas || 0}</div></div>
     <div class="detail-item" style="grid-column:1/-1;"><label>Archivo Word</label><div class="val"><a href="${q.word_url}" target="_blank" style="color:var(--blue);text-decoration:underline;">Descargar / ver archivo</a></div></div>
@@ -1250,7 +1288,7 @@ async function openQuoteModal(quoteId) {
   document.getElementById('mq-link').textContent = link;
 
   // planes edit
-  renderPlansGrid('mq-plans-edit', q.planes_ofrecidos || []);
+  renderPlansGrid('mq-plans-edit', q.planes_ofrecidos || [], q.precios_planes || {});
 
   // estado
   document.getElementById('mq-estado-sel').value = q.estado;
@@ -1285,7 +1323,12 @@ document.getElementById('mq-copy-link').addEventListener('click', () => {
 
 document.getElementById('mq-save-plans').addEventListener('click', async () => {
   const planes = getSelectedPlans('mq-plans-edit');
-  const { error } = await sb.from('quotes').update({ planes_ofrecidos: planes }).eq('id', editingQuote);
+  const preciosPlanes = {};
+  planes.forEach(planId => {
+    const input = document.getElementById('precio-' + planId);
+    if (input && input.value) preciosPlanes[planId] = parseFloat(input.value);
+  });
+  const { error } = await sb.from('quotes').update({ planes_ofrecidos: planes, precios_planes: preciosPlanes }).eq('id', editingQuote);
   showAlert('mq-alert', error ? 'Error al guardar: ' + error.message : 'Planes actualizados correctamente.', error ? 'error' : 'success');
 });
 
