@@ -332,7 +332,7 @@
 </div>
 
 <script>
-// ════════════════════════════════════════════════════════ 
+// ════════════════════════════════════════════════════════
 //  CONFIG
 // ════════════════════════════════════════════════════════
 const SUPABASE_URL  = 'https://avtznfyenkvfapwxdrho.supabase.co';
@@ -461,6 +461,16 @@ const T = {
 let lang = 'es';
 let selectedJornada = null;
 
+function formatPrecio(precio, moneda) {
+  if (!precio && precio !== 0) return '';
+  const simbolos = { USD: '$', EUR: '€', COP: '$', MXN: '$' };
+  const nombres = { USD: 'USD', EUR: 'EUR', COP: 'COP', MXN: 'MXN' };
+  const simbolo = simbolos[moneda] || '$';
+  const nombre = nombres[moneda] || moneda;
+  const formatted = new Intl.NumberFormat('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(precio);
+  return `${simbolo}${formatted} ${nombre}`;
+}
+
 function renderViewer(data, quoteId) {
   lang = data.idioma || 'es';
   const tx = T[lang];
@@ -496,14 +506,19 @@ function renderViewer(data, quoteId) {
     return;
   }
 
-  // Renderizar planes
+  // Renderizar planes con precio
+  const moneda = data.moneda || 'USD';
   const planesList = document.getElementById('v-plans-list');
-  planesList.innerHTML = (data.planes_ofrecidos || []).map(p => `
-    <div class="plan-option" data-id="${p.id}" onclick="selectPlan('${p.id}', this)">
+  planesList.innerHTML = (data.planes_ofrecidos || []).map(p => {
+    const precioStr = p.precio ? formatPrecio(p.precio, moneda) : '';
+    return `<div class="plan-option" data-id="${p.id}" onclick="selectPlan('${p.id}', this)">
       <div class="plan-radio"></div>
-      <div class="plan-name">${p.nombre}</div>
-    </div>
-  `).join('');
+      <div style="flex:1;">
+        <div class="plan-name">${p.nombre}</div>
+        ${precioStr ? `<div style="font-size:13px;color:var(--gold);font-weight:700;margin-top:2px;">${precioStr}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 
   // Renderizar jornadas
   const jornadasOfrecidas = data.jornadas_ofrecidas || [];
@@ -576,8 +591,11 @@ async function confirmPlan(quoteId) {
     if (error) throw new Error(error.message);
 
     const jornadaNombre = selectedJornada ? tx.jornadas[selectedJornada] || selectedJornada : null;
+    // Obtener precio del plan seleccionado
+    const planSeleccionado = (quoteData.planes_ofrecidos || []).find(p => p.id === selectedPlanId);
+    const planPrecio = planSeleccionado ? planSeleccionado.precio : null;
 
-    await notifyInternal('plan_selected', quoteId, quoteData, data.plan_nombre, jornadaNombre).catch(() => {});
+    await notifyInternal('plan_selected', quoteId, quoteData, data.plan_nombre, jornadaNombre, planPrecio).catch(() => {});
 
     document.getElementById('v-plans-section').style.display    = 'none';
     document.getElementById('v-jornada-section').style.display  = 'none';
@@ -597,7 +615,7 @@ async function confirmPlan(quoteId) {
 // ════════════════════════════════════════════════════════
 //  NOTIFICACIÓN INTERNA (Netlify Function)
 // ════════════════════════════════════════════════════════
-async function notifyInternal(tipo, quoteId, data, planNombre, jornadaNombre) {
+async function notifyInternal(tipo, quoteId, data, planNombre, jornadaNombre, planPrecio) {
   await fetch(NOTIFY_FUNCTION_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -609,6 +627,8 @@ async function notifyInternal(tipo, quoteId, data, planNombre, jornadaNombre) {
       comercial: data.comercial,
       plan_nombre: planNombre,
       jornada_nombre: jornadaNombre || null,
+      precio: planPrecio || null,
+      moneda: data.moneda || 'USD',
       idioma: data.idioma || 'es',
       timestamp: new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' })
     })
