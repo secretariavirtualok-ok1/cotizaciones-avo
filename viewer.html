@@ -506,16 +506,35 @@ function renderViewer(data, quoteId) {
     return;
   }
 
-  // Renderizar planes con precio
+  // Renderizar planes — precio se actualiza dinámicamente según jornada seleccionada
   const moneda = data.moneda || 'USD';
+  const precios = data.precios_combinaciones || {};
+
+  function getPrecioParaPlan(planId, jornada) {
+    const clave = jornada ? planId + '|' + jornada : planId;
+    const precio = precios[clave];
+    return precio != null ? formatPrecio(precio, moneda) : '';
+  }
+
+  function actualizarPreciosPlanes() {
+    (data.planes_ofrecidos || []).forEach(p => {
+      const priceEl = document.getElementById('precio-plan-' + p.id);
+      if (priceEl) {
+        const precioStr = getPrecioParaPlan(p.id, selectedJornada);
+        priceEl.textContent = precioStr;
+        priceEl.style.display = precioStr ? 'block' : 'none';
+      }
+    });
+  }
+
   const planesList = document.getElementById('v-plans-list');
   planesList.innerHTML = (data.planes_ofrecidos || []).map(p => {
-    const precioStr = p.precio ? formatPrecio(p.precio, moneda) : '';
+    const precioStr = getPrecioParaPlan(p.id, null);
     return `<div class="plan-option" data-id="${p.id}" onclick="selectPlan('${p.id}', this)">
       <div class="plan-radio"></div>
       <div style="flex:1;">
         <div class="plan-name">${p.nombre}</div>
-        ${precioStr ? `<div style="font-size:13px;color:var(--gold);font-weight:700;margin-top:2px;">${precioStr}</div>` : ''}
+        <div id="precio-plan-${p.id}" style="font-size:13px;color:var(--gold);font-weight:700;margin-top:2px;${precioStr?'':'display:none'}">${precioStr}</div>
       </div>
     </div>`;
   }).join('');
@@ -564,6 +583,7 @@ function selectJornada(jornada, el) {
   document.querySelectorAll('.plan-option[data-jornada]').forEach(p => p.classList.remove('selected'));
   el.classList.add('selected');
   selectedJornada = jornada;
+  actualizarPreciosPlanes();
   checkConfirmReady();
 }
 
@@ -591,9 +611,10 @@ async function confirmPlan(quoteId) {
     if (error) throw new Error(error.message);
 
     const jornadaNombre = selectedJornada ? tx.jornadas[selectedJornada] || selectedJornada : null;
-    // Obtener precio del plan seleccionado
-    const planSeleccionado = (quoteData.planes_ofrecidos || []).find(p => p.id === selectedPlanId);
-    const planPrecio = planSeleccionado ? planSeleccionado.precio : null;
+    // Obtener precio según combinación plan+jornada
+    const precios = quoteData.precios_combinaciones || {};
+    const clavePrecio = selectedJornada ? selectedPlanId + '|' + selectedJornada : selectedPlanId;
+    const planPrecio = precios[clavePrecio] != null ? precios[clavePrecio] : null;
 
     await notifyInternal('plan_selected', quoteId, quoteData, data.plan_nombre, jornadaNombre, planPrecio).catch(() => {});
 
