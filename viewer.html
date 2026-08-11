@@ -559,6 +559,8 @@ function renderViewer(data, quoteId) {
     document.getElementById('v-jornada-info-label').textContent = tx.jornadaInfo;
     document.getElementById('v-jornada-info-value').textContent = tx.jornadas[jornadasOfrecidas[0]] || jornadasOfrecidas[0];
     selectedJornada = jornadasOfrecidas[0]; // se fija automáticamente
+    // Actualizar precios para jornada única
+    setTimeout(() => { if (window.actualizarPreciosPlanes) window.actualizarPreciosPlanes(); }, 50);
   } else {
     // Seleccionable: varias jornadas
     jornadaSection.style.display = 'block';
@@ -615,7 +617,7 @@ async function confirmPlan(quoteId) {
 
     if (error) throw new Error(error.message);
 
-    const jornadaNombre = selectedJornada ? tx.jornadas[selectedJornada] || selectedJornada : null;
+    const jornadaNombre = selectedJornada ? (T[lang]?.jornadas[selectedJornada] || selectedJornada) : null;
     // Obtener precio según combinación plan+jornada
     const precios = window._preciosCombinaciones || quoteData.precios_combinaciones || {};
     const clavePrecio = selectedJornada ? selectedPlanId + '|' + selectedJornada : selectedPlanId;
