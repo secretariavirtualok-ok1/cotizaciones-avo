@@ -537,13 +537,13 @@
         </p>
         <div style="display:flex;flex-direction:column;gap:8px;" id="nc-jornadas-grid">
           <label class="plan-check" data-jornada="completa">
-            <input type="checkbox" value="completa" onchange="togglePlanCheck(this)"> Jornada Completa
+            <input type="checkbox" value="completa" onchange="syncPrecioVisibility()"> Jornada Completa
           </label>
           <label class="plan-check" data-jornada="media">
-            <input type="checkbox" value="media" onchange="togglePlanCheck(this)"> Media Jornada
+            <input type="checkbox" value="media" onchange="syncPrecioVisibility()"> Media Jornada
           </label>
           <label class="plan-check" data-jornada="media_3meses">
-            <input type="checkbox" value="media_3meses" onchange="togglePlanCheck(this)"> Media Jornada los 3 primeros meses
+            <input type="checkbox" value="media_3meses" onchange="syncPrecioVisibility()"> Media Jornada los 3 primeros meses
           </label>
         </div>
         <p style="font-size:11px;color:var(--gray-500);margin-top:10px;">Opcional — si no seleccionas ninguna, esta sección no aparece en el enlace del cliente.</p>
@@ -750,6 +750,12 @@
         </div>
         <div id="mq-events"></div>
       </div>
+
+      <div style="margin-top:24px;padding-top:16px;border-top:2px solid var(--red-lt);">
+        <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:8px;">⚠️ Zona de peligro</div>
+        <p style="font-size:12px;color:var(--gray-500);margin-bottom:10px;">Esta acción es irreversible. Se eliminará la cotización y todos sus eventos asociados.</p>
+        <button class="btn btn-danger" id="mq-delete-btn">🗑 Eliminar esta cotización</button>
+      </div>
     </div>
   </div>
 </div>
@@ -933,32 +939,117 @@ function renderPlansGrid(containerId, selectedIds, precios) {
   precios = precios || {};
   el.innerHTML = allPlans.filter(p => p.activo).map(p => {
     const checked = selectedIds.includes(p.id);
-    const precio = precios[p.id] || '';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1.5px solid ${checked?'var(--navy)':'var(--gray-100)'};border-radius:var(--radius);background:${checked?'var(--gray-50)':'var(--white)'};">
-      <label class="plan-check ${checked?'checked':''}" data-id="${p.id}" style="border:none;padding:0;background:transparent;flex:1;margin:0;">
+    return `<div style="padding:8px 10px;border:1.5px solid ${checked?'var(--navy)':'var(--gray-100)'};border-radius:var(--radius);background:${checked?'var(--gray-50)':'var(--white)'};margin-bottom:4px;" id="plan-row-${p.id}">
+      <label class="plan-check ${checked?'checked':''}" data-id="${p.id}" style="border:none;padding:0;background:transparent;width:100%;margin:0;">
         <input type="checkbox" value="${p.id}" ${checked?'checked':''} onchange="togglePlanCheck(this)"> ${p.nombre}
       </label>
-      <input type="number" id="precio-${p.id}" value="${precio}" placeholder="Precio" min="0" step="0.01"
-        style="width:110px;padding:5px 8px;border:1.5px solid var(--gray-300);border-radius:6px;font-size:12px;text-align:right;"
-        ${checked?'':'disabled'} onchange="syncPrecioVisibility()" />
     </div>`;
   }).join('');
-  // Habilitar/deshabilitar inputs de precio según checkbox
-  syncPrecioVisibility();
+  renderPreciosTable(containerId, selectedIds, precios);
+}
+
+function renderPreciosTable(containerId, selectedIds, precios) {
+  // Renderiza la tabla de precios plan x jornada debajo del grid de planes
+  const planesSeleccionados = allPlans.filter(p => p.activo && selectedIds.includes(p.id));
+  const containerEl = document.getElementById(containerId);
+  if (!containerEl) return;
+
+  // Remover tabla previa si existe
+  const prevTable = document.getElementById('precios-tabla-' + containerId);
+  if (prevTable) prevTable.remove();
+
+  // Obtener jornadas seleccionadas
+  const jornadasGrid = document.getElementById('nc-jornadas-grid') || document.getElementById('mq-jornadas-grid');
+  const jornadasSel = jornadasGrid
+    ? [...jornadasGrid.querySelectorAll('input[type=checkbox]:checked')].map(i => i.value)
+    : [];
+
+  if (planesSeleccionados.length === 0) return;
+
+  const jornadaLabels = {
+    completa: 'Jornada Completa',
+    media: 'Media Jornada',
+    media_3meses: 'Media Jornada 3 meses'
+  };
+
+  let html = `<div id="precios-tabla-${containerId}" style="margin-top:14px;">
+    <p style="font-size:12px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">
+      💰 Precios por combinación
+    </p>
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="background:var(--gray-50);">
+          <th style="padding:8px 12px;text-align:left;border:1px solid var(--gray-100);font-size:11px;color:var(--gray-500);">Plan</th>`;
+
+  if (jornadasSel.length === 0) {
+    html += `<th style="padding:8px 12px;text-align:right;border:1px solid var(--gray-100);font-size:11px;color:var(--gray-500);">Precio</th>`;
+  } else {
+    jornadasSel.forEach(j => {
+      html += `<th style="padding:8px 12px;text-align:right;border:1px solid var(--gray-100);font-size:11px;color:var(--gray-500);">${jornadaLabels[j]||j}</th>`;
+    });
+  }
+  html += `</tr></thead><tbody>`;
+
+  planesSeleccionados.forEach(p => {
+    html += `<tr>
+      <td style="padding:8px 12px;border:1px solid var(--gray-100);font-weight:600;color:var(--navy);">${p.nombre}</td>`;
+    if (jornadasSel.length === 0) {
+      const clave = p.id;
+      const val = precios[clave] || '';
+      html += `<td style="padding:6px 8px;border:1px solid var(--gray-100);">
+        <input type="number" data-clave="${clave}" value="${val}" placeholder="0.00" min="0" step="0.01"
+          class="precio-input"
+          style="width:100%;padding:5px 8px;border:1.5px solid var(--gray-300);border-radius:6px;font-size:12px;text-align:right;" />
+      </td>`;
+    } else {
+      jornadasSel.forEach(j => {
+        const clave = p.id + '|' + j;
+        const val = precios[clave] || '';
+        html += `<td style="padding:6px 8px;border:1px solid var(--gray-100);">
+          <input type="number" data-clave="${clave}" value="${val}" placeholder="0.00" min="0" step="0.01"
+            class="precio-input"
+            style="width:100%;padding:5px 8px;border:1.5px solid var(--gray-300);border-radius:6px;font-size:12px;text-align:right;" />
+        </td>`;
+      });
+    }
+    html += `</tr>`;
+  });
+
+  html += `</tbody></table></div></div>`;
+  containerEl.insertAdjacentHTML('afterend', html);
 }
 
 function syncPrecioVisibility() {
-  allPlans.filter(p => p.activo).forEach(p => {
-    const cb = document.querySelector(`input[type=checkbox][value="${p.id}"]`);
-    const pr = document.getElementById(`precio-${p.id}`);
-    if (cb && pr) pr.disabled = !cb.checked;
+  // Actualizar tabla de precios cuando cambia selección de planes
+  const containerId = document.getElementById('nc-plans-grid') ? 'nc-plans-grid' : 'mq-plans-edit';
+  const selectedIds = getSelectedPlans(containerId);
+  const preciosActuales = getPreciosCombinaciones();
+  renderPreciosTable(containerId, selectedIds, preciosActuales);
+}
+
+function getPreciosCombinaciones() {
+  const result = {};
+  document.querySelectorAll('.precio-input').forEach(input => {
+    if (input.value && input.dataset.clave) {
+      result[input.dataset.clave] = parseFloat(input.value);
+    }
   });
+  return result;
 }
 
 function togglePlanCheck(input) {
   const label = input.closest('.plan-check');
-  if (input.checked) label.classList.add('checked');
-  else label.classList.remove('checked');
+  const row = input.closest('[id^="plan-row-"]');
+  if (input.checked) {
+    label.classList.add('checked');
+    if (row) row.style.borderColor = 'var(--navy)';
+    if (row) row.style.background = 'var(--gray-50)';
+  } else {
+    label.classList.remove('checked');
+    if (row) row.style.borderColor = 'var(--gray-100)';
+    if (row) row.style.background = 'var(--white)';
+  }
   syncPrecioVisibility();
 }
 
@@ -1069,12 +1160,8 @@ async function submitNuevaCotizacion() {
   const idioma = document.getElementById('nc-idioma').value || 'es';
   const moneda = document.getElementById('nc-moneda').value || 'USD';
   const jornadas = [...document.querySelectorAll('#nc-jornadas-grid input[type=checkbox]:checked')].map(i => i.value);
-  // Recoger precios por plan
-  const preciosPlanes = {};
-  planes.forEach(planId => {
-    const input = document.getElementById('precio-' + planId);
-    if (input && input.value) preciosPlanes[planId] = parseFloat(input.value);
-  });
+  // Recoger precios por combinación plan+jornada
+  const preciosPlanes = getPreciosCombinaciones();
 
   btn.textContent = 'Subiendo archivo...'; btn.disabled = true;
 
@@ -1092,7 +1179,7 @@ async function submitNuevaCotizacion() {
       word_url: url,
       word_public_id: public_id,
       planes_ofrecidos: planes,
-      precios_planes: preciosPlanes,
+      precios_combinaciones: preciosPlanes,
       jornadas_ofrecidas: jornadas,
       estado: 'enviada',
       vencimiento,
@@ -1251,6 +1338,7 @@ async function loadQuotes() {
       <td><small>${fmt(r.created_at)}</small></td>
       <td>
         <button class="btn btn-sm btn-outline" onclick="openQuoteModal('${r.id}')">Ver detalle</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteQuote('${r.id}', '${r.cliente_nombre}')">Eliminar</button>
       </td>
     </tr>
   `).join('');
@@ -1288,7 +1376,7 @@ async function openQuoteModal(quoteId) {
   document.getElementById('mq-link').textContent = link;
 
   // planes edit
-  renderPlansGrid('mq-plans-edit', q.planes_ofrecidos || [], q.precios_planes || {});
+  renderPlansGrid('mq-plans-edit', q.planes_ofrecidos || [], q.precios_combinaciones || {});
 
   // estado
   document.getElementById('mq-estado-sel').value = q.estado;
@@ -1323,12 +1411,8 @@ document.getElementById('mq-copy-link').addEventListener('click', () => {
 
 document.getElementById('mq-save-plans').addEventListener('click', async () => {
   const planes = getSelectedPlans('mq-plans-edit');
-  const preciosPlanes = {};
-  planes.forEach(planId => {
-    const input = document.getElementById('precio-' + planId);
-    if (input && input.value) preciosPlanes[planId] = parseFloat(input.value);
-  });
-  const { error } = await sb.from('quotes').update({ planes_ofrecidos: planes, precios_planes: preciosPlanes }).eq('id', editingQuote);
+  const preciosPlanes = getPreciosCombinaciones();
+  const { error } = await sb.from('quotes').update({ planes_ofrecidos: planes, precios_combinaciones: preciosPlanes }).eq('id', editingQuote);
   showAlert('mq-alert', error ? 'Error al guardar: ' + error.message : 'Planes actualizados correctamente.', error ? 'error' : 'success');
 });
 
@@ -1468,6 +1552,28 @@ async function togglePlanActivo(id, activo) {
 // ════════════════════════════════════════════════════════════
 //  ARRANCAR
 // ════════════════════════════════════════════════════════════
+// Eliminar desde tabla
+async function deleteQuote(quoteId, clienteNombre) {
+  if (!confirm(`¿Eliminar la cotización de ${clienteNombre}?\n\nEsta acción no se puede deshacer.`)) return;
+  const { error } = await sb.from('quotes').delete().eq('id', quoteId);
+  if (error) { alert('Error al eliminar: ' + error.message); }
+  else { loadQuotes(); loadDashboard(); }
+}
+
+// Eliminar desde modal
+document.getElementById('mq-delete-btn').addEventListener('click', async () => {
+  if (!editingQuote) return;
+  const nombre = document.getElementById('mq-title').textContent;
+  if (!confirm(`¿Eliminar esta cotización?\n${nombre}\n\nEsta acción no se puede deshacer.`)) return;
+  const { error } = await sb.from('quotes').delete().eq('id', editingQuote);
+  if (error) { showAlert('mq-alert', 'Error: ' + error.message, 'error'); }
+  else {
+    document.getElementById('modal-quote').classList.remove('open');
+    loadQuotes();
+    loadDashboard();
+  }
+});
+
 init();
 </script>
 </body>
