@@ -215,6 +215,28 @@
     animation: spin .7s linear infinite; margin: 0 auto 16px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── GENERATED QUOTATION STYLES ──────────────────────── */
+  .gen-svc-title { font-size:20px;font-weight:800;color:var(--navy);margin-bottom:4px;line-height:1.3; }
+  .gen-svc-subtitle { font-size:14px;color:var(--gray-700);margin-bottom:16px;font-weight:600; }
+  .gen-func-list { list-style:disc;padding-left:24px;margin-bottom:20px; }
+  .gen-func-list li { font-size:14px;color:var(--gray-700);line-height:1.7;margin-bottom:4px; }
+  .gen-schedule { background:var(--cream);border-radius:8px;padding:16px;margin-bottom:16px; }
+  .gen-schedule-title { font-size:14px;font-weight:800;color:var(--navy);margin-bottom:8px; }
+  .gen-schedule p { font-size:13px;color:var(--gray-700);margin-bottom:4px; }
+  .gen-precio { text-align:right;font-size:28px;font-weight:800;color:var(--navy);margin-top:16px;padding-top:12px;border-top:2px solid var(--gray-100); }
+  .gen-precio-detail { text-align:right;font-size:13px;color:var(--gray-500);margin-top:4px; }
+  .gen-precio-transition { display:flex;align-items:center;justify-content:center;gap:16px;margin-top:16px;padding:16px;background:var(--cream);border-radius:8px; }
+  .gen-precio-phase { text-align:center; }
+  .gen-precio-phase-label { display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--gray-500);margin-bottom:4px;letter-spacing:.5px; }
+  .gen-precio-phase-amount { display:block;font-size:22px;font-weight:800;color:var(--navy); }
+  .gen-precio-arrow { font-size:24px;color:var(--gold);font-weight:700; }
+  .gen-nota { background:#FFF8E1;border-radius:8px;padding:14px 16px;font-size:13px;color:#7D6608;line-height:1.6;margin-bottom:12px; }
+  .gen-cond-list { list-style:disc;padding-left:24px; }
+  .gen-cond-list li { font-size:13px;color:var(--gray-700);line-height:1.8;margin-bottom:2px; }
+  .gen-voip-table { width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px; }
+  .gen-voip-table th { text-align:left;padding:8px 12px;background:var(--cream);font-size:11px;font-weight:700;text-transform:uppercase;color:var(--gray-500);border-bottom:2px solid var(--gray-100); }
+  .gen-voip-table td { padding:8px 12px;border-bottom:1px solid var(--gray-100);color:var(--gray-700); }
 </style>
 </head>
 <body>
@@ -481,6 +503,11 @@ function renderViewer(data, quoteId) {
   document.getElementById('v-comercial').textContent = data.comercial;
   document.getElementById('v-doc-link').href         = data.word_url;
 
+  // Cotización generada: ocultar card del Word
+  if (data.modo_cotizacion === 'generada') {
+    document.getElementById('v-doc-link').closest('.card').style.display = 'none';
+  }
+
   // Textos dinámicos según idioma
   document.getElementById('v-greeting').textContent  = tx.greeting;
   document.getElementById('v-doc-label').textContent = tx.docLabel;
@@ -577,6 +604,11 @@ function renderViewer(data, quoteId) {
   }
 
   document.getElementById('v-confirm-btn').addEventListener('click', () => confirmPlan(quoteId));
+
+  // Renderizar cotización generada
+  if (data.modo_cotizacion === 'generada') {
+    renderGeneratedQuote(data);
+  }
 }
 
 function selectPlan(planId, el) {
@@ -661,6 +693,163 @@ async function notifyInternal(tipo, quoteId, data, planNombre, jornadaNombre, pl
       timestamp: new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' })
     })
   });
+}
+
+function renderGeneratedQuote(data) {
+  var cd = data.cotizacion_data;
+  if (!cd) return;
+
+  var idioma = data.idioma || 'es';
+  var moneda = data.moneda || 'USD';
+  var container = document.querySelector('.container');
+
+  var jornadaInfoEl = document.getElementById('v-jornada-info');
+  var jornadaSectionEl = document.getElementById('v-jornada-section');
+  var plansSectionEl = document.getElementById('v-plans-section');
+  var insertBefore = plansSectionEl;
+  if (jornadaInfoEl && jornadaInfoEl.style.display !== 'none') insertBefore = jornadaInfoEl;
+  else if (jornadaSectionEl && jornadaSectionEl.style.display !== 'none') insertBefore = jornadaSectionEl;
+
+  // ── SERVICIOS ──
+  (cd.servicios || []).forEach(function(svc) {
+    var card = document.createElement('div');
+    card.className = 'card';
+
+    var precioHtml = '';
+    if (svc.precio) {
+      var total = svc.precio * (svc.cantidad || 1);
+      precioHtml = '<div class="gen-precio">' + formatPrecio(total, moneda) + '</div>';
+      if ((svc.cantidad || 1) > 1) {
+        precioHtml += '<div class="gen-precio-detail">' + formatPrecio(svc.precio, moneda) + ' × ' + svc.cantidad + '</div>';
+      }
+    } else if (svc.precio_inicio && svc.precio_full) {
+      var lbl1 = idioma === 'en' ? 'First 3 months' : 'Primeros 3 meses';
+      var lbl2 = idioma === 'en' ? 'From 4th month' : 'A partir del 4to mes';
+      precioHtml = '<div class="gen-precio-transition">'
+        + '<div class="gen-precio-phase"><span class="gen-precio-phase-label">' + lbl1 + '</span><span class="gen-precio-phase-amount">' + formatPrecio(svc.precio_inicio, moneda) + '</span></div>'
+        + '<div class="gen-precio-arrow">→</div>'
+        + '<div class="gen-precio-phase"><span class="gen-precio-phase-label">' + lbl2 + '</span><span class="gen-precio-phase-amount">' + formatPrecio(svc.precio_full, moneda) + '</span></div>'
+        + '</div>';
+    }
+
+    var horarioHtml = '';
+    if (svc.horario) {
+      var hLabel = idioma === 'en' ? 'Service Schedule' : 'Horario del Servicio';
+      var mLabel = idioma === 'en' ? 'Service Modality:' : 'Modalidad del Servicio:';
+      if (svc.horario.modalidad === 'media_3meses') {
+        var from4 = idioma === 'en' ? 'From the 4th month:' : 'A partir del 4to mes:';
+        horarioHtml = '<div class="gen-schedule"><div class="gen-schedule-title">' + hLabel + '</div>'
+          + '<p>' + mLabel + ' ' + (svc.horario.texto_inicio || '') + '</p>'
+          + (svc.horario.texto_full ? '<p>' + from4 + ' ' + svc.horario.texto_full + '</p>' : '')
+          + '</div>';
+      } else {
+        horarioHtml = '<div class="gen-schedule"><div class="gen-schedule-title">' + hLabel + '</div>'
+          + '<p>' + mLabel + ' ' + (svc.horario.texto || '') + '</p></div>';
+      }
+    }
+
+    var notaHtml = svc.nota ? '<div class="gen-nota">' + svc.nota + '</div>' : '';
+    var funcsHtml = (svc.funciones || []).map(function(f) { return '<li>' + f + '</li>'; }).join('');
+    var planLabel = idioma === 'en' ? '📋 SERVICE PLAN' : '📋 PLAN DE SERVICIO';
+    var scopeLabel = idioma === 'en' ? 'Duties and Scope of the Plan:' : 'Funciones y alcance del plan:';
+
+    card.innerHTML = '<div class="card-label">' + planLabel + '</div>'
+      + '<h3 class="gen-svc-title">' + (svc.nombre_display || '') + '</h3>'
+      + '<p class="gen-svc-subtitle">' + scopeLabel + '</p>'
+      + '<ul class="gen-func-list">' + funcsHtml + '</ul>'
+      + horarioHtml + notaHtml + precioHtml;
+
+    container.insertBefore(card, insertBefore);
+  });
+
+  // ── TELEFONÍA ──
+  if (cd.telefonia && cd.telefonia.tipo !== 'none') {
+    var telCard = document.createElement('div');
+    telCard.className = 'card';
+    var telContent = '';
+    var sym = ({USD:'$',EUR:'€',COP:'$',MXN:'$'})[moneda] || '$';
+
+    if (cd.telefonia.tipo === 'incluida' && cd.telefonia.incluida_info) {
+      var info = cd.telefonia.incluida_info;
+      var titleTxt = idioma === 'en' ? 'VoIP Telephony (Included)' : 'Telefonía VoIP (Incluida en el plan)';
+      var minTxt = idioma === 'en'
+        ? 'Outbound call package of ' + info.minutos + ' monthly minutes.'
+        : 'Paquete de llamadas salientes de ' + info.minutos + ' minutos mensuales.';
+      telContent = '<div class="card-label">📞 ' + titleTxt + '</div>'
+        + '<ul class="gen-func-list"><li>' + minTxt + '</li>'
+        + (info.extras || []).map(function(e){ return '<li>' + e + '</li>'; }).join('')
+        + '</ul>';
+    } else if (cd.telefonia.tipo === 'opcional') {
+      var titleTxt2 = idioma === 'en' ? 'VoIP Telephony Plans (Optional)' : 'Planes de Telefonía VoIP (Opcionales)';
+      var introTxt = idioma === 'en'
+        ? 'These are the available VoIP telephony plans for outbound calls. This service is optional.'
+        : 'Estos son los planes de telefonía VoIP disponibles para llamadas salientes. Este servicio es opcional.';
+      var plansHtml = '';
+      var paisNames = {us:{es:'EE.UU.',en:'U.S.'},pr:{es:'Puerto Rico',en:'Puerto Rico'},es:{es:'España',en:'Spain'},mx:{es:'México',en:'Mexico'},cl:{es:'Chile',en:'Chile'},'do':{es:'Rep. Dominicana',en:'Dominican Rep.'},uy:{es:'Uruguay',en:'Uruguay'}};
+      var thMin = idioma === 'en' ? 'Minutes' : 'Minutos';
+      var thInit = idioma === 'en' ? 'Initial (3 months)' : 'Pago inicial (3 meses)';
+      var thMo = idioma === 'en' ? 'Monthly (4th+)' : 'Mensual (4to mes+)';
+      var moLabel = idioma === 'en' ? '/mo' : '/mes';
+      (cd.telefonia.paises_seleccionados || []).forEach(function(paisKey) {
+        var planes = (cd.telefonia.planes_por_pais || {})[paisKey] || [];
+        var pName = (paisNames[paisKey] || {})[idioma] || paisKey;
+        plansHtml += '<h4 style="margin:16px 0 8px;font-size:15px;">' + pName + '</h4>';
+        plansHtml += '<table class="gen-voip-table"><thead><tr><th>' + thMin + '</th><th>' + thInit + '</th><th>' + thMo + '</th></tr></thead><tbody>';
+        planes.forEach(function(p){ plansHtml += '<tr><td><strong>' + p.minutos + ' min</strong></td><td>' + sym + p.precio_inicial + '</td><td>' + sym + p.precio_mensual + moLabel + '</td></tr>'; });
+        plansHtml += '</tbody></table>';
+      });
+      telContent = '<div class="card-label">📞 ' + titleTxt2 + '</div>'
+        + '<p style="font-size:13px;color:var(--gray-700);margin-bottom:12px;">' + introTxt + '</p>' + plansHtml;
+    }
+
+    telCard.innerHTML = telContent;
+    container.insertBefore(telCard, insertBefore);
+  }
+
+  // ── CONDICIONES ──
+  var condCard = document.createElement('div');
+  condCard.className = 'card';
+  var condLabel = idioma === 'en' ? '📝 SERVICE CONDITIONS' : '📝 CONDICIONES DEL SERVICIO';
+  var condiciones = idioma === 'en' ? [
+    'Minimum commitment period of 3 months.',
+    'Prepaid service (payment before service start).',
+    'Activation after payment confirmation and profile selection.',
+    'Schedules defined by mutual agreement.',
+    'Training is the client\'s responsibility.',
+    'There is no employment relationship with the selected profile.',
+    'Changes to conditions are subject to prior approval.',
+    'Cancellation or non-renewal requires at least 15 days\' notice.',
+    'Subject to the Terms and Conditions of AsistenteVirtualOK.com.'
+  ] : [
+    'Permanencia mínima de 3 meses.',
+    'Servicio prepago (pago antes del inicio).',
+    'Activación tras confirmación de pago y selección del perfil.',
+    'Horarios definidos de mutuo acuerdo.',
+    'La capacitación es responsabilidad del cliente.',
+    'No existe relación laboral con el perfil seleccionado.',
+    'Cambios de condiciones sujetos a aprobación previa.',
+    'Cancelación o no renovación con aviso mínimo de 15 días.',
+    'Sujeto a Términos y Condiciones de AsistenteVirtualOK.com.'
+  ];
+
+  var extrasCondHtml = '';
+  if (cd.condiciones_extras) {
+    if (cd.condiciones_extras.ajuste_precios) {
+      var ajTxt = idioma === 'en'
+        ? 'Prices are set in the agreed currency and are subject to an annual adjustment upon completion of one year of service. Such adjustment may use an approximate six percent (6%) increase as a reference, which is purely indicative and informational.'
+        : 'Los precios están establecidos en la moneda acordada y están sujetos a un ajuste anual al cumplir un año de servicio. Dicho ajuste podrá tener como referencia un incremento aproximado del seis por ciento (6%), el cual es puramente indicativo e informativo.';
+      extrasCondHtml += '<div class="gen-nota" style="margin-top:16px;">' + ajTxt + '</div>';
+    }
+    if (cd.condiciones_extras.nota_personalizada) {
+      extrasCondHtml += '<div class="gen-nota" style="margin-top:12px;">' + cd.condiciones_extras.nota_personalizada + '</div>';
+    }
+  }
+
+  condCard.innerHTML = '<div class="card-label">' + condLabel + '</div>'
+    + '<ul class="gen-cond-list">' + condiciones.map(function(c){ return '<li>' + c + '</li>'; }).join('') + '</ul>'
+    + extrasCondHtml;
+
+  container.insertBefore(condCard, insertBefore);
 }
 
 init();
