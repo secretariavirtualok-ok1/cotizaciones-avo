@@ -363,7 +363,7 @@
     <div class="nav-tab" data-panel="nueva-cotizacion">➕ Nueva cotización</div>
     <div class="nav-tab" data-panel="cotizaciones">📋 Cotizaciones</div>
     <div class="nav-tab" data-panel="clientes">👥 Clientes</div>
-    <div class="nav-tab" data-panel="planes">⚙️ Planes</div>
+    <div class="nav-tab" data-panel="planes">⚙️ Servicios</div>
   </div>
 
   <div class="main">
@@ -393,7 +393,7 @@
                 <th>Comercial</th>
                 <th>Enviadas</th>
                 <th>Abiertas</th>
-                <th>Plan seleccionado</th>
+                <th>Servicio seleccionado</th>
                 <th>Cerradas</th>
                 <th>Descartadas</th>
               </tr>
@@ -414,7 +414,7 @@
                 <th>Comercial</th>
                 <th>Estado</th>
                 <th>Abierta</th>
-                <th>Plan seleccionado</th>
+                <th>Servicio seleccionado</th>
               </tr>
             </thead>
             <tbody><tr><td colspan="6" class="loading">Cargando...</td></tr></tbody>
@@ -517,12 +517,12 @@
       </div>
 
       <div class="card">
-        <div class="card-title">3 · Planes a ofrecer al cliente</div>
+        <div class="card-title">3 · Servicios a ofrecer al cliente</div>
         <p style="font-size:12px;color:var(--gray-500);margin-bottom:14px;">
-          Marca los planes que este cliente podrá seleccionar al abrir su enlace.
+          Marca los servicios que este cliente podrá seleccionar al abrir su enlace.
         </p>
         <div class="plans-grid" id="nc-plans-grid">
-          <div class="loading">Cargando planes...</div>
+          <div class="loading">Cargando servicios...</div>
         </div>
         <div style="margin-top:12px;">
           <button class="btn btn-outline btn-sm" id="nc-sel-all">Seleccionar todos</button>
@@ -577,7 +577,7 @@
             <option value="">Todos</option>
             <option value="enviada">Enviada</option>
             <option value="abierta">Abierta</option>
-            <option value="plan_seleccionado">Plan seleccionado</option>
+            <option value="plan_seleccionado">Servicio seleccionado</option>
             <option value="en_gestion">En gestión</option>
             <option value="en_negociacion">En negociación</option>
             <option value="cerrada">Cerrada</option>
@@ -611,7 +611,7 @@
                 <th>Empresa</th>
                 <th>Comercial</th>
                 <th>Estado</th>
-                <th>Plan seleccionado</th>
+                <th>Servicio seleccionado</th>
                 <th>Enviada</th>
                 <th>Acciones</th>
               </tr>
@@ -660,10 +660,10 @@
       </div>
     </div>
 
-    <!-- ── PLANES ────────────────────────────────────────── -->
+    <!-- ── SERVICIOS ─────────────────────────────────────── -->
     <div class="panel" id="panel-planes">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-        <h2 style="font-size:18px;font-weight:800;">Catálogo de planes</h2>
+        <h2 style="font-size:18px;font-weight:800;">Catálogo de servicios</h2>
       </div>
       <div id="planes-alert"></div>
       <div class="card" style="padding:0;overflow:hidden;">
@@ -672,7 +672,7 @@
             <thead>
               <tr>
                 <th>#</th>
-                <th>Nombre del plan</th>
+                <th>Nombre del servicio</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -709,10 +709,10 @@
 
       <div style="margin-top:20px;">
         <div class="card-title" style="font-size:13px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--gray-100);">
-          Planes ofrecidos
+          Servicios ofrecidos
         </div>
         <div id="mq-plans-edit" class="plans-grid"></div>
-        <button class="btn btn-primary btn-sm" style="margin-top:10px;" id="mq-save-plans">Guardar cambios de planes</button>
+        <button class="btn btn-primary btn-sm" style="margin-top:10px;" id="mq-save-plans">Guardar cambios de servicios</button>
       </div>
 
       <div style="margin-top:20px;">
@@ -725,7 +725,7 @@
             <select id="mq-estado-sel">
               <option value="enviada">Enviada</option>
               <option value="abierta">Abierta</option>
-              <option value="plan_seleccionado">Plan seleccionado</option>
+              <option value="plan_seleccionado">Servicio seleccionado</option>
               <option value="en_gestion">En gestión</option>
               <option value="en_negociacion">En negociación</option>
               <option value="cerrada">Cerrada</option>
@@ -892,7 +892,7 @@ function fmtDt(dateStr) {
 }
 function badgeHtml(estado) {
   const labels = {
-    enviada:'Enviada', abierta:'Abierta', plan_seleccionado:'Plan seleccionado',
+    enviada:'Enviada', abierta:'Abierta', plan_seleccionado:'Servicio seleccionado',
     en_gestion:'En gestión', en_negociacion:'En negociación', cerrada:'Cerrada', descartada:'Descartada'
   };
   return `<span class="badge badge-${estado}">${labels[estado] || estado}</span>`;
@@ -1155,7 +1155,7 @@ async function submitNuevaCotizacion() {
   if (!wordFile) { showAlert(alertId, 'Adjunta el archivo Word de la cotización.', 'error'); return; }
 
   const planes = getSelectedPlans('nc-plans-grid');
-  if (planes.length === 0) { showAlert(alertId, 'Selecciona al menos un plan a ofrecer.', 'error'); return; }
+  if (planes.length === 0) { showAlert(alertId, 'Selecciona al menos un servicio a ofrecer.', 'error'); return; }
 
   const idioma = document.getElementById('nc-idioma').value || 'es';
   const moneda = document.getElementById('nc-moneda').value || 'USD';
@@ -1259,7 +1259,7 @@ async function loadDashboard() {
   statsEl.innerHTML = `
     <div class="stat-card gold"><div class="stat-label">Total enviadas</div><div class="stat-value">${total}</div></div>
     <div class="stat-card blue"><div class="stat-label">Abiertas</div><div class="stat-value">${counts.abierta + counts.plan_seleccionado + counts.en_gestion + counts.en_negociacion + counts.cerrada}</div></div>
-    <div class="stat-card green"><div class="stat-label">Plan seleccionado</div><div class="stat-value">${counts.plan_seleccionado}</div></div>
+    <div class="stat-card green"><div class="stat-label">Servicio seleccionado</div><div class="stat-value">${counts.plan_seleccionado}</div></div>
     <div class="stat-card amber"><div class="stat-label">En gestión / negociación</div><div class="stat-value">${counts.en_gestion + counts.en_negociacion}</div></div>
     <div class="stat-card green"><div class="stat-label">Cerradas</div><div class="stat-value">${counts.cerrada}</div></div>
     <div class="stat-card red"><div class="stat-label">Descartadas</div><div class="stat-value">${counts.descartada}</div></div>
@@ -1364,7 +1364,7 @@ async function openQuoteModal(quoteId) {
     <div class="detail-item"><label>Comercial</label><div class="val">${q.comercial}</div></div>
     <div class="detail-item"><label>Fecha de envío</label><div class="val">${fmt(q.fecha_envio)}</div></div>
     <div class="detail-item"><label>Primera apertura</label><div class="val">${q.fecha_primera_apertura ? fmtDt(q.fecha_primera_apertura) : '—'}</div></div>
-    <div class="detail-item"><label>Plan seleccionado</label><div class="val">${q.plan_seleccionado_nombre || '—'}</div></div>
+    <div class="detail-item"><label>Servicio seleccionado</label><div class="val">${q.plan_seleccionado_nombre || '—'}</div></div>
     <div class="detail-item"><label>Fecha de selección</label><div class="val">${q.fecha_seleccion ? fmtDt(q.fecha_seleccion) : '—'}</div></div>
     <div class="detail-item"><label>Moneda</label><div class="val">${q.moneda || 'USD'}</div></div>
     <div class="detail-item"><label>Vencimiento</label><div class="val">${q.vencimiento ? fmt(q.vencimiento) : 'Sin vencimiento'}</div></div>
@@ -1393,7 +1393,7 @@ async function openQuoteModal(quoteId) {
       <thead><tr><th>Tipo</th><th>Fecha / hora</th><th>Info</th></tr></thead>
       <tbody>${events.map(e => `
         <tr>
-          <td>${e.tipo === 'opened' ? '👁 Apertura' : e.tipo === 'plan_selected' ? '✅ Plan seleccionado' : '🔄 Cambio de estado'}</td>
+          <td>${e.tipo === 'opened' ? '👁 Apertura' : e.tipo === 'plan_selected' ? '✅ Servicio seleccionado' : '🔄 Cambio de estado'}</td>
           <td>${fmtDt(e.created_at)}</td>
           <td style="color:var(--gray-500);">${e.metadata?.plan_nombre || e.metadata?.estado || ''}</td>
         </tr>`).join('')}
@@ -1413,7 +1413,7 @@ document.getElementById('mq-save-plans').addEventListener('click', async () => {
   const planes = getSelectedPlans('mq-plans-edit');
   const preciosPlanes = getPreciosCombinaciones();
   const { error } = await sb.from('quotes').update({ planes_ofrecidos: planes, precios_combinaciones: preciosPlanes }).eq('id', editingQuote);
-  showAlert('mq-alert', error ? 'Error al guardar: ' + error.message : 'Planes actualizados correctamente.', error ? 'error' : 'success');
+  showAlert('mq-alert', error ? 'Error al guardar: ' + error.message : 'Servicios actualizados correctamente.', error ? 'error' : 'success');
 });
 
 document.getElementById('mq-save-estado').addEventListener('click', async () => {
@@ -1519,7 +1519,7 @@ document.getElementById('mc-save').addEventListener('click', async () => {
 async function loadPlanesPanel() {
   const { data } = await sb.from('plans').select('*').order('orden');
   const tbody = document.getElementById('planes-tbody');
-  if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="empty">Sin planes</td></tr>'; return; }
+  if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="empty">Sin servicios</td></tr>'; return; }
   tbody.innerHTML = data.map(p => `
     <tr>
       <td>${p.orden}</td>
@@ -1540,7 +1540,7 @@ async function savePlan(id) {
   if (!nombre) { showAlert('planes-alert', 'El nombre no puede estar vacío.', 'error'); return; }
   const { error } = await sb.from('plans').update({ nombre }).eq('id', id);
   if (error) { showAlert('planes-alert', 'Error: ' + error.message, 'error'); return; }
-  showAlert('planes-alert', 'Plan actualizado.', 'success');
+  showAlert('planes-alert', 'Servicio actualizado.', 'success');
   await loadPlans(); // actualiza el array global
 }
 
