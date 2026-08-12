@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AVO — Generador de Cotizaciones</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ══ RESET & VARIABLES ══════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --avo-blue: #1B3A5C;
+  --avo-accent: #2E86C1;
+  --avo-light: #EBF5FB;
+  --avo-green: #27AE60;
+  --avo-red: #E74C3C;
+  --avo-orange: #F39C12;
+  --gray-50: #F8F9FA;
+  --gray-100: #F1F3F5;
+  --gray-200: #E9ECEF;
+  --gray-300: #DEE2E6;
+  --gray-400: #CED4DA;
+  --gray-500: #ADB5BD;
+  --gray-600: #868E96;
+  --gray-700: #495057;
+  --gray-800: #343A40;
+  --gray-900: #212529;
+  --white: #FFFFFF;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.1), 0 4px 6px rgba(0,0,0,0.05);
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--gray-50); color: var(--gray-800); line-height: 1.5; }
+
+/* ══ LOGIN ══════════════════════════════════════════════ */
+#login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: linear-gradient(135deg, var(--avo-blue) 0%, #2E4A6E 100%); }
+.login-card { background: var(--white); border-radius: var(--radius-lg); padding: 40px; width: 380px; box-shadow: var(--shadow-lg); }
+.login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+.login-logo-mark { background: var(--avo-blue); color: white; font-weight: 900; font-size: 18px; padding: 8px 12px; border-radius: 8px; letter-spacing: 1px; }
+.login-logo-text { font-weight: 700; font-size: 15px; color: var(--avo-blue); line-height: 1.2; }
+.login-logo-text span { display: block; font-weight: 400; font-size: 12px; color: var(--gray-500); }
+.login-card h1 { font-size: 20px; font-weight: 800; margin-bottom: 4px; color: var(--gray-900); }
+.login-card > p { font-size: 13px; color: var(--gray-500); margin-bottom: 20px; }
+.login-error { background: #FEF2F2; color: var(--avo-red); padding: 10px 14px; border-radius: 6px; font-size: 13px; display: none; margin-bottom: 12px; }
+
+/* ══ FORMS ══════════════════════════════════════════════ */
+.field { margin-bottom: 16px; }
+.field > label { display: block; font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 5px; }
+.field > input, .field > select, .field > textarea {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--gray-300); border-radius: 6px;
+  font-size: 14px; color: var(--gray-800); background: var(--white); transition: border 0.15s;
+}
+.field > input:focus, .field > select:focus, .field > textarea:focus {
+  outline: none; border-color: var(--avo-accent); box-shadow: 0 0 0 3px rgba(46,134,193,0.1);
+}
+.field > textarea { resize: vertical; min-height: 80px; }
+.field-hint { font-size: 12px; color: var(--gray-500); margin-top: 3px; }
+.field-row { display: flex; gap: 12px; }
+.field-row > .field { flex: 1; }
+
+/* ══ BUTTONS ════════════════════════════════════════════ */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
+.btn-primary { background: var(--avo-blue); color: white; }
+.btn-primary:hover { background: #152D48; }
+.btn-accent { background: var(--avo-accent); color: white; }
+.btn-accent:hover { background: #2576AB; }
+.btn-success { background: var(--avo-green); color: white; }
+.btn-success:hover { background: #219A52; }
+.btn-outline { background: white; color: var(--gray-700); border-color: var(--gray-300); }
+.btn-outline:hover { background: var(--gray-50); border-color: var(--gray-400); }
+.btn-danger { background: var(--avo-red); color: white; }
+.btn-danger:hover { background: #C0392B; }
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+.btn-full { width: 100%; justify-content: center; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-icon { padding: 6px 8px; }
+
+/* ══ TOPBAR ═════════════════════════════════════════════ */
+.topbar { display: flex; align-items: center; justify-content: space-between; background: var(--avo-blue); color: white; padding: 0 24px; height: 56px; }
+.topbar-brand { display: flex; align-items: center; gap: 10px; }
+.topbar-mark { background: rgba(255,255,255,0.15); font-weight: 900; font-size: 14px; padding: 5px 10px; border-radius: 6px; letter-spacing: 1px; }
+.topbar-title { font-weight: 700; font-size: 15px; }
+.topbar-sub { font-size: 11px; opacity: 0.7; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.topbar-user { font-size: 13px; opacity: 0.8; }
+.topbar a, .topbar .btn-outline { color: white; border-color: rgba(255,255,255,0.3); }
+.topbar a:hover, .topbar .btn-outline:hover { background: rgba(255,255,255,0.1); }
+
+/* ══ LAYOUT ═════════════════════════════════════════════ */
+#app { display: none; }
+.main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+/* ══ STEPPER ════════════════════════════════════════════ */
+.stepper { display: flex; align-items: center; gap: 0; margin-bottom: 32px; background: var(--white); border-radius: var(--radius-lg); padding: 16px 20px; box-shadow: var(--shadow); overflow-x: auto; }
+.step { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--gray-400); cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+.step.active { background: var(--avo-light); color: var(--avo-accent); }
+.step.done { color: var(--avo-green); }
+.step-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; border: 2px solid var(--gray-300); color: var(--gray-400); transition: all 0.2s; }
+.step.active .step-num { border-color: var(--avo-accent); color: var(--avo-accent); background: white; }
+.step.done .step-num { border-color: var(--avo-green); color: white; background: var(--avo-green); }
+.step-arrow { color: var(--gray-300); font-size: 18px; margin: 0 4px; }
+
+/* ══ CARDS ══════════════════════════════════════════════ */
+.card { background: var(--white); border-radius: var(--radius-lg); padding: 28px; box-shadow: var(--shadow); margin-bottom: 20px; }
+.card-title { font-size: 17px; font-weight: 800; color: var(--gray-900); margin-bottom: 4px; }
+.card-subtitle { font-size: 13px; color: var(--gray-500); margin-bottom: 20px; }
+
+/* ══ SERVICE SELECTOR ═══════════════════════════════════ */
+.service-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.service-option { border: 2px solid var(--gray-200); border-radius: var(--radius); padding: 16px; cursor: pointer; transition: all 0.15s; text-align: center; }
+.service-option:hover { border-color: var(--avo-accent); background: var(--avo-light); }
+.service-option.selected { border-color: var(--avo-accent); background: var(--avo-light); box-shadow: 0 0 0 3px rgba(46,134,193,0.15); }
+.service-option .svc-name { font-weight: 700; font-size: 14px; color: var(--gray-800); margin-top: 8px; }
+.service-option .svc-type { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+
+/* ══ FUNCTION LIST EDITOR ═══════════════════════════════ */
+.func-list { list-style: none; counter-reset: func; }
+.func-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--gray-100); }
+.func-item:last-child { border-bottom: none; }
+.func-item::before { counter-increment: func; content: counter(func) "."; font-size: 13px; font-weight: 700; color: var(--avo-accent); min-width: 24px; padding-top: 2px; }
+.func-item textarea { flex: 1; border: 1px solid transparent; background: transparent; font-size: 13px; line-height: 1.5; color: var(--gray-800); resize: none; padding: 2px 6px; border-radius: 4px; min-height: 22px; }
+.func-item textarea:hover { border-color: var(--gray-200); background: var(--gray-50); }
+.func-item textarea:focus { border-color: var(--avo-accent); background: white; outline: none; box-shadow: 0 0 0 2px rgba(46,134,193,0.1); }
+.func-item .func-remove { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: 2px 4px; font-size: 16px; line-height: 1; border-radius: 4px; }
+.func-item .func-remove:hover { color: var(--avo-red); background: #FEF2F2; }
+.func-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+/* ══ JORNADA CARDS ══════════════════════════════════════ */
+.jornada-options { display: flex; gap: 12px; flex-wrap: wrap; }
+.jornada-card { border: 2px solid var(--gray-200); border-radius: var(--radius); padding: 16px 20px; cursor: pointer; transition: all 0.15s; flex: 1; min-width: 200px; }
+.jornada-card:hover { border-color: var(--avo-accent); }
+.jornada-card.selected { border-color: var(--avo-accent); background: var(--avo-light); }
+.jornada-card .j-title { font-weight: 700; font-size: 14px; color: var(--gray-800); }
+.jornada-card .j-desc { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+
+/* ══ TELEPHONY ══════════════════════════════════════════ */
+.voip-type-selector { display: flex; gap: 10px; margin-bottom: 16px; }
+.voip-type-btn { padding: 10px 20px; border: 2px solid var(--gray-200); border-radius: var(--radius); cursor: pointer; font-size: 13px; font-weight: 600; color: var(--gray-600); transition: all 0.15s; }
+.voip-type-btn:hover { border-color: var(--avo-accent); }
+.voip-type-btn.active { border-color: var(--avo-accent); background: var(--avo-light); color: var(--avo-accent); }
+.country-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.country-option { border: 2px solid var(--gray-200); border-radius: var(--radius); padding: 12px; cursor: pointer; text-align: center; transition: all 0.15s; }
+.country-option:hover { border-color: var(--avo-accent); }
+.country-option.selected { border-color: var(--avo-accent); background: var(--avo-light); }
+.country-option .country-name { font-weight: 600; font-size: 13px; margin-top: 4px; }
+
+/* ══ PRICE TABLE ════════════════════════════════════════ */
+.price-table { width: 100%; border-collapse: collapse; }
+.price-table th, .price-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--gray-100); }
+.price-table th { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--gray-500); background: var(--gray-50); }
+.price-table td { font-size: 14px; }
+.price-table input[type="number"] { width: 120px; padding: 6px 10px; border: 1px solid var(--gray-300); border-radius: 4px; font-size: 14px; }
+.price-table input[type="number"]:focus { outline: none; border-color: var(--avo-accent); }
+
+/* ══ SCHEDULE EDITOR ════════════════════════════════════ */
+.schedule-block { background: var(--gray-50); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+.schedule-block .sch-label { font-weight: 700; font-size: 14px; color: var(--avo-blue); margin-bottom: 8px; }
+
+/* ══ CONDITIONS ═════════════════════════════════════════ */
+.condition-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.condition-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--avo-accent); cursor: pointer; }
+.condition-item label { font-size: 13px; color: var(--gray-700); cursor: pointer; }
+
+/* ══ NAV BUTTONS ════════════════════════════════════════ */
+.step-nav { display: flex; justify-content: space-between; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--gray-100); }
+
+/* ══ PREVIEW ════════════════════════════════════════════ */
+.preview-frame { border: 1px solid var(--gray-200); border-radius: var(--radius-lg); overflow: hidden; background: white; }
+.preview-frame iframe { width: 100%; height: 800px; border: none; }
+
+/* ══ TOGGLE ═════════════════════════════════════════════ */
+.toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.toggle { position: relative; width: 44px; height: 24px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--gray-300); border-radius: 24px; transition: 0.2s; }
+.toggle-slider::before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.2s; }
+.toggle input:checked + .toggle-slider { background-color: var(--avo-accent); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(20px); }
+.toggle-label { font-size: 14px; font-weight: 600; color: var(--gray-700); }
+
+/* ══ QUANTITY ═══════════════════════════════════════════ */
+.qty-control { display: flex; align-items: center; gap: 8px; }
+.qty-control button { width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--gray-300); background: white; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.qty-control button:hover { background: var(--gray-50); }
+.qty-control span { font-size: 16px; font-weight: 700; min-width: 32px; text-align: center; }
+
+/* ══ ALERT ══════════════════════════════════════════════ */
+.alert { padding: 12px 16px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; }
+.alert-info { background: #EBF5FB; color: #1B6CA8; }
+.alert-success { background: #E8F8F0; color: #1B8A4C; }
+.alert-warning { background: #FEF9E7; color: #9A7B1A; }
+
+/* ══ HIDDEN ═════════════════════════════════════════════ */
+.hidden { display: none !important; }
+
+/* ══ RESPONSIVE ═════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .main { padding: 16px; }
+  .stepper { padding: 12px; }
+  .step { padding: 6px 10px; font-size: 12px; }
+  .step-arrow { display: none; }
+  .service-grid { grid-template-columns: 1fr 1fr; }
+  .field-row { flex-direction: column; gap: 0; }
+  .jornada-options { flex-direction: column; }
+  .step-nav { flex-direction: column; gap: 10px; }
+  .step-nav .btn { width: 100%; justify-content: center; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-mark">AVO</div>
+      <div class="login-logo-text">
+        AsistenteVirtualOk
+        <span>Generador de Cotizaciones</span>
+      </div>
+    </div>
+    <h1>Iniciar sesión</h1>
+    <p>Acceso exclusivo para el equipo comercial</p>
+    <div id="login-error" class="login-error"></div>
+    <div class="field">
+      <label>Correo electrónico</label>
+      <input type="email" id="login-email" placeholder="correo@asistentevirtualok.com" />
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••••••" />
+    </div>
+    <button class="btn btn-primary btn-full" id="login-btn">Entrar</button>
+  </div>
+</div>
+
+<!-- ══ APP ════════════════════════════════════════════════ -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div class="topbar-mark">AVO</div>
+      <div>
+        <div class="topbar-title">Generador de Cotizaciones</div>
+        <div class="topbar-sub">AsistenteVirtualOk.com</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <a href="admin.html" class="btn btn-outline btn-sm">← Panel Admin</a>
+      <span class="topbar-user" id="topbar-email"></span>
+      <button class="btn btn-outline btn-sm" id="logout-btn">Salir</button>
+    </div>
+  </div>
+
+  <!-- STEPPER -->
+  <div class="main">
+    <div class="stepper" id="stepper">
+      <div class="step active" data-step="1"><div class="step-num">1</div> Cliente</div>
+      <span class="step-arrow">›</span>
+      <div class="step" data-step="2"><div class="step-num">2</div> Servicio</div>
+      <span class="step-arrow">›</span>
+      <div class="step" data-step="3"><div class="step-num">3</div> Funciones</div>
+      <span class="step-arrow">›</span>
+      <div class="step" data-step="4"><div class="step-num">4</div> Jornada y Precio</div>
+      <span class="step-arrow">›</span>
+      <div class="step" data-step="5"><div class="step-num">5</div> Telefonía</div>
+      <span class="step-arrow">›</span>
+      <div class="step" data-step="6"><div class="step-num">6</div> Condiciones</div>
+      <span class="step-arrow">›</span>
+      <div class="step" data-step="7"><div class="step-num">7</div> Guardar</div>
+    </div>
+
+    <!-- ══ STEP 1: CLIENTE ═══════════════════════════════ -->
+    <div class="step-content" id="step-1">
+      <div class="card">
+        <div class="card-title">Información del cliente</div>
+        <div class="card-subtitle">Selecciona un cliente existente o crea uno nuevo</div>
+
+        <div class="field">
+          <label>Buscar cliente existente</label>
+          <input type="text" id="client-search" placeholder="Escribe nombre o empresa..." autocomplete="off" />
+          <div id="client-results" class="hidden" style="border:1px solid var(--gray-200); border-radius:6px; margin-top:4px; max-height:200px; overflow-y:auto;"></div>
+        </div>
+
+        <div style="text-align:center; color:var(--gray-400); font-size:13px; margin:12px 0;">— o crea uno nuevo —</div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Nombre del contacto *</label>
+            <input type="text" id="client-nombre" placeholder="Ej: Michael García" />
+          </div>
+          <div class="field">
+            <label>Empresa</label>
+            <input type="text" id="client-empresa" placeholder="Ej: Tropical Reps" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Correo electrónico</label>
+            <input type="email" id="client-email" placeholder="correo@empresa.com" />
+          </div>
+          <div class="field">
+            <label>Teléfono</label>
+            <input type="text" id="client-telefono" placeholder="+1 (305) 000-0000" />
+          </div>
+        </div>
+
+        <hr style="border:none; border-top:1px solid var(--gray-100); margin:20px 0;">
+
+        <div class="field-row">
+          <div class="field">
+            <label>Comercial asignado *</label>
+            <select id="gen-comercial">
+              <option value="">Seleccionar...</option>
+              <option value="Laura Vidal">Laura Vidal</option>
+              <option value="Amparo Martin">Amparo Martin</option>
+              <option value="Daihana Gaitan">Daihana Gaitan</option>
+              <option value="Iosu Isusi">Iosu Isusi</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Idioma de la cotización *</label>
+            <select id="gen-idioma">
+              <option value="es">Español</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Moneda *</label>
+            <select id="gen-moneda">
+              <option value="USD">USD — Dólar americano ($)</option>
+              <option value="EUR">EUR — Euro (€)</option>
+              <option value="COP">COP — Peso colombiano ($)</option>
+              <option value="MXN">MXN — Peso mexicano ($)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Vencimiento</label>
+            <select id="gen-vencimiento">
+              <option value="7">7 días</option>
+              <option value="15" selected>15 días</option>
+              <option value="30">30 días</option>
+              <option value="60">60 días</option>
+              <option value="">Sin vencimiento</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <div></div>
+        <button class="btn btn-primary" onclick="goToStep(2)">Siguiente: Servicio →</button>
+      </div>
+    </div>
+
+    <!-- ══ STEP 2: SERVICIO ══════════════════════════════ -->
+    <div class="step-content hidden" id="step-2">
+      <div class="card">
+        <div class="card-title">Tipo de servicio</div>
+        <div class="card-subtitle">Selecciona el servicio que se ofrecerá al cliente</div>
+
+        <div class="toggle-row">
+          <label class="toggle">
+            <input type="checkbox" id="is-bilingue" onchange="toggleBilingue()">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label">Servicio Bilingüe</span>
+        </div>
+
+        <div class="service-grid" id="service-grid">
+          <!-- Se llena dinámicamente -->
+        </div>
+      </div>
+
+      <div class="card hidden" id="qty-card">
+        <div class="card-title">Cantidad de servicios</div>
+        <div class="card-subtitle">¿Cuántos servicios de este tipo necesita el cliente?</div>
+        <div class="qty-control">
+          <button onclick="changeQty(-1)">−</button>
+          <span id="qty-display">1</span>
+          <button onclick="changeQty(1)">+</button>
+        </div>
+        <p class="field-hint" style="margin-top:8px;">El monto total se calculará automáticamente (precio × cantidad)</p>
+      </div>
+
+      <div class="step-nav">
+        <button class="btn btn-outline" onclick="goToStep(1)">← Anterior</button>
+        <button class="btn btn-primary" onclick="goToStep(3)">Siguiente: Funciones →</button>
+      </div>
+    </div>
+
+    <!-- ══ STEP 3: FUNCIONES ═════════════════════════════ -->
+    <div class="step-content hidden" id="step-3">
+      <div class="card">
+        <div class="card-title" id="func-title">Funciones y alcance del plan</div>
+        <div class="card-subtitle">Las funciones se pre-cargan según el servicio seleccionado. Puedes editar, agregar o eliminar.</div>
+
+        <div class="alert alert-info" id="func-info">
+          Las funciones se muestran en el idioma de la cotización. Si cambias el idioma, se actualizarán automáticamente.
+        </div>
+
+        <ul class="func-list" id="func-list">
+          <!-- Se llena dinámicamente -->
+        </ul>
+
+        <div class="func-actions">
+          <button class="btn btn-outline btn-sm" onclick="addFunction()">+ Agregar función</button>
+          <button class="btn btn-outline btn-sm" onclick="resetFunctions()">↺ Restaurar predeterminadas</button>
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <button class="btn btn-outline" onclick="goToStep(2)">← Anterior</button>
+        <button class="btn btn-primary" onclick="goToStep(4)">Siguiente: Jornada y Precio →</button>
+      </div>
+    </div>
+
+    <!-- ══ STEP 4: JORNADA Y PRECIO ══════════════════════ -->
+    <div class="step-content hidden" id="step-4">
+      <div class="card">
+        <div class="card-title">Modalidad de jornada</div>
+        <div class="card-subtitle">Selecciona las jornadas que se ofrecerán al cliente (puede ser más de una)</div>
+
+        <div class="jornada-options" id="jornada-options">
+          <div class="jornada-card" data-jornada="media" onclick="toggleJornada(this)">
+            <div class="j-title">📋 Media Jornada</div>
+            <div class="j-desc">4 horas diarias, lunes a viernes</div>
+          </div>
+          <div class="jornada-card" data-jornada="completa" onclick="toggleJornada(this)">
+            <div class="j-title">💼 Jornada Completa</div>
+            <div class="j-desc">8 horas diarias (con 1h descanso), lunes a viernes</div>
+          </div>
+          <div class="jornada-card" data-jornada="media_3meses" onclick="toggleJornada(this)">
+            <div class="j-title">📅 Media Jornada (3 primeros meses)</div>
+            <div class="j-desc">Inicia media jornada y pasa a completa desde el 4to mes</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Horarios por jornada -->
+      <div class="card hidden" id="schedule-card">
+        <div class="card-title">Horarios del servicio</div>
+        <div class="card-subtitle">Configura el horario para cada jornada seleccionada</div>
+        <div id="schedule-editors"></div>
+      </div>
+
+      <!-- Precios -->
+      <div class="card hidden" id="price-card">
+        <div class="card-title">Precios</div>
+        <div class="card-subtitle" id="price-subtitle">Ingresa el precio mensual para cada modalidad</div>
+        <table class="price-table" id="price-table">
+          <thead><tr id="price-header"></tr></thead>
+          <tbody id="price-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Precio media 3 meses (detalle adicional) -->
+      <div class="card hidden" id="media3-detail-card">
+        <div class="card-title">Detalle: Media Jornada → Jornada Completa</div>
+        <div class="card-subtitle">Configura los precios y horarios para la transición</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Precio primeros 3 meses (media jornada)</label>
+            <input type="number" id="precio-media3-inicio" placeholder="625" />
+          </div>
+          <div class="field">
+            <label>Precio desde el 4to mes (jornada completa)</label>
+            <input type="number" id="precio-media3-full" placeholder="960" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Horario primeros 3 meses</label>
+            <input type="text" id="horario-media3-inicio" placeholder="Ej: 7:00 a.m. a 11:00 a.m. EST" />
+          </div>
+          <div class="field">
+            <label>Horario desde el 4to mes</label>
+            <input type="text" id="horario-media3-full" placeholder="Ej: 7:00 a.m. a 5:00 p.m. EST" />
+          </div>
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <button class="btn btn-outline" onclick="goToStep(3)">← Anterior</button>
+        <button class="btn btn-primary" onclick="goToStep(5)">Siguiente: Telefonía →</button>
+      </div>
+    </div>
+
+    <!-- ══ STEP 5: TELEFONÍA ═════════════════════════════ -->
+    <div class="step-content hidden" id="step-5">
+      <div class="card">
+        <div class="card-title">Telefonía VoIP</div>
+        <div class="card-subtitle">Configura si la cotización incluye servicio de telefonía</div>
+
+        <div class="voip-type-selector">
+          <div class="voip-type-btn active" data-voip="none" onclick="setVoipType('none')">
+            🚫 Sin telefonía
+          </div>
+          <div class="voip-type-btn" data-voip="incluida" onclick="setVoipType('incluida')">
+            📞 Incluida en el plan
+          </div>
+          <div class="voip-type-btn" data-voip="opcional" onclick="setVoipType('opcional')">
+            📋 Planes opcionales
+          </div>
+        </div>
+
+        <!-- Telefonía incluida -->
+        <div id="voip-incluida" class="hidden">
+          <div class="card-subtitle" style="margin-top:16px;">La telefonía viene incluida en el servicio principal</div>
+          <div class="field-row">
+            <div class="field">
+              <label>País de destino</label>
+              <select id="voip-incl-pais"></select>
+            </div>
+            <div class="field">
+              <label>Minutos mensuales incluidos</label>
+              <input type="number" id="voip-incl-minutos" placeholder="1500" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Características adicionales (una por línea)</label>
+            <textarea id="voip-incl-extras" rows="4" placeholder="Llamadas entrantes ilimitadas.
+Acceso a panel de control para visualizar y gestionar la actividad telefónica.
+Grabación de llamadas para respaldo y control de calidad.
+Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales."></textarea>
+          </div>
+        </div>
+
+        <!-- Telefonía opcional -->
+        <div id="voip-opcional" class="hidden">
+          <div class="card-subtitle" style="margin-top:16px;">Selecciona los países y planes VoIP disponibles</div>
+          <div class="country-grid" id="country-grid">
+            <!-- Se llena dinámicamente -->
+          </div>
+
+          <div id="voip-plans-detail" class="hidden" style="margin-top:20px;">
+            <div class="card-subtitle">Planes de minutos disponibles para los países seleccionados</div>
+            <div id="voip-plans-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <button class="btn btn-outline" onclick="goToStep(4)">← Anterior</button>
+        <button class="btn btn-primary" onclick="goToStep(6)">Siguiente: Condiciones →</button>
+      </div>
+    </div>
+
+    <!-- ══ STEP 6: CONDICIONES ═══════════════════════════ -->
+    <div class="step-content hidden" id="step-6">
+      <div class="card">
+        <div class="card-title">Condiciones del servicio</div>
+        <div class="card-subtitle">Las condiciones estándar se incluyen automáticamente. Puedes agregar notas adicionales.</div>
+
+        <div style="background:var(--gray-50); border-radius:8px; padding:16px; margin-bottom:16px;">
+          <p style="font-size:13px; font-weight:700; color:var(--gray-600); margin-bottom:8px;">Condiciones estándar (siempre incluidas):</p>
+          <ul style="font-size:13px; color:var(--gray-600); padding-left:20px; line-height:1.8;">
+            <li>Permanencia mínima de 3 meses</li>
+            <li>Servicio prepago (pago antes del inicio)</li>
+            <li>Activación tras confirmación de pago y selección del perfil</li>
+            <li>Horarios definidos de mutuo acuerdo</li>
+            <li>La capacitación es responsabilidad del cliente</li>
+            <li>No existe relación laboral con el perfil seleccionado</li>
+            <li>Cambios de condiciones sujetos a aprobación previa</li>
+            <li>Cancelación o no renovación con aviso mínimo de 15 días</li>
+            <li>Sujeto a Términos y Condiciones de AsistenteVirtualOK.com</li>
+          </ul>
+        </div>
+
+        <div class="condition-item">
+          <input type="checkbox" id="cond-ajuste-precios">
+          <label for="cond-ajuste-precios">Incluir nota informativa sobre política de ajuste de precios (~6% anual)</label>
+        </div>
+
+        <div class="field" style="margin-top:16px;">
+          <label>Nota especial (opcional)</label>
+          <textarea id="cond-nota-especial" rows="3" placeholder="Ej: No podemos garantizar el uso de un programa contable en específico o conocimientos específicos de la contabilidad española..."></textarea>
+          <p class="field-hint">Esta nota aparecerá debajo del precio en la cotización</p>
+        </div>
+
+        <div class="field">
+          <label>Notas internas (solo visible en el admin, no en la cotización)</label>
+          <textarea id="cond-notas-internas" rows="2" placeholder="Notas para el equipo interno..."></textarea>
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <button class="btn btn-outline" onclick="goToStep(5)">← Anterior</button>
+        <button class="btn btn-primary" onclick="goToStep(7)">Siguiente: Revisar y Guardar →</button>
+      </div>
+    </div>
+
+    <!-- ══ STEP 7: RESUMEN Y GUARDAR ═════════════════════ -->
+    <div class="step-content hidden" id="step-7">
+      <div class="card">
+        <div class="card-title">Resumen de la cotización</div>
+        <div class="card-subtitle">Revisa la información antes de generar el enlace</div>
+
+        <div id="summary-content" style="font-size:14px; line-height:1.8;">
+          <!-- Se llena dinámicamente -->
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <button class="btn btn-outline" onclick="goToStep(6)">← Anterior</button>
+        <button class="btn btn-success" id="save-btn" onclick="saveQuotation()">
+          ✓ Generar cotización y enlace
+        </button>
+      </div>
+
+      <!-- Resultado -->
+      <div class="card hidden" id="result-card" style="margin-top:20px; border: 2px solid var(--avo-green);">
+        <div class="card-title" style="color: var(--avo-green);">✓ Cotización creada exitosamente</div>
+        <div class="field" style="margin-top:12px;">
+          <label>Enlace para el cliente</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="result-link" readonly style="flex:1; background:var(--gray-50);" />
+            <button class="btn btn-accent btn-sm" onclick="copyLink()">Copiar</button>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:12px;">
+          <a class="btn btn-outline btn-sm" id="result-preview" href="#" target="_blank">Ver cotización →</a>
+          <a class="btn btn-outline btn-sm" href="admin.html">Ir al panel admin</a>
+          <button class="btn btn-primary btn-sm" onclick="newQuotation()">+ Nueva cotización</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://avtznfyenkvfapwxdrho.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dHpuZnllbmt2ZmFwd3hkcmhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NDA0OTAsImV4cCI6MjEwMTIxNjQ5MH0.S3ajI-wB0n4dJ-JmrVf6k8OAIbGq0B2JtFQOHAQsKaU';
+const VIEWER_BASE = 'https://cotizacionesavo.netlify.app/viewer.html';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ══════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════
+let currentStep = 1;
+let selectedClientId = null;
+let serviceCatalog = [];
+let voipCatalog = [];
+let selectedService = null;
+let isBilingue = false;
+let selectedJornadas = [];
+let serviceQty = 1;
+let voipType = 'none';
+let selectedVoipCountries = [];
+let currentFunctions = [];
+let plans = [];
+
+// ══════════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════════
+document.getElementById('login-btn').addEventListener('click', login);
+document.getElementById('login-pass').addEventListener('keyup', e => { if (e.key === 'Enter') login(); });
+document.getElementById('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+
+async function login() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  if (!email || !pass) { errEl.textContent = 'Ingresa correo y contraseña'; errEl.style.display = 'block'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { errEl.textContent = 'Credenciales incorrectas'; errEl.style.display = 'block'; return; }
+  initApp();
+}
+
+async function checkSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) initApp();
+}
+
+async function initApp() {
+  const { data: { user } } = await sb.auth.getUser();
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('topbar-email').textContent = user.email;
+  await loadCatalogs();
+  renderServices();
+  renderCountries();
+}
+
+// ══════════════════════════════════════════════════════════
+//  LOAD CATALOGS
+// ══════════════════════════════════════════════════════════
+async function loadCatalogs() {
+  const { data: svc } = await sb.from('service_catalog').select('*').eq('activo', true).order('orden');
+  serviceCatalog = svc || [];
+  const { data: voip } = await sb.from('voip_catalog').select('*').eq('activo', true);
+  voipCatalog = voip || [];
+  const { data: p } = await sb.from('plans').select('*');
+  plans = p || [];
+
+  // Populate VoIP included country selector
+  const sel = document.getElementById('voip-incl-pais');
+  sel.innerHTML = '<option value="">Seleccionar país...</option>';
+  voipCatalog.forEach(v => {
+    sel.innerHTML += `<option value="${v.pais_key}">${v.pais_nombre_es}</option>`;
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+//  STEPPER NAVIGATION
+// ══════════════════════════════════════════════════════════
+function goToStep(n) {
+  // Validate current step before advancing
+  if (n > currentStep && !validateStep(currentStep)) return;
+
+  // Run step-specific logic when entering
+  if (n === 3) loadFunctions();
+  if (n === 4) updatePriceTable();
+  if (n === 7) buildSummary();
+
+  currentStep = n;
+  document.querySelectorAll('.step-content').forEach(el => el.classList.add('hidden'));
+  document.getElementById('step-' + n).classList.remove('hidden');
+
+  document.querySelectorAll('.step').forEach(el => {
+    const sn = parseInt(el.dataset.step);
+    el.classList.remove('active', 'done');
+    if (sn === n) el.classList.add('active');
+    else if (sn < n) el.classList.add('done');
+  });
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function validateStep(n) {
+  if (n === 1) {
+    const nombre = document.getElementById('client-nombre').value.trim();
+    const comercial = document.getElementById('gen-comercial').value;
+    if (!nombre) { alert('Ingresa el nombre del contacto.'); return false; }
+    if (!comercial) { alert('Selecciona el comercial asignado.'); return false; }
+    return true;
+  }
+  if (n === 2) {
+    if (!selectedService) { alert('Selecciona un tipo de servicio.'); return false; }
+    return true;
+  }
+  if (n === 3) {
+    if (currentFunctions.length === 0) { alert('Agrega al menos una función.'); return false; }
+    return true;
+  }
+  if (n === 4) {
+    if (selectedJornadas.length === 0) { alert('Selecciona al menos una modalidad de jornada.'); return false; }
+    return true;
+  }
+  return true;
+}
+
+// ══════════════════════════════════════════════════════════
+//  STEP 1: CLIENT SEARCH
+// ══════════════════════════════════════════════════════════
+let searchTimeout;
+document.getElementById('client-search').addEventListener('input', function() {
+  clearTimeout(searchTimeout);
+  const q = this.value.trim();
+  if (q.length < 2) { document.getElementById('client-results').classList.add('hidden'); return; }
+  searchTimeout = setTimeout(() => searchClients(q), 300);
+});
+
+async function searchClients(q) {
+  const { data } = await sb.from('clients').select('*')
+    .or(`nombre_contacto.ilike.%${q}%,empresa.ilike.%${q}%`)
+    .limit(8);
+  const box = document.getElementById('client-results');
+  if (!data || data.length === 0) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  box.innerHTML = data.map(c => `
+    <div style="padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--gray-100); font-size:13px;"
+         onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='white'"
+         onclick="selectClient(${JSON.stringify(c).replace(/"/g, '&quot;')})">
+      <strong>${c.nombre_contacto}</strong>${c.empresa ? ' — ' + c.empresa : ''}
+      <br><span style="color:var(--gray-500);">${c.email || ''}</span>
+    </div>
+  `).join('');
+}
+
+function selectClient(c) {
+  selectedClientId = c.id;
+  document.getElementById('client-nombre').value = c.nombre_contacto || '';
+  document.getElementById('client-empresa').value = c.empresa || '';
+  document.getElementById('client-email').value = c.email || '';
+  document.getElementById('client-telefono').value = c.telefono || '';
+  document.getElementById('client-results').classList.add('hidden');
+  document.getElementById('client-search').value = '';
+}
+
+// ══════════════════════════════════════════════════════════
+//  STEP 2: SERVICE SELECTOR
+// ══════════════════════════════════════════════════════════
+function renderServices() {
+  const grid = document.getElementById('service-grid');
+  grid.innerHTML = serviceCatalog.map(svc => {
+    const name = isBilingue ? (svc.nombre_bilingue_es || svc.nombre_es + ' Bilingüe') : svc.nombre_es;
+    const nameEn = isBilingue ? (svc.nombre_bilingue_en || svc.nombre_en + ' Bilingual') : svc.nombre_en;
+    return `
+      <div class="service-option ${selectedService?.clave === svc.clave ? 'selected' : ''}"
+           onclick="selectService('${svc.clave}')">
+        <div class="svc-name">${name}</div>
+        <div class="svc-type">${nameEn}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function selectService(clave) {
+  selectedService = serviceCatalog.find(s => s.clave === clave);
+  renderServices();
+  document.getElementById('qty-card').classList.remove('hidden');
+  // Reset functions when service changes
+  currentFunctions = [];
+}
+
+function toggleBilingue() {
+  isBilingue = document.getElementById('is-bilingue').checked;
+  selectedService = null;
+  currentFunctions = [];
+  renderServices();
+}
+
+function changeQty(delta) {
+  serviceQty = Math.max(1, Math.min(10, serviceQty + delta));
+  document.getElementById('qty-display').textContent = serviceQty;
+}
+
+// ══════════════════════════════════════════════════════════
+//  STEP 3: FUNCTIONS EDITOR
+// ══════════════════════════════════════════════════════════
+function loadFunctions() {
+  if (currentFunctions.length > 0) { renderFunctionList(); return; }
+  resetFunctions();
+}
+
+function resetFunctions() {
+  if (!selectedService) return;
+  const idioma = document.getElementById('gen-idioma').value;
+  if (isBilingue) {
+    currentFunctions = idioma === 'en'
+      ? [...(selectedService.funciones_bilingue_en || selectedService.funciones_en || [])]
+      : [...(selectedService.funciones_bilingue_es || selectedService.funciones_es || [])];
+  } else {
+    currentFunctions = idioma === 'en'
+      ? [...(selectedService.funciones_en || [])]
+      : [...(selectedService.funciones_es || [])];
+  }
+  renderFunctionList();
+}
+
+function renderFunctionList() {
+  const list = document.getElementById('func-list');
+  list.innerHTML = currentFunctions.map((f, i) => `
+    <li class="func-item">
+      <textarea rows="1" oninput="autoResize(this); updateFunction(${i}, this.value)"
+                onfocus="autoResize(this)">${escHtml(f)}</textarea>
+      <button class="func-remove" onclick="removeFunction(${i})" title="Eliminar">×</button>
+    </li>
+  `).join('');
+  // Auto-resize all textareas
+  list.querySelectorAll('textarea').forEach(ta => autoResize(ta));
+
+  const idioma = document.getElementById('gen-idioma').value;
+  const svcName = isBilingue
+    ? (idioma === 'en' ? selectedService.nombre_bilingue_en : selectedService.nombre_bilingue_es)
+    : (idioma === 'en' ? selectedService.nombre_en : selectedService.nombre_es);
+  document.getElementById('func-title').textContent =
+    (idioma === 'en' ? 'Duties and Scope: ' : 'Funciones y alcance: ') + svcName;
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+function updateFunction(idx, val) { currentFunctions[idx] = val; }
+function removeFunction(idx) { currentFunctions.splice(idx, 1); renderFunctionList(); }
+function addFunction() { currentFunctions.push(''); renderFunctionList(); }
+
+// ══════════════════════════════════════════════════════════
+//  STEP 4: JORNADA & PRICE
+// ══════════════════════════════════════════════════════════
+function toggleJornada(el) {
+  const j = el.dataset.jornada;
+  const idx = selectedJornadas.indexOf(j);
+  if (idx >= 0) { selectedJornadas.splice(idx, 1); el.classList.remove('selected'); }
+  else { selectedJornadas.push(j); el.classList.add('selected'); }
+  updateScheduleEditors();
+  updatePriceTable();
+  document.getElementById('media3-detail-card').classList.toggle('hidden', !selectedJornadas.includes('media_3meses'));
+}
+
+function updateScheduleEditors() {
+  const container = document.getElementById('schedule-editors');
+  const card = document.getElementById('schedule-card');
+  if (selectedJornadas.length === 0) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+
+  const idioma = document.getElementById('gen-idioma').value;
+  const labels = {
+    media: { es: 'Media Jornada', en: 'Part-time' },
+    completa: { es: 'Jornada Completa', en: 'Full-time' },
+    media_3meses: { es: 'Media Jornada (3 primeros meses)', en: 'Part-time (first 3 months)' }
+  };
+  const defaults = {
+    media: 'Lunes a viernes de 8:00 a.m. a 12:00 p.m.',
+    completa: 'Lunes a viernes de 8:00 a.m. a 6:00 p.m. con una hora de descanso.',
+    media_3meses: 'Ver detalle en la sección de precio'
+  };
+
+  container.innerHTML = selectedJornadas.filter(j => j !== 'media_3meses').map(j => `
+    <div class="schedule-block">
+      <div class="sch-label">${labels[j][idioma] || labels[j].es}</div>
+      <div class="field">
+        <label>Horario</label>
+        <input type="text" id="schedule-${j}" value="${defaults[j]}" placeholder="${defaults[j]}" />
+      </div>
+    </div>
+  `).join('');
+}
+
+function updatePriceTable() {
+  const card = document.getElementById('price-card');
+  const jornadasSinMedia3 = selectedJornadas.filter(j => j !== 'media_3meses');
+  if (jornadasSinMedia3.length === 0 && !selectedJornadas.includes('media_3meses')) {
+    card.classList.add('hidden');
+    return;
+  }
+  card.classList.remove('hidden');
+
+  const idioma = document.getElementById('gen-idioma').value;
+  const moneda = document.getElementById('gen-moneda').value;
+  const sym = { USD: '$', EUR: '€', COP: '$', MXN: '$' }[moneda] || '$';
+  const svcName = isBilingue
+    ? (idioma === 'en' ? selectedService.nombre_bilingue_en : selectedService.nombre_bilingue_es)
+    : (idioma === 'en' ? selectedService.nombre_en : selectedService.nombre_es);
+
+  const header = document.getElementById('price-header');
+  const body = document.getElementById('price-body');
+  const jLabels = {
+    media: idioma === 'en' ? 'Part-time' : 'Media Jornada',
+    completa: idioma === 'en' ? 'Full-time' : 'Jornada Completa'
+  };
+
+  if (jornadasSinMedia3.length > 0) {
+    header.innerHTML = '<th>Servicio</th>' + jornadasSinMedia3.map(j => `<th>${jLabels[j]} (${sym})</th>`).join('');
+    body.innerHTML = `<tr><td style="font-weight:600;">${svcName}</td>${jornadasSinMedia3.map(j =>
+      `<td><input type="number" id="precio-${j}" placeholder="0" min="0" step="1" /></td>`
+    ).join('')}</tr>`;
+  } else {
+    header.innerHTML = '';
+    body.innerHTML = '';
+  }
+
+  document.getElementById('price-subtitle').textContent =
+    idioma === 'en' ? `Monthly price in ${moneda}` : `Precio mensual en ${moneda}`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  STEP 5: TELEPHONY
+// ══════════════════════════════════════════════════════════
+function setVoipType(type) {
+  voipType = type;
+  document.querySelectorAll('.voip-type-btn').forEach(el => {
+    el.classList.toggle('active', el.dataset.voip === type);
+  });
+  document.getElementById('voip-incluida').classList.toggle('hidden', type !== 'incluida');
+  document.getElementById('voip-opcional').classList.toggle('hidden', type !== 'opcional');
+}
+
+function renderCountries() {
+  const grid = document.getElementById('country-grid');
+  const flags = { us: '🇺🇸', pr: '🇵🇷', es: '🇪🇸', mx: '🇲🇽', cl: '🇨🇱', do: '🇩🇴', uy: '🇺🇾' };
+  grid.innerHTML = voipCatalog.map(v => `
+    <div class="country-option ${selectedVoipCountries.includes(v.pais_key) ? 'selected' : ''}"
+         onclick="toggleCountry('${v.pais_key}')">
+      <div style="font-size:32px;">${flags[v.pais_key] || '🌐'}</div>
+      <div class="country-name">${v.pais_nombre_es}</div>
+    </div>
+  `).join('');
+}
+
+function toggleCountry(key) {
+  const idx = selectedVoipCountries.indexOf(key);
+  if (idx >= 0) selectedVoipCountries.splice(idx, 1);
+  else selectedVoipCountries.push(key);
+  renderCountries();
+  renderVoipPlans();
+}
+
+function renderVoipPlans() {
+  const detail = document.getElementById('voip-plans-detail');
+  const list = document.getElementById('voip-plans-list');
+  if (selectedVoipCountries.length === 0) { detail.classList.add('hidden'); return; }
+  detail.classList.remove('hidden');
+
+  const moneda = document.getElementById('gen-moneda').value;
+  const sym = { USD: '$', EUR: '€', COP: '$', MXN: '$' }[moneda] || '$';
+
+  list.innerHTML = selectedVoipCountries.map(key => {
+    const country = voipCatalog.find(v => v.pais_key === key);
+    if (!country) return '';
+    const plans = country.planes || [];
+    return `
+      <div style="margin-bottom:16px;">
+        <h4 style="font-size:14px; font-weight:700; margin-bottom:8px;">${country.pais_nombre_es}</h4>
+        <table class="price-table">
+          <thead><tr><th>Minutos</th><th>Pago inicial (3 meses)</th><th>Mensual (4to mes+)</th></tr></thead>
+          <tbody>
+            ${plans.map(p => `
+              <tr>
+                <td><strong>${p.minutos} min</strong></td>
+                <td>${sym}${p.precio_inicial}</td>
+                <td>${sym}${p.precio_mensual}/mes</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+//  STEP 7: SUMMARY
+// ══════════════════════════════════════════════════════════
+function buildSummary() {
+  const idioma = document.getElementById('gen-idioma').value;
+  const moneda = document.getElementById('gen-moneda').value;
+  const sym = { USD: '$', EUR: '€', COP: '$', MXN: '$' }[moneda] || '$';
+  const nombre = document.getElementById('client-nombre').value;
+  const empresa = document.getElementById('client-empresa').value;
+  const comercial = document.getElementById('gen-comercial').value;
+
+  const svcName = isBilingue
+    ? (idioma === 'en' ? selectedService.nombre_bilingue_en : selectedService.nombre_bilingue_es)
+    : (idioma === 'en' ? selectedService.nombre_en : selectedService.nombre_es);
+
+  const jLabels = {
+    media: 'Media Jornada', completa: 'Jornada Completa', media_3meses: 'Media Jornada (3 primeros meses)'
+  };
+
+  let html = `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+      <div><strong>Cliente:</strong> ${escHtml(nombre)}${empresa ? ' — ' + escHtml(empresa) : ''}</div>
+      <div><strong>Comercial:</strong> ${escHtml(comercial)}</div>
+      <div><strong>Servicio:</strong> ${escHtml(svcName)}</div>
+      <div><strong>Idioma:</strong> ${idioma === 'en' ? 'English' : 'Español'}</div>
+      <div><strong>Moneda:</strong> ${moneda}</div>
+      <div><strong>Cantidad:</strong> ${serviceQty}</div>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <strong>Jornadas:</strong> ${selectedJornadas.map(j => jLabels[j]).join(', ') || 'Ninguna'}
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <strong>Funciones (${currentFunctions.length}):</strong>
+      <ul style="padding-left:20px; margin-top:6px; font-size:13px;">
+        ${currentFunctions.filter(f => f.trim()).map(f => `<li>${escHtml(f)}</li>`).join('')}
+      </ul>
+    </div>
+  `;
+
+  // Precios
+  const jornadasSinMedia3 = selectedJornadas.filter(j => j !== 'media_3meses');
+  if (jornadasSinMedia3.length > 0) {
+    html += '<div style="margin-bottom:16px;"><strong>Precios:</strong><ul style="padding-left:20px; margin-top:6px;">';
+    jornadasSinMedia3.forEach(j => {
+      const el = document.getElementById('precio-' + j);
+      const precio = el ? el.value : '—';
+      html += `<li>${jLabels[j]}: ${sym}${precio}${serviceQty > 1 ? ' × ' + serviceQty + ' = ' + sym + (precio * serviceQty) : ''}</li>`;
+    });
+    html += '</ul></div>';
+  }
+
+  if (selectedJornadas.includes('media_3meses')) {
+    const p1 = document.getElementById('precio-media3-inicio')?.value || '—';
+    const p2 = document.getElementById('precio-media3-full')?.value || '—';
+    html += `<div style="margin-bottom:16px;"><strong>Transición Media → Completa:</strong>
+      <br>Primeros 3 meses: ${sym}${p1} | Desde el 4to mes: ${sym}${p2}</div>`;
+  }
+
+  // Telefonía
+  html += `<div style="margin-bottom:16px;"><strong>Telefonía VoIP:</strong> `;
+  if (voipType === 'none') html += 'No incluida';
+  else if (voipType === 'incluida') {
+    const pais = document.getElementById('voip-incl-pais').value;
+    const min = document.getElementById('voip-incl-minutos').value;
+    const paisName = voipCatalog.find(v => v.pais_key === pais)?.pais_nombre_es || pais;
+    html += `Incluida — ${min} min hacia ${paisName}`;
+  } else {
+    html += `Planes opcionales — ${selectedVoipCountries.length} país(es)`;
+  }
+  html += '</div>';
+
+  document.getElementById('summary-content').innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════
+//  SAVE QUOTATION
+// ══════════════════════════════════════════════════════════
+async function saveQuotation() {
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  try {
+    const idioma = document.getElementById('gen-idioma').value;
+    const moneda = document.getElementById('gen-moneda').value;
+    const comercial = document.getElementById('gen-comercial').value;
+    const vencDias = document.getElementById('gen-vencimiento').value;
+    const vencimiento = vencDias ? new Date(Date.now() + parseInt(vencDias) * 86400000).toISOString() : null;
+
+    // 1. Create or get client
+    const clientData = {
+      nombre_contacto: document.getElementById('client-nombre').value.trim(),
+      empresa: document.getElementById('client-empresa').value.trim() || null,
+      email: document.getElementById('client-email').value.trim() || null,
+      telefono: document.getElementById('client-telefono').value.trim() || null
+    };
+
+    let clientId = selectedClientId;
+    if (!clientId) {
+      const { data: newClient, error: cErr } = await sb.from('clients').insert(clientData).select().single();
+      if (cErr) throw cErr;
+      clientId = newClient.id;
+    } else {
+      await sb.from('clients').update(clientData).eq('id', clientId);
+    }
+
+    // 2. Find matching plan IDs
+    const svcName = isBilingue
+      ? (selectedService.nombre_bilingue_es || selectedService.nombre_es + ' Bilingüe')
+      : selectedService.nombre_es;
+    const matchingPlans = plans.filter(p =>
+      p.nombre.toLowerCase().includes(selectedService.nombre_es.toLowerCase()) ||
+      (isBilingue && p.nombre.toLowerCase().includes('bilingüe'))
+    );
+    const planesOfrecidos = matchingPlans.map(p => p.id);
+
+    // 3. Build cotizacion_data
+    const svcNameDisplay = isBilingue
+      ? (idioma === 'en' ? selectedService.nombre_bilingue_en : selectedService.nombre_bilingue_es)
+      : (idioma === 'en' ? selectedService.nombre_en : selectedService.nombre_es);
+
+    const servicios = [];
+    const jornadasSinMedia3 = selectedJornadas.filter(j => j !== 'media_3meses');
+    const jLabels = {
+      media: { es: 'Media Jornada', en: 'Part-time' },
+      completa: { es: 'Jornada Completa', en: 'Full-time' }
+    };
+
+    jornadasSinMedia3.forEach(j => {
+      const scheduleEl = document.getElementById('schedule-' + j);
+      servicios.push({
+        nombre_display: svcNameDisplay + ' - ' + (jLabels[j][idioma] || jLabels[j].es),
+        imagen_key: selectedService.clave,
+        es_bilingue: isBilingue,
+        funciones: currentFunctions.filter(f => f.trim()),
+        horario: {
+          modalidad: j,
+          texto: scheduleEl ? scheduleEl.value : ''
+        },
+        precio: parseFloat(document.getElementById('precio-' + j)?.value) || 0,
+        cantidad: serviceQty,
+        nota: ''
+      });
+    });
+
+    if (selectedJornadas.includes('media_3meses')) {
+      servicios.push({
+        nombre_display: svcNameDisplay + ' - ' + (idioma === 'en' ? 'First 3 months part-time' : 'Media Jornada (3 primeros meses)'),
+        imagen_key: selectedService.clave,
+        es_bilingue: isBilingue,
+        funciones: currentFunctions.filter(f => f.trim()),
+        horario: {
+          modalidad: 'media_3meses',
+          texto_inicio: document.getElementById('horario-media3-inicio')?.value || '',
+          texto_full: document.getElementById('horario-media3-full')?.value || ''
+        },
+        precio_inicio: parseFloat(document.getElementById('precio-media3-inicio')?.value) || 0,
+        precio_full: parseFloat(document.getElementById('precio-media3-full')?.value) || 0,
+        cantidad: serviceQty,
+        nota: ''
+      });
+    }
+
+    // Telephony
+    let telefonia = { tipo: voipType };
+    if (voipType === 'incluida') {
+      telefonia.incluida_info = {
+        pais_key: document.getElementById('voip-incl-pais').value,
+        minutos: parseInt(document.getElementById('voip-incl-minutos').value) || 0,
+        extras: (document.getElementById('voip-incl-extras').value || '').split('\n').filter(l => l.trim())
+      };
+    } else if (voipType === 'opcional') {
+      telefonia.paises_seleccionados = selectedVoipCountries;
+      telefonia.planes_por_pais = {};
+      selectedVoipCountries.forEach(key => {
+        const country = voipCatalog.find(v => v.pais_key === key);
+        if (country) telefonia.planes_por_pais[key] = country.planes;
+      });
+    }
+
+    const cotizacionData = {
+      servicios,
+      telefonia,
+      condiciones_extras: {
+        ajuste_precios: document.getElementById('cond-ajuste-precios').checked,
+        nota_contable: '',
+        nota_personalizada: document.getElementById('cond-nota-especial')?.value?.trim() || ''
+      }
+    };
+
+    // Build precios_combinaciones for backward compatibility
+    const preciosComb = {};
+    if (planesOfrecidos.length > 0) {
+      jornadasSinMedia3.forEach(j => {
+        const precio = parseFloat(document.getElementById('precio-' + j)?.value) || 0;
+        planesOfrecidos.forEach(pid => {
+          preciosComb[pid + '|' + j] = precio;
+        });
+      });
+    }
+
+    // 4. Insert quote
+    const { data: { user } } = await sb.auth.getUser();
+    const quoteData = {
+      client_id: clientId,
+      comercial,
+      idioma,
+      moneda,
+      modo_cotizacion: 'generada',
+      cotizacion_data: cotizacionData,
+      planes_ofrecidos: planesOfrecidos,
+      precios_combinaciones: preciosComb,
+      jornadas_ofrecidas: selectedJornadas,
+      estado: 'enviada',
+      fecha_envio: new Date().toISOString(),
+      vencimiento,
+      notas_internas: document.getElementById('cond-notas-internas')?.value?.trim() || null,
+      created_by: user.id
+    };
+
+    const { data: quote, error: qErr } = await sb.from('quotes').insert(quoteData).select().single();
+    if (qErr) throw qErr;
+
+    // 5. Show result
+    const link = VIEWER_BASE + '?id=' + quote.id;
+    document.getElementById('result-link').value = link;
+    document.getElementById('result-preview').href = link;
+    document.getElementById('result-card').classList.remove('hidden');
+    btn.textContent = '✓ Cotización creada';
+
+  } catch (err) {
+    console.error(err);
+    alert('Error al guardar: ' + (err.message || JSON.stringify(err)));
+    btn.disabled = false;
+    btn.textContent = '✓ Generar cotización y enlace';
+  }
+}
+
+function copyLink() {
+  const input = document.getElementById('result-link');
+  input.select();
+  navigator.clipboard.writeText(input.value);
+  const btn = event.target;
+  btn.textContent = '✓ Copiado';
+  setTimeout(() => { btn.textContent = 'Copiar'; }, 2000);
+}
+
+function newQuotation() {
+  location.reload();
+}
+
+// ══════════════════════════════════════════════════════════
+//  UTILITIES
+// ══════════════════════════════════════════════════════════
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+// ══════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════
+checkSession();
+</script>
+</body>
+</html>
