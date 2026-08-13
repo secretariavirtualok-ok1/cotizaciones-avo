@@ -1277,13 +1277,20 @@ async function saveQuotation() {
     // Build precios_combinaciones for backward compatibility
     const preciosComb = {};
     if (planesOfrecidos.length > 0) {
-      jornadasSinMedia3.forEach(j => {
-        const precio = parseFloat(document.getElementById('precio-' + j)?.value) || 0;
-        planesOfrecidos.forEach(pid => {
-          preciosComb[pid + '|' + j] = precio;
+      selectedServices.forEach(svc => {
+        const sd = serviceData[svc.clave] || {};
+        const jornadasNorm = (sd.jornadas || []).filter(j => j !== 'media_3meses');
+        jornadasNorm.forEach(j => {
+          const precio = (sd.precios || {})[j] || 0;
+          planesOfrecidos.forEach(pid => {
+            preciosComb[pid + '|' + j] = precio;
+          });
         });
       });
     }
+
+    // Collect all jornadas across services for jornadas_ofrecidas field
+    const todasJornadas = [...new Set(selectedServices.flatMap(svc => serviceData[svc.clave]?.jornadas || []))];
 
     // 4. Insert quote
     const { data: { user } } = await sb.auth.getUser();
@@ -1296,7 +1303,7 @@ async function saveQuotation() {
       cotizacion_data: cotizacionData,
       planes_ofrecidos: planesOfrecidos,
       precios_combinaciones: preciosComb,
-      jornadas_ofrecidas: selectedJornadas,
+      jornadas_ofrecidas: todasJornadas,
       estado: 'enviada',
       fecha_envio: new Date().toISOString(),
       vencimiento,
