@@ -825,9 +825,14 @@ function renderServices() {
   grid.innerHTML = serviceCatalog.map(svc => {
     const name = isBilingue ? (svc.nombre_bilingue_es || svc.nombre_es + ' Bilingüe') : svc.nombre_es;
     const nameEn = isBilingue ? (svc.nombre_bilingue_en || svc.nombre_en + ' Bilingual') : svc.nombre_en;
+    const imgUrl = isBilingue ? (svc.imagen_bilingue_url || svc.imagen_url) : svc.imagen_url;
+    const imgHtml = imgUrl
+      ? `<img src="${imgUrl}" alt="${name}" style="width:100%;height:100px;object-fit:cover;border-radius:6px;margin-bottom:8px;" />`
+      : '';
     return `
       <div class="service-option ${selectedService?.clave === svc.clave ? 'selected' : ''}"
            onclick="selectService('${svc.clave}')">
+        ${imgHtml}
         <div class="svc-name">${name}</div>
         <div class="svc-type">${nameEn}</div>
       </div>
@@ -1159,17 +1164,23 @@ async function saveQuotation() {
       await sb.from('clients').update(clientData).eq('id', clientId);
     }
 
-    // 2. Find matching plan IDs
+    // 2. Find matching plan IDs - exact match only, filtered by bilingue
     const svcName = isBilingue
       ? (selectedService.nombre_bilingue_es || selectedService.nombre_es + ' Bilingüe')
       : selectedService.nombre_es;
-    const matchingPlans = plans.filter(p =>
-      p.nombre.toLowerCase().includes(selectedService.nombre_es.toLowerCase()) ||
-      (isBilingue && p.nombre.toLowerCase().includes('bilingüe'))
-    );
+
+    const matchingPlans = plans.filter(p => {
+      const nombre = p.nombre.toLowerCase();
+      const esBilingue = nombre.includes('bilingü') || nombre.includes('bilingue');
+      if (isBilingue) {
+        return nombre.includes(selectedService.nombre_es.toLowerCase()) && esBilingue;
+      } else {
+        return nombre.includes(selectedService.nombre_es.toLowerCase()) && !esBilingue;
+      }
+    });
     const planesOfrecidos = matchingPlans.map(p => p.id);
 
-    // 3. Build cotizacion_data
+    // 3. Build cotizacion_data — UN SOLO servicio con precios por jornada
     const svcNameDisplay = isBilingue
       ? (idioma === 'en' ? selectedService.nombre_bilingue_en : selectedService.nombre_bilingue_es)
       : (idioma === 'en' ? selectedService.nombre_en : selectedService.nombre_es);
@@ -1181,26 +1192,29 @@ async function saveQuotation() {
       completa: { es: 'Jornada Completa', en: 'Full-time' }
     };
 
-    jornadasSinMedia3.forEach(j => {
-      const scheduleEl = document.getElementById('schedule-' + j);
+    if (!selectedJornadas.includes('media_3meses')) {
+      // Una sola card con el precio de la primera jornada (el viewer lo actualiza dinámicamente)
+      const primeraJornada = jornadasSinMedia3[0];
+      const scheduleEl = document.getElementById('schedule-' + primeraJornada);
       servicios.push({
-        nombre_display: svcNameDisplay + ' - ' + (jLabels[j][idioma] || jLabels[j].es),
+        nombre_display: svcNameDisplay,
         imagen_key: selectedService.clave,
         es_bilingue: isBilingue,
         funciones: currentFunctions.filter(f => f.trim()),
         horario: {
-          modalidad: j,
+          modalidad: primeraJornada,
           texto: scheduleEl ? scheduleEl.value : ''
         },
-        precio: parseFloat(document.getElementById('precio-' + j)?.value) || 0,
+        precio: parseFloat(document.getElementById('precio-' + primeraJornada)?.value) || 0,
         cantidad: serviceQty,
         nota: ''
       });
-    });
+    }
 
+    // Caso media_3meses: transición media → completa
     if (selectedJornadas.includes('media_3meses')) {
       servicios.push({
-        nombre_display: svcNameDisplay + ' - ' + (idioma === 'en' ? 'First 3 months part-time' : 'Media Jornada (3 primeros meses)'),
+        nombre_display: svcNameDisplay,
         imagen_key: selectedService.clave,
         es_bilingue: isBilingue,
         funciones: currentFunctions.filter(f => f.trim()),
