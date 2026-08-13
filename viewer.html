@@ -548,28 +548,74 @@ function renderViewer(data, quoteId) {
   window.getPrecioParaPlan = getPrecioParaPlan;
 
   function actualizarPreciosPlanes() {
-    window._planesOfrecidos.forEach(p => {
+    const moneda = window._moneda || 'USD';
+    const servicios = window._serviciosGenerados || [];
+
+    // Actualizar precio en el selector de planes — precio correcto por servicio y jornada
+    window._planesOfrecidos.forEach(function(p, pIdx) {
       const priceEl = document.getElementById('precio-plan-' + p.id);
       if (priceEl) {
-        const precioStr = getPrecioParaPlan(p.id, selectedJornada);
+        // Buscar servicio correspondiente por índice
+        const svc = servicios[pIdx] || null;
+        var precio = null;
+        if (svc && selectedJornada) {
+          if (svc.precios && svc.precios[selectedJornada] != null) {
+            precio = svc.precios[selectedJornada];
+          } else {
+            // fallback a precios_combinaciones
+            const clave = p.id + '|' + selectedJornada;
+            const val = (window._preciosCombinaciones || {})[clave];
+            if (val != null) precio = val;
+          }
+        }
+        const precioStr = precio != null ? formatPrecio(precio, moneda) : '';
         priceEl.textContent = precioStr;
         priceEl.style.display = precioStr ? 'block' : 'none';
+      }
+    });
+
+    // Actualizar precio en las cards de servicios generados
+    servicios.forEach(function(svc, idx) {
+      const el = document.getElementById('gen-precio-svc-' + idx);
+      if (el && selectedJornada && svc.precios) {
+        const precio = svc.precios[selectedJornada];
+        el.textContent = precio != null ? formatPrecio(precio, moneda) : '';
       }
     });
   }
   window.actualizarPreciosPlanes = actualizarPreciosPlanes;
 
+  // Para cotizaciones generadas, usar servicios del cotizacion_data como planes
   const planesList = document.getElementById('v-plans-list');
-  planesList.innerHTML = (data.planes_ofrecidos || []).map(p => {
-    // Mostrar precio sin jornada inicialmente (se actualiza al seleccionar jornada)
-    return `<div class="plan-option" data-id="${p.id}" onclick="selectPlan('${p.id}', this)">
-      <div class="plan-radio"></div>
-      <div style="flex:1;">
-        <div class="plan-name">${p.nombre}</div>
-        <div id="precio-plan-${p.id}" style="font-size:13px;color:var(--gold);font-weight:700;margin-top:2px;display:none;"></div>
-      </div>
-    </div>`;
-  }).join('');
+  const esGenerada = data.modo_cotizacion === 'generada';
+  const serviciosParaPlanes = esGenerada ? (data.cotizacion_data?.servicios || []) : [];
+
+  if (esGenerada && serviciosParaPlanes.length > 0) {
+    // Usar los servicios como opciones del selector
+    planesList.innerHTML = serviciosParaPlanes.map(function(svc, idx) {
+      const planId = (data.planes_ofrecidos || [])[idx]?.id || ('svc-' + idx);
+      return '<div class="plan-option" data-id="' + planId + '" onclick="selectPlan(\'' + planId + '\', this)">'
+        + '<div class="plan-radio"></div>'
+        + '<div style="flex:1;">'
+        + '<div class="plan-name">' + (svc.nombre_display || '') + '</div>'
+        + '<div id="precio-plan-' + planId + '" style="font-size:13px;color:var(--gold);font-weight:700;margin-top:2px;display:none;"></div>'
+        + '</div></div>';
+    }).join('');
+    // Actualizar _planesOfrecidos para que apunte a los servicios
+    window._planesOfrecidos = serviciosParaPlanes.map(function(svc, idx) {
+      return { id: (data.planes_ofrecidos || [])[idx]?.id || ('svc-' + idx), nombre: svc.nombre_display || '' };
+    });
+  } else {
+    planesList.innerHTML = (data.planes_ofrecidos || []).map(function(p) {
+      return '<div class="plan-option" data-id="' + p.id + '" onclick="selectPlan(\'' + p.id + '\', this)">'
+        + '<div class="plan-radio"></div>'
+        + '<div style="flex:1;">'
+        + '<div class="plan-name">' + p.nombre + '</div>'
+        + '<div id="precio-plan-' + p.id + '" style="font-size:13px;color:var(--gold);font-weight:700;margin-top:2px;display:none;"></div>'
+        + '</div></div>';
+    }).join('');
+  }
+
 
   // Renderizar jornadas
   const jornadasOfrecidas = data.jornadas_ofrecidas || [];
@@ -702,27 +748,59 @@ function renderGeneratedQuote(data) {
   var idioma = data.idioma || 'es';
   var moneda = data.moneda || 'USD';
   var container = document.querySelector('.container');
-
-  var jornadaInfoEl = document.getElementById('v-jornada-info');
-  var jornadaSectionEl = document.getElementById('v-jornada-section');
   var plansSectionEl = document.getElementById('v-plans-section');
   var insertBefore = plansSectionEl;
-  if (jornadaInfoEl && jornadaInfoEl.style.display !== 'none') insertBefore = jornadaInfoEl;
-  else if (jornadaSectionEl && jornadaSectionEl.style.display !== 'none') insertBefore = jornadaSectionEl;
+
+  // Guardar servicios para actualizacion dinamica de precios
+  window._serviciosGenerados = cd.servicios || [];
+
+  var jNombres = {
+    media:       idioma === 'en' ? 'Part-time' : 'Media Jornada',
+    completa:    idioma === 'en' ? 'Full-time'  : 'Jornada Completa',
+    media_3meses:idioma === 'en' ? 'Part-time → Full-time' : 'Media Jornada → Jornada Completa'
+  };
 
   // ── SERVICIOS ──
-  (cd.servicios || []).forEach(function(svc) {
+  (cd.servicios || []).forEach(function(svc, svcIdx) {
     var card = document.createElement('div');
     card.className = 'card';
 
-    var precioHtml = '';
-    if (svc.precio) {
-      var total = svc.precio * (svc.cantidad || 1);
-      precioHtml = '<div class="gen-precio">' + formatPrecio(total, moneda) + '</div>';
-      if ((svc.cantidad || 1) > 1) {
-        precioHtml += '<div class="gen-precio-detail">' + formatPrecio(svc.precio, moneda) + ' × ' + svc.cantidad + '</div>';
+    // Imagen
+    var imgHtml = '';
+    if (svc.imagen_url) {
+      imgHtml = '<img src="' + svc.imagen_url + '" alt="' + (svc.nombre_display || '') + '" '
+        + 'style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-bottom:16px;" />';
+    }
+
+    // Horarios — mostrar todos los configurados
+    var horarioHtml = '';
+    var hLabel = idioma === 'en' ? 'Service Schedule' : 'Horario del Servicio';
+    if (svc.horario && svc.horario.modalidad === 'media_3meses') {
+      var from4 = idioma === 'en' ? 'From the 4th month:' : 'A partir del 4to mes:';
+      horarioHtml = '<div class="gen-schedule"><div class="gen-schedule-title">' + hLabel + '</div>'
+        + '<p><strong>' + jNombres.media + ':</strong> ' + (svc.horario.texto_inicio || '') + '</p>'
+        + (svc.horario.texto_full ? '<p><strong>' + from4 + '</strong> ' + svc.horario.texto_full + '</p>' : '')
+        + '</div>';
+    } else if (svc.horarios && Object.keys(svc.horarios).length > 0) {
+      var horarioRows = '';
+      var jornadasOrden = ['media', 'completa'];
+      jornadasOrden.forEach(function(j) {
+        if (svc.horarios[j]) {
+          horarioRows += '<p><strong>' + (jNombres[j] || j) + ':</strong> ' + svc.horarios[j] + '</p>';
+        }
+      });
+      if (horarioRows) {
+        horarioHtml = '<div class="gen-schedule"><div class="gen-schedule-title">' + hLabel + '</div>' + horarioRows + '</div>';
       }
-    } else if (svc.precio_inicio && svc.precio_full) {
+    } else if (svc.horario && svc.horario.texto) {
+      var mLabel = idioma === 'en' ? 'Service Modality:' : 'Modalidad del Servicio:';
+      horarioHtml = '<div class="gen-schedule"><div class="gen-schedule-title">' + hLabel + '</div>'
+        + '<p>' + mLabel + ' ' + svc.horario.texto + '</p></div>';
+    }
+
+    // Precio — dinamico si hay precios por jornada
+    var precioHtml = '';
+    if (svc.precio_inicio && svc.precio_full) {
       var lbl1 = idioma === 'en' ? 'First 3 months' : 'Primeros 3 meses';
       var lbl2 = idioma === 'en' ? 'From 4th month' : 'A partir del 4to mes';
       precioHtml = '<div class="gen-precio-transition">'
@@ -730,30 +808,20 @@ function renderGeneratedQuote(data) {
         + '<div class="gen-precio-arrow">→</div>'
         + '<div class="gen-precio-phase"><span class="gen-precio-phase-label">' + lbl2 + '</span><span class="gen-precio-phase-amount">' + formatPrecio(svc.precio_full, moneda) + '</span></div>'
         + '</div>';
-    }
-
-    var horarioHtml = '';
-    if (svc.horario) {
-      var hLabel = idioma === 'en' ? 'Service Schedule' : 'Horario del Servicio';
-      var mLabel = idioma === 'en' ? 'Service Modality:' : 'Modalidad del Servicio:';
-      if (svc.horario.modalidad === 'media_3meses') {
-        var from4 = idioma === 'en' ? 'From the 4th month:' : 'A partir del 4to mes:';
-        horarioHtml = '<div class="gen-schedule"><div class="gen-schedule-title">' + hLabel + '</div>'
-          + '<p>' + mLabel + ' ' + (svc.horario.texto_inicio || '') + '</p>'
-          + (svc.horario.texto_full ? '<p>' + from4 + ' ' + svc.horario.texto_full + '</p>' : '')
-          + '</div>';
-      } else {
-        horarioHtml = '<div class="gen-schedule"><div class="gen-schedule-title">' + hLabel + '</div>'
-          + '<p>' + mLabel + ' ' + (svc.horario.texto || '') + '</p></div>';
-      }
+    } else if (svc.precios && Object.keys(svc.precios).length > 0) {
+      // Precio dinamico — se actualiza al seleccionar jornada
+      precioHtml = '<div id="gen-precio-svc-' + svcIdx + '" style="text-align:right;font-size:28px;font-weight:800;color:var(--navy);margin-top:16px;padding-top:12px;border-top:2px solid var(--gray-100);"></div>';
+    } else if (svc.precio) {
+      precioHtml = '<div class="gen-precio">' + formatPrecio(svc.precio, moneda) + '</div>';
     }
 
     var notaHtml = svc.nota ? '<div class="gen-nota">' + svc.nota + '</div>' : '';
     var funcsHtml = (svc.funciones || []).map(function(f) { return '<li>' + f + '</li>'; }).join('');
-    var planLabel = idioma === 'en' ? '📋 SERVICE PLAN' : '📋 PLAN DE SERVICIO';
+    var planLabel  = idioma === 'en' ? '📋 SERVICE PLAN' : '📋 PLAN DE SERVICIO';
     var scopeLabel = idioma === 'en' ? 'Duties and Scope of the Plan:' : 'Funciones y alcance del plan:';
 
-    card.innerHTML = '<div class="card-label">' + planLabel + '</div>'
+    card.innerHTML = imgHtml
+      + '<div class="card-label">' + planLabel + '</div>'
       + '<h3 class="gen-svc-title">' + (svc.nombre_display || '') + '</h3>'
       + '<p class="gen-svc-subtitle">' + scopeLabel + '</p>'
       + '<ul class="gen-func-list">' + funcsHtml + '</ul>'
@@ -761,6 +829,7 @@ function renderGeneratedQuote(data) {
 
     container.insertBefore(card, insertBefore);
   });
+
 
   // ── TELEFONÍA ──
   if (cd.telefonia && cd.telefonia.tipo !== 'none') {
