@@ -195,6 +195,17 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 .alert-success { background: #E8F8F0; color: #1B8A4C; }
 .alert-warning { background: #FEF9E7; color: #9A7B1A; }
 
+/* ══ SERVICE TABS ══════════════════════════════════════════ */
+.svc-tab-bar { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid var(--gray-100); padding-bottom: 0; flex-wrap: wrap; }
+.svc-tab { padding: 9px 18px; font-size: 13px; font-weight: 700; cursor: pointer; color: var(--gray-500); border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.15s; border-radius: 4px 4px 0 0; white-space: nowrap; }
+.svc-tab:hover { color: var(--avo-accent); background: var(--avo-light); }
+.svc-tab.active { color: var(--avo-accent); border-bottom-color: var(--avo-accent); background: var(--avo-light); }
+.svc-tab-content { display: none; }
+.svc-tab-content.active { display: block; }
+.svc-count-grid { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; background: var(--avo-accent); color: white; font-size: 12px; font-weight: 700; display: none; align-items: center; justify-content: center; }
+.service-option { position: relative; }
+.service-option.selected .svc-count-grid { display: flex; }
+
 /* ══ HIDDEN ═════════════════════════════════════════════ */
 .hidden { display: none !important; }
 
@@ -218,7 +229,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 <div id="login-screen">
   <div class="login-card">
     <div class="login-logo">
-      <div class="login-logo-mark">AVO</div>
+      <img src="https://res.cloudinary.com/ny7ucpsj/image/upload/v1786393386/SVO_vcculy.jpg" alt="AVO" style="height:48px;border-radius:8px;object-fit:cover;" />
       <div class="login-logo-text">
         AsistenteVirtualOk
         <span>Generador de Cotizaciones</span>
@@ -243,7 +254,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 <div id="app">
   <div class="topbar">
     <div class="topbar-brand">
-      <div class="topbar-mark">AVO</div>
+      <img src="https://res.cloudinary.com/ny7ucpsj/image/upload/v1786393386/SVO_vcculy.jpg" alt="AVO" style="height:36px;border-radius:6px;object-fit:cover;" />
       <div>
         <div class="topbar-title">Generador de Cotizaciones</div>
         <div class="topbar-sub">AsistenteVirtualOk.com</div>
@@ -363,7 +374,8 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
     <div class="step-content hidden" id="step-2">
       <div class="card">
         <div class="card-title">Tipo de servicio</div>
-        <div class="card-subtitle">Selecciona el servicio que se ofrecerá al cliente</div>
+        <div class="card-subtitle">Selecciona hasta 3 servicios a ofrecer al cliente. Haz clic para seleccionar/deseleccionar.</div>
+        <div class="alert alert-info" style="margin-bottom:16px;">Puedes seleccionar hasta <strong>3 servicios diferentes</strong> — el cliente verá todos y elegirá uno.</div>
 
         <div class="toggle-row">
           <label class="toggle">
@@ -378,15 +390,8 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
         </div>
       </div>
 
-      <div class="card hidden" id="qty-card">
-        <div class="card-title">Cantidad de servicios</div>
-        <div class="card-subtitle">¿Cuántos servicios de este tipo necesita el cliente?</div>
-        <div class="qty-control">
-          <button onclick="changeQty(-1)">−</button>
-          <span id="qty-display">1</span>
-          <button onclick="changeQty(1)">+</button>
-        </div>
-        <p class="field-hint" style="margin-top:8px;">El monto total se calculará automáticamente (precio × cantidad)</p>
+      <div id="selected-services-summary" class="hidden" style="margin-top:12px;">
+        <div class="alert alert-success" id="selected-summary-text"></div>
       </div>
 
       <div class="step-nav">
@@ -398,21 +403,10 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
     <!-- ══ STEP 3: FUNCIONES ═════════════════════════════ -->
     <div class="step-content hidden" id="step-3">
       <div class="card">
-        <div class="card-title" id="func-title">Funciones y alcance del plan</div>
-        <div class="card-subtitle">Las funciones se pre-cargan según el servicio seleccionado. Puedes editar, agregar o eliminar.</div>
-
-        <div class="alert alert-info" id="func-info">
-          Las funciones se muestran en el idioma de la cotización. Si cambias el idioma, se actualizarán automáticamente.
-        </div>
-
-        <ul class="func-list" id="func-list">
-          <!-- Se llena dinámicamente -->
-        </ul>
-
-        <div class="func-actions">
-          <button class="btn btn-outline btn-sm" onclick="addFunction()">+ Agregar función</button>
-          <button class="btn btn-outline btn-sm" onclick="resetFunctions()">↺ Restaurar predeterminadas</button>
-        </div>
+        <div class="card-title">Funciones y alcance</div>
+        <div class="card-subtitle">Edita las funciones de cada servicio. Se pre-cargan automáticamente del catálogo.</div>
+        <div class="svc-tab-bar" id="func-tab-bar"></div>
+        <div id="func-tab-contents"></div>
       </div>
 
       <div class="step-nav">
@@ -424,66 +418,10 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
     <!-- ══ STEP 4: JORNADA Y PRECIO ══════════════════════ -->
     <div class="step-content hidden" id="step-4">
       <div class="card">
-        <div class="card-title">Modalidad de jornada</div>
-        <div class="card-subtitle">Selecciona las jornadas que se ofrecerán al cliente (puede ser más de una)</div>
-
-        <div class="jornada-options" id="jornada-options">
-          <div class="jornada-card" data-jornada="media" onclick="toggleJornada(this)">
-            <div class="j-title">📋 Media Jornada</div>
-            <div class="j-desc">4 horas diarias, lunes a viernes</div>
-          </div>
-          <div class="jornada-card" data-jornada="completa" onclick="toggleJornada(this)">
-            <div class="j-title">💼 Jornada Completa</div>
-            <div class="j-desc">8 horas diarias (con 1h descanso), lunes a viernes</div>
-          </div>
-          <div class="jornada-card" data-jornada="media_3meses" onclick="toggleJornada(this)">
-            <div class="j-title">📅 Media Jornada (3 primeros meses)</div>
-            <div class="j-desc">Inicia media jornada y pasa a completa desde el 4to mes</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Horarios por jornada -->
-      <div class="card hidden" id="schedule-card">
-        <div class="card-title">Horarios del servicio</div>
-        <div class="card-subtitle">Configura el horario para cada jornada seleccionada</div>
-        <div id="schedule-editors"></div>
-      </div>
-
-      <!-- Precios -->
-      <div class="card hidden" id="price-card">
-        <div class="card-title">Precios</div>
-        <div class="card-subtitle" id="price-subtitle">Ingresa el precio mensual para cada modalidad</div>
-        <table class="price-table" id="price-table">
-          <thead><tr id="price-header"></tr></thead>
-          <tbody id="price-body"></tbody>
-        </table>
-      </div>
-
-      <!-- Precio media 3 meses (detalle adicional) -->
-      <div class="card hidden" id="media3-detail-card">
-        <div class="card-title">Detalle: Media Jornada → Jornada Completa</div>
-        <div class="card-subtitle">Configura los precios y horarios para la transición</div>
-        <div class="field-row">
-          <div class="field">
-            <label>Precio primeros 3 meses (media jornada)</label>
-            <input type="number" id="precio-media3-inicio" placeholder="625" />
-          </div>
-          <div class="field">
-            <label>Precio desde el 4to mes (jornada completa)</label>
-            <input type="number" id="precio-media3-full" placeholder="960" />
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label>Horario primeros 3 meses</label>
-            <input type="text" id="horario-media3-inicio" placeholder="Ej: 7:00 a.m. a 11:00 a.m. EST" />
-          </div>
-          <div class="field">
-            <label>Horario desde el 4to mes</label>
-            <input type="text" id="horario-media3-full" placeholder="Ej: 7:00 a.m. a 5:00 p.m. EST" />
-          </div>
-        </div>
+        <div class="card-title">Jornada y Precio por servicio</div>
+        <div class="card-subtitle">Configura la jornada y precio de cada servicio seleccionado.</div>
+        <div class="svc-tab-bar" id="price-tab-bar"></div>
+        <div id="price-tab-contents"></div>
       </div>
 
       <div class="step-nav">
@@ -651,14 +589,15 @@ let currentStep = 1;
 let selectedClientId = null;
 let serviceCatalog = [];
 let voipCatalog = [];
-let selectedService = null;
+let selectedServices = [];   // Array de hasta 3 servicios seleccionados
 let isBilingue = false;
-let selectedJornadas = [];
-let serviceQty = 1;
 let voipType = 'none';
 let selectedVoipCountries = [];
-let currentFunctions = [];
 let plans = [];
+let activeFuncTab = 0;
+let activePriceTab = 0;
+// Por servicio: funciones, jornadas, precios, horarios
+let serviceData = {}; // { clave: { funciones:[], jornadas:[], precios:{}, horarios:{}, precio_inicio, precio_full, horario_inicio, horario_full } }
 
 // ══════════════════════════════════════════════════════════
 //  AUTH
@@ -739,7 +678,7 @@ function goToStep(n) {
 
   // Run step-specific logic when entering
   if (n === 3) loadFunctions();
-  if (n === 4) updatePriceTable();
+  if (n === 4) renderPriceTabs();
   if (n === 7) buildSummary();
 
   currentStep = n;
@@ -765,15 +704,17 @@ function validateStep(n) {
     return true;
   }
   if (n === 2) {
-    if (!selectedService) { alert('Selecciona un tipo de servicio.'); return false; }
+    if (selectedServices.length === 0) { alert('Selecciona al menos un servicio.'); return false; }
     return true;
   }
   if (n === 3) {
-    if (currentFunctions.length === 0) { alert('Agrega al menos una función.'); return false; }
+    const allHaveFuncs = selectedServices.every(svc => (serviceData[svc.clave]?.funciones || []).filter(f => f.trim()).length > 0);
+    if (!allHaveFuncs) { alert('Todos los servicios deben tener al menos una función.'); return false; }
     return true;
   }
   if (n === 4) {
-    if (selectedJornadas.length === 0) { alert('Selecciona al menos una modalidad de jornada.'); return false; }
+    const allHaveJornada = selectedServices.every(svc => (serviceData[svc.clave]?.jornadas || []).length > 0);
+    if (!allHaveJornada) { alert('Selecciona al menos una jornada para cada servicio.'); return false; }
     return true;
   }
   return true;
@@ -822,85 +763,133 @@ function selectClient(c) {
 // ══════════════════════════════════════════════════════════
 function renderServices() {
   const grid = document.getElementById('service-grid');
-  grid.innerHTML = serviceCatalog.map(svc => {
+  grid.innerHTML = serviceCatalog.map((svc, idx) => {
     const name = isBilingue ? (svc.nombre_bilingue_es || svc.nombre_es + ' Bilingüe') : svc.nombre_es;
     const nameEn = isBilingue ? (svc.nombre_bilingue_en || svc.nombre_en + ' Bilingual') : svc.nombre_en;
     const imgUrl = isBilingue ? (svc.imagen_bilingue_url || svc.imagen_url) : svc.imagen_url;
     const imgHtml = imgUrl
       ? `<img src="${imgUrl}" alt="${name}" style="width:100%;height:100px;object-fit:cover;border-radius:6px;margin-bottom:8px;" />`
       : '';
+    const selIdx = selectedServices.findIndex(s => s.clave === svc.clave);
+    const isSelected = selIdx >= 0;
+    const num = isSelected ? selIdx + 1 : '';
     return `
-      <div class="service-option ${selectedService?.clave === svc.clave ? 'selected' : ''}"
-           onclick="selectService('${svc.clave}')">
+      <div class="service-option ${isSelected ? 'selected' : ''}"
+           onclick="toggleService('${svc.clave}')">
         ${imgHtml}
+        <div class="svc-count-grid">${num}</div>
         <div class="svc-name">${name}</div>
         <div class="svc-type">${nameEn}</div>
       </div>
     `;
   }).join('');
+  // Update summary
+  const summary = document.getElementById('selected-services-summary');
+  const summaryText = document.getElementById('selected-summary-text');
+  if (selectedServices.length > 0) {
+    summary.classList.remove('hidden');
+    const names = selectedServices.map((s, i) => {
+      const name = isBilingue ? (s.nombre_bilingue_es || s.nombre_es + ' Bilingüe') : s.nombre_es;
+      return `<strong>${i+1}. ${name}</strong>`;
+    });
+    summaryText.innerHTML = `✓ Servicios seleccionados: ${names.join(' · ')}`;
+  } else {
+    summary.classList.add('hidden');
+  }
 }
 
-function selectService(clave) {
-  selectedService = serviceCatalog.find(s => s.clave === clave);
+function toggleService(clave) {
+  const svc = serviceCatalog.find(s => s.clave === clave);
+  const idx = selectedServices.findIndex(s => s.clave === clave);
+  if (idx >= 0) {
+    // Deselect
+    selectedServices.splice(idx, 1);
+    delete serviceData[clave];
+  } else {
+    if (selectedServices.length >= 3) {
+      alert('Puedes seleccionar un máximo de 3 servicios.');
+      return;
+    }
+    selectedServices.push(svc);
+    // Initialize serviceData for this service
+    if (!serviceData[clave]) {
+      serviceData[clave] = { funciones: [], jornadas: [], precios: {}, horarios: {} };
+    }
+  }
   renderServices();
-  document.getElementById('qty-card').classList.remove('hidden');
-  // Reset functions when service changes
-  currentFunctions = [];
 }
 
 function toggleBilingue() {
   isBilingue = document.getElementById('is-bilingue').checked;
-  selectedService = null;
-  currentFunctions = [];
+  selectedServices = [];
+  serviceData = {};
   renderServices();
 }
 
-function changeQty(delta) {
-  serviceQty = Math.max(1, Math.min(10, serviceQty + delta));
-  document.getElementById('qty-display').textContent = serviceQty;
-}
-
 // ══════════════════════════════════════════════════════════
-//  STEP 3: FUNCTIONS EDITOR
+//  STEP 3: FUNCTIONS EDITOR (multi-service tabs)
 // ══════════════════════════════════════════════════════════
 function loadFunctions() {
-  if (currentFunctions.length > 0) { renderFunctionList(); return; }
-  resetFunctions();
+  // Initialize functions for each selected service if not already set
+  selectedServices.forEach(svc => {
+    if (!serviceData[svc.clave]) serviceData[svc.clave] = { funciones: [], jornadas: [], precios: {}, horarios: {} };
+    if (serviceData[svc.clave].funciones.length === 0) {
+      serviceData[svc.clave].funciones = getDefaultFunctions(svc);
+    }
+  });
+  renderFuncTabs();
 }
 
-function resetFunctions() {
-  if (!selectedService) return;
+function getDefaultFunctions(svc) {
   const idioma = document.getElementById('gen-idioma').value;
   if (isBilingue) {
-    currentFunctions = idioma === 'en'
-      ? [...(selectedService.funciones_bilingue_en || selectedService.funciones_en || [])]
-      : [...(selectedService.funciones_bilingue_es || selectedService.funciones_es || [])];
+    return idioma === 'en'
+      ? [...(svc.funciones_bilingue_en || svc.funciones_en || [])]
+      : [...(svc.funciones_bilingue_es || svc.funciones_es || [])];
   } else {
-    currentFunctions = idioma === 'en'
-      ? [...(selectedService.funciones_en || [])]
-      : [...(selectedService.funciones_es || [])];
+    return idioma === 'en'
+      ? [...(svc.funciones_en || [])]
+      : [...(svc.funciones_es || [])];
   }
-  renderFunctionList();
 }
 
-function renderFunctionList() {
-  const list = document.getElementById('func-list');
-  list.innerHTML = currentFunctions.map((f, i) => `
-    <li class="func-item">
-      <textarea rows="1" oninput="autoResize(this); updateFunction(${i}, this.value)"
-                onfocus="autoResize(this)">${escHtml(f)}</textarea>
-      <button class="func-remove" onclick="removeFunction(${i})" title="Eliminar">×</button>
-    </li>
-  `).join('');
-  // Auto-resize all textareas
-  list.querySelectorAll('textarea').forEach(ta => autoResize(ta));
-
+function renderFuncTabs() {
+  const tabBar = document.getElementById('func-tab-bar');
+  const tabContents = document.getElementById('func-tab-contents');
   const idioma = document.getElementById('gen-idioma').value;
-  const svcName = isBilingue
-    ? (idioma === 'en' ? selectedService.nombre_bilingue_en : selectedService.nombre_bilingue_es)
-    : (idioma === 'en' ? selectedService.nombre_en : selectedService.nombre_es);
-  document.getElementById('func-title').textContent =
-    (idioma === 'en' ? 'Duties and Scope: ' : 'Funciones y alcance: ') + svcName;
+
+  tabBar.innerHTML = selectedServices.map((svc, i) => {
+    const name = isBilingue ? (svc.nombre_bilingue_es || svc.nombre_es) : svc.nombre_es;
+    return `<div class="svc-tab ${i === activeFuncTab ? 'active' : ''}" onclick="switchFuncTab(${i})">${name}</div>`;
+  }).join('');
+
+  tabContents.innerHTML = selectedServices.map((svc, i) => {
+    const funcs = serviceData[svc.clave]?.funciones || [];
+    const funcItems = funcs.map((f, fi) => `
+      <li class="func-item">
+        <textarea rows="1" oninput="autoResize(this); updateFunc('${svc.clave}', ${fi}, this.value)"
+                  onfocus="autoResize(this)">${escHtml(f)}</textarea>
+        <button class="func-remove" onclick="removeFunc('${svc.clave}', ${fi})" title="Eliminar">×</button>
+      </li>
+    `).join('');
+    return `
+      <div class="svc-tab-content ${i === activeFuncTab ? 'active' : ''}" id="func-content-${i}">
+        <ul class="func-list">${funcItems}</ul>
+        <div class="func-actions" style="margin-top:10px;">
+          <button class="btn btn-outline btn-sm" onclick="addFunc('${svc.clave}')">+ Agregar función</button>
+          <button class="btn btn-outline btn-sm" onclick="resetFuncForService('${svc.clave}')">↺ Restaurar predeterminadas</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Auto-resize all textareas
+  tabContents.querySelectorAll('textarea').forEach(ta => autoResize(ta));
+}
+
+function switchFuncTab(idx) {
+  activeFuncTab = idx;
+  renderFuncTabs();
 }
 
 function autoResize(el) {
@@ -908,87 +897,124 @@ function autoResize(el) {
   el.style.height = el.scrollHeight + 'px';
 }
 
-function updateFunction(idx, val) { currentFunctions[idx] = val; }
-function removeFunction(idx) { currentFunctions.splice(idx, 1); renderFunctionList(); }
-function addFunction() { currentFunctions.push(''); renderFunctionList(); }
-
-// ══════════════════════════════════════════════════════════
-//  STEP 4: JORNADA & PRICE
-// ══════════════════════════════════════════════════════════
-function toggleJornada(el) {
-  const j = el.dataset.jornada;
-  const idx = selectedJornadas.indexOf(j);
-  if (idx >= 0) { selectedJornadas.splice(idx, 1); el.classList.remove('selected'); }
-  else { selectedJornadas.push(j); el.classList.add('selected'); }
-  updateScheduleEditors();
-  updatePriceTable();
-  document.getElementById('media3-detail-card').classList.toggle('hidden', !selectedJornadas.includes('media_3meses'));
+function updateFunc(clave, idx, val) { if (serviceData[clave]) serviceData[clave].funciones[idx] = val; }
+function removeFunc(clave, idx) { if (serviceData[clave]) { serviceData[clave].funciones.splice(idx, 1); renderFuncTabs(); } }
+function addFunc(clave) { if (serviceData[clave]) { serviceData[clave].funciones.push(''); renderFuncTabs(); } }
+function resetFuncForService(clave) {
+  const svc = selectedServices.find(s => s.clave === clave);
+  if (svc && serviceData[clave]) { serviceData[clave].funciones = getDefaultFunctions(svc); renderFuncTabs(); }
 }
 
-function updateScheduleEditors() {
-  const container = document.getElementById('schedule-editors');
-  const card = document.getElementById('schedule-card');
-  if (selectedJornadas.length === 0) { card.classList.add('hidden'); return; }
-  card.classList.remove('hidden');
-
-  const idioma = document.getElementById('gen-idioma').value;
-  const labels = {
-    media: { es: 'Media Jornada', en: 'Part-time' },
-    completa: { es: 'Jornada Completa', en: 'Full-time' },
-    media_3meses: { es: 'Media Jornada (3 primeros meses)', en: 'Part-time (first 3 months)' }
-  };
-  const defaults = {
-    media: 'Lunes a viernes de 8:00 a.m. a 12:00 p.m.',
-    completa: 'Lunes a viernes de 8:00 a.m. a 6:00 p.m. con una hora de descanso.',
-    media_3meses: 'Ver detalle en la sección de precio'
-  };
-
-  container.innerHTML = selectedJornadas.filter(j => j !== 'media_3meses').map(j => `
-    <div class="schedule-block">
-      <div class="sch-label">${labels[j][idioma] || labels[j].es}</div>
-      <div class="field">
-        <label>Horario</label>
-        <input type="text" id="schedule-${j}" value="${defaults[j]}" placeholder="${defaults[j]}" />
-      </div>
-    </div>
-  `).join('');
-}
-
-function updatePriceTable() {
-  const card = document.getElementById('price-card');
-  const jornadasSinMedia3 = selectedJornadas.filter(j => j !== 'media_3meses');
-  if (jornadasSinMedia3.length === 0 && !selectedJornadas.includes('media_3meses')) {
-    card.classList.add('hidden');
-    return;
-  }
-  card.classList.remove('hidden');
-
+// ══════════════════════════════════════════════════════════
+//  STEP 4: JORNADA & PRICE (multi-service tabs)
+// ══════════════════════════════════════════════════════════
+function renderPriceTabs() {
+  const tabBar = document.getElementById('price-tab-bar');
+  const tabContents = document.getElementById('price-tab-contents');
   const idioma = document.getElementById('gen-idioma').value;
   const moneda = document.getElementById('gen-moneda').value;
   const sym = { USD: '$', EUR: '€', COP: '$', MXN: '$' }[moneda] || '$';
-  const svcName = isBilingue
-    ? (idioma === 'en' ? selectedService.nombre_bilingue_en : selectedService.nombre_bilingue_es)
-    : (idioma === 'en' ? selectedService.nombre_en : selectedService.nombre_es);
 
-  const header = document.getElementById('price-header');
-  const body = document.getElementById('price-body');
-  const jLabels = {
-    media: idioma === 'en' ? 'Part-time' : 'Media Jornada',
-    completa: idioma === 'en' ? 'Full-time' : 'Jornada Completa'
-  };
+  tabBar.innerHTML = selectedServices.map((svc, i) => {
+    const name = isBilingue ? (svc.nombre_bilingue_es || svc.nombre_es) : svc.nombre_es;
+    return `<div class="svc-tab ${i === activePriceTab ? 'active' : ''}" onclick="switchPriceTab(${i})">${name}</div>`;
+  }).join('');
 
-  if (jornadasSinMedia3.length > 0) {
-    header.innerHTML = '<th>Servicio</th>' + jornadasSinMedia3.map(j => `<th>${jLabels[j]} (${sym})</th>`).join('');
-    body.innerHTML = `<tr><td style="font-weight:600;">${svcName}</td>${jornadasSinMedia3.map(j =>
-      `<td><input type="number" id="precio-${j}" placeholder="0" min="0" step="1" /></td>`
-    ).join('')}</tr>`;
-  } else {
-    header.innerHTML = '';
-    body.innerHTML = '';
-  }
+  tabContents.innerHTML = selectedServices.map((svc, i) => {
+    const sd = serviceData[svc.clave] || { jornadas: [], precios: {}, horarios: {} };
+    const jornadasOpts = ['media', 'completa', 'media_3meses'];
+    const jLabels = {
+      media: { es: 'Media Jornada', en: 'Part-time', icon: '📋' },
+      completa: { es: 'Jornada Completa', en: 'Full-time', icon: '💼' },
+      media_3meses: { es: 'Media Jornada → Jornada Completa', en: 'Part-time → Full-time', icon: '📅' }
+    };
 
-  document.getElementById('price-subtitle').textContent =
-    idioma === 'en' ? `Monthly price in ${moneda}` : `Precio mensual en ${moneda}`;
+    const jornadaCards = jornadasOpts.map(j => {
+      const isSelected = (sd.jornadas || []).includes(j);
+      return `<div class="jornada-card ${isSelected ? 'selected' : ''}" 
+                   onclick="toggleJornadaSvc('${svc.clave}', '${j}', this)">
+        <div class="j-title">${jLabels[j].icon} ${jLabels[j].es}</div>
+      </div>`;
+    }).join('');
+
+    const jornadasNormales = (sd.jornadas || []).filter(j => j !== 'media_3meses');
+    const priceRows = jornadasNormales.map(j => {
+      const jName = idioma === 'en' ? (j === 'media' ? 'Part-time' : 'Full-time') : jLabels[j].es;
+      const schKey = `${svc.clave}_schedule_${j}`;
+      const prKey = `${svc.clave}_precio_${j}`;
+      const schVal = sd.horarios?.[j] || (j === 'media' ? 'Lunes a viernes de 8:00 a.m. a 12:00 p.m.' : 'Lunes a viernes de 8:00 a.m. a 6:00 p.m. con una hora de descanso.');
+      const prVal = sd.precios?.[j] || '';
+      return `
+        <div class="schedule-block" style="margin-bottom:12px;">
+          <div class="sch-label">${jName}</div>
+          <div class="field-row">
+            <div class="field" style="flex:2;">
+              <label>Horario</label>
+              <input type="text" id="${schKey}" value="${schVal}"
+                     onchange="updateHorario('${svc.clave}','${j}',this.value)" />
+            </div>
+            <div class="field" style="flex:1;">
+              <label>Precio (${sym})</label>
+              <input type="number" id="${prKey}" value="${prVal}" placeholder="0"
+                     onchange="updatePrecio('${svc.clave}','${j}',this.value)" />
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+
+    const hasMed3 = (sd.jornadas || []).includes('media_3meses');
+    const med3Block = hasMed3 ? `
+      <div class="schedule-block" style="margin-top:12px;">
+        <div class="sch-label">Media Jornada → Jornada Completa</div>
+        <div class="field-row">
+          <div class="field"><label>Precio primeros 3 meses</label>
+            <input type="number" id="${svc.clave}_precio_m3_inicio" value="${sd.precio_inicio||''}"
+                   onchange="updatePrecioM3('${svc.clave}','inicio',this.value)" placeholder="625"/></div>
+          <div class="field"><label>Precio desde 4to mes</label>
+            <input type="number" id="${svc.clave}_precio_m3_full" value="${sd.precio_full||''}"
+                   onchange="updatePrecioM3('${svc.clave}','full',this.value)" placeholder="960"/></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Horario primeros 3 meses</label>
+            <input type="text" id="${svc.clave}_horario_m3_inicio" value="${sd.horario_inicio||''}"
+                   onchange="updateHorarioM3('${svc.clave}','inicio',this.value)" /></div>
+          <div class="field"><label>Horario desde 4to mes</label>
+            <input type="text" id="${svc.clave}_horario_m3_full" value="${sd.horario_full||''}"
+                   onchange="updateHorarioM3('${svc.clave}','full',this.value)" /></div>
+        </div>
+      </div>` : '';
+
+    return `
+      <div class="svc-tab-content ${i === activePriceTab ? 'active' : ''}" id="price-content-${i}">
+        <p style="font-size:13px;color:var(--gray-600);margin-bottom:14px;">Selecciona las jornadas y configura horario y precio para <strong>${isBilingue ? (svc.nombre_bilingue_es || svc.nombre_es) : svc.nombre_es}</strong>:</p>
+        <div class="jornada-options" style="margin-bottom:16px;">${jornadaCards}</div>
+        ${priceRows}
+        ${med3Block}
+      </div>`;
+  }).join('');
+}
+
+function switchPriceTab(idx) { activePriceTab = idx; renderPriceTabs(); }
+
+function toggleJornadaSvc(clave, jornada, el) {
+  if (!serviceData[clave]) serviceData[clave] = { funciones: [], jornadas: [], precios: {}, horarios: {} };
+  const idx = serviceData[clave].jornadas.indexOf(jornada);
+  if (idx >= 0) { serviceData[clave].jornadas.splice(idx, 1); el.classList.remove('selected'); }
+  else { serviceData[clave].jornadas.push(jornada); el.classList.add('selected'); }
+  renderPriceTabs();
+}
+
+function updateHorario(clave, jornada, val) {
+  if (serviceData[clave]) serviceData[clave].horarios[jornada] = val;
+}
+function updatePrecio(clave, jornada, val) {
+  if (serviceData[clave]) serviceData[clave].precios[jornada] = parseFloat(val) || 0;
+}
+function updatePrecioM3(clave, tipo, val) {
+  if (serviceData[clave]) serviceData[clave][tipo === 'inicio' ? 'precio_inicio' : 'precio_full'] = parseFloat(val) || 0;
+}
+function updateHorarioM3(clave, tipo, val) {
+  if (serviceData[clave]) serviceData[clave][tipo === 'inicio' ? 'horario_inicio' : 'horario_full'] = val;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1066,55 +1092,50 @@ function buildSummary() {
   const nombre = document.getElementById('client-nombre').value;
   const empresa = document.getElementById('client-empresa').value;
   const comercial = document.getElementById('gen-comercial').value;
-
-  const svcName = isBilingue
-    ? (idioma === 'en' ? selectedService.nombre_bilingue_en : selectedService.nombre_bilingue_es)
-    : (idioma === 'en' ? selectedService.nombre_en : selectedService.nombre_es);
-
-  const jLabels = {
-    media: 'Media Jornada', completa: 'Jornada Completa', media_3meses: 'Media Jornada (3 primeros meses)'
-  };
+  const jLabels = { media: 'Media Jornada', completa: 'Jornada Completa', media_3meses: 'Media → Jornada Completa' };
 
   let html = `
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
       <div><strong>Cliente:</strong> ${escHtml(nombre)}${empresa ? ' — ' + escHtml(empresa) : ''}</div>
       <div><strong>Comercial:</strong> ${escHtml(comercial)}</div>
-      <div><strong>Servicio:</strong> ${escHtml(svcName)}</div>
       <div><strong>Idioma:</strong> ${idioma === 'en' ? 'English' : 'Español'}</div>
       <div><strong>Moneda:</strong> ${moneda}</div>
-      <div><strong>Cantidad:</strong> ${serviceQty}</div>
-    </div>
-
-    <div style="margin-bottom:16px;">
-      <strong>Jornadas:</strong> ${selectedJornadas.map(j => jLabels[j]).join(', ') || 'Ninguna'}
-    </div>
-
-    <div style="margin-bottom:16px;">
-      <strong>Funciones (${currentFunctions.length}):</strong>
-      <ul style="padding-left:20px; margin-top:6px; font-size:13px;">
-        ${currentFunctions.filter(f => f.trim()).map(f => `<li>${escHtml(f)}</li>`).join('')}
-      </ul>
     </div>
   `;
 
-  // Precios
-  const jornadasSinMedia3 = selectedJornadas.filter(j => j !== 'media_3meses');
-  if (jornadasSinMedia3.length > 0) {
-    html += '<div style="margin-bottom:16px;"><strong>Precios:</strong><ul style="padding-left:20px; margin-top:6px;">';
-    jornadasSinMedia3.forEach(j => {
-      const el = document.getElementById('precio-' + j);
-      const precio = el ? el.value : '—';
-      html += `<li>${jLabels[j]}: ${sym}${precio}${serviceQty > 1 ? ' × ' + serviceQty + ' = ' + sym + (precio * serviceQty) : ''}</li>`;
-    });
-    html += '</ul></div>';
-  }
+  selectedServices.forEach((svc, i) => {
+    const sd = serviceData[svc.clave] || {};
+    const svcName = isBilingue ? (svc.nombre_bilingue_es || svc.nombre_es) : svc.nombre_es;
+    const funcs = (sd.funciones || []).filter(f => f.trim());
+    const jornadas = sd.jornadas || [];
+    const jornadasNormales = jornadas.filter(j => j !== 'media_3meses');
 
-  if (selectedJornadas.includes('media_3meses')) {
-    const p1 = document.getElementById('precio-media3-inicio')?.value || '—';
-    const p2 = document.getElementById('precio-media3-full')?.value || '—';
-    html += `<div style="margin-bottom:16px;"><strong>Transición Media → Completa:</strong>
-      <br>Primeros 3 meses: ${sym}${p1} | Desde el 4to mes: ${sym}${p2}</div>`;
-  }
+    let preciosHtml = '';
+    if (jornadas.includes('media_3meses')) {
+      preciosHtml = `<li>Primeros 3 meses: ${sym}${sd.precio_inicio || 0} → Desde 4to mes: ${sym}${sd.precio_full || 0}</li>`;
+    } else {
+      jornadasNormales.forEach(j => {
+        preciosHtml += `<li>${jLabels[j]}: ${sym}${(sd.precios || {})[j] || 0}</li>`;
+      });
+    }
+
+    html += `
+      <div style="margin-bottom:20px; padding:16px; background:var(--gray-50); border-radius:8px; border-left:3px solid var(--avo-accent);">
+        <div style="font-weight:800; font-size:15px; color:var(--avo-blue); margin-bottom:8px;">
+          Servicio ${i+1}: ${escHtml(svcName)}
+        </div>
+        <div style="font-size:13px; margin-bottom:6px;">
+          <strong>Jornadas:</strong> ${jornadas.map(j => jLabels[j]).join(', ') || '—'}
+        </div>
+        <div style="font-size:13px; margin-bottom:6px;">
+          <strong>Precios:</strong> <ul style="padding-left:20px; margin:4px 0;">${preciosHtml}</ul>
+        </div>
+        <div style="font-size:13px;">
+          <strong>Funciones:</strong> ${funcs.length} configuradas
+        </div>
+      </div>
+    `;
+  });
 
   // Telefonía
   html += `<div style="margin-bottom:16px;"><strong>Telefonía VoIP:</strong> `;
@@ -1164,71 +1185,67 @@ async function saveQuotation() {
       await sb.from('clients').update(clientData).eq('id', clientId);
     }
 
-    // 2. Find matching plan IDs - exact match only, filtered by bilingue
-    const svcName = isBilingue
-      ? (selectedService.nombre_bilingue_es || selectedService.nombre_es + ' Bilingüe')
-      : selectedService.nombre_es;
+    // 2. Build planes ofrecidos from all selected services
+    const planesOfrecidos = [];
+    selectedServices.forEach(svc => {
+      const matching = plans.filter(p => {
+        const nombre = p.nombre.toLowerCase();
+        const esBilingue = nombre.includes('bilingü') || nombre.includes('bilingue');
+        if (isBilingue) return nombre.includes(svc.nombre_es.toLowerCase()) && esBilingue;
+        else return nombre.includes(svc.nombre_es.toLowerCase()) && !esBilingue;
+      });
+      matching.forEach(p => { if (!planesOfrecidos.includes(p.id)) planesOfrecidos.push(p.id); });
+    });
 
-    const matchingPlans = plans.filter(p => {
-      const nombre = p.nombre.toLowerCase();
-      const esBilingue = nombre.includes('bilingü') || nombre.includes('bilingue');
-      if (isBilingue) {
-        return nombre.includes(selectedService.nombre_es.toLowerCase()) && esBilingue;
+    // 3. Build cotizacion_data — one entry per selected service
+    const servicios = [];
+    selectedServices.forEach(svc => {
+      const sd = serviceData[svc.clave] || {};
+      const svcNameDisplay = isBilingue
+        ? (idioma === 'en' ? svc.nombre_bilingue_en : svc.nombre_bilingue_es)
+        : (idioma === 'en' ? svc.nombre_en : svc.nombre_es);
+      const jornadas = sd.jornadas || [];
+      const jornadasNormales = jornadas.filter(j => j !== 'media_3meses');
+
+      if (!jornadas.includes('media_3meses')) {
+        const primeraJornada = jornadasNormales[0];
+        servicios.push({
+          nombre_display: svcNameDisplay,
+          imagen_key: svc.clave,
+          imagen_url: isBilingue ? (svc.imagen_bilingue_url || svc.imagen_url) : svc.imagen_url,
+          es_bilingue: isBilingue,
+          funciones: (sd.funciones || []).filter(f => f.trim()),
+          jornadas: jornadasNormales,
+          horarios: sd.horarios || {},
+          precios: sd.precios || {},
+          horario: {
+            modalidad: primeraJornada,
+            texto: (sd.horarios || {})[primeraJornada] || ''
+          },
+          precio: (sd.precios || {})[primeraJornada] || 0,
+          cantidad: 1,
+          nota: ''
+        });
       } else {
-        return nombre.includes(selectedService.nombre_es.toLowerCase()) && !esBilingue;
+        servicios.push({
+          nombre_display: svcNameDisplay,
+          imagen_key: svc.clave,
+          imagen_url: isBilingue ? (svc.imagen_bilingue_url || svc.imagen_url) : svc.imagen_url,
+          es_bilingue: isBilingue,
+          funciones: (sd.funciones || []).filter(f => f.trim()),
+          jornadas: ['media_3meses'],
+          horario: {
+            modalidad: 'media_3meses',
+            texto_inicio: sd.horario_inicio || '',
+            texto_full: sd.horario_full || ''
+          },
+          precio_inicio: sd.precio_inicio || 0,
+          precio_full: sd.precio_full || 0,
+          cantidad: 1,
+          nota: ''
+        });
       }
     });
-    const planesOfrecidos = matchingPlans.map(p => p.id);
-
-    // 3. Build cotizacion_data — UN SOLO servicio con precios por jornada
-    const svcNameDisplay = isBilingue
-      ? (idioma === 'en' ? selectedService.nombre_bilingue_en : selectedService.nombre_bilingue_es)
-      : (idioma === 'en' ? selectedService.nombre_en : selectedService.nombre_es);
-
-    const servicios = [];
-    const jornadasSinMedia3 = selectedJornadas.filter(j => j !== 'media_3meses');
-    const jLabels = {
-      media: { es: 'Media Jornada', en: 'Part-time' },
-      completa: { es: 'Jornada Completa', en: 'Full-time' }
-    };
-
-    if (!selectedJornadas.includes('media_3meses')) {
-      // Una sola card con el precio de la primera jornada (el viewer lo actualiza dinámicamente)
-      const primeraJornada = jornadasSinMedia3[0];
-      const scheduleEl = document.getElementById('schedule-' + primeraJornada);
-      servicios.push({
-        nombre_display: svcNameDisplay,
-        imagen_key: selectedService.clave,
-        es_bilingue: isBilingue,
-        funciones: currentFunctions.filter(f => f.trim()),
-        horario: {
-          modalidad: primeraJornada,
-          texto: scheduleEl ? scheduleEl.value : ''
-        },
-        precio: parseFloat(document.getElementById('precio-' + primeraJornada)?.value) || 0,
-        cantidad: serviceQty,
-        nota: ''
-      });
-    }
-
-    // Caso media_3meses: transición media → completa
-    if (selectedJornadas.includes('media_3meses')) {
-      servicios.push({
-        nombre_display: svcNameDisplay,
-        imagen_key: selectedService.clave,
-        es_bilingue: isBilingue,
-        funciones: currentFunctions.filter(f => f.trim()),
-        horario: {
-          modalidad: 'media_3meses',
-          texto_inicio: document.getElementById('horario-media3-inicio')?.value || '',
-          texto_full: document.getElementById('horario-media3-full')?.value || ''
-        },
-        precio_inicio: parseFloat(document.getElementById('precio-media3-inicio')?.value) || 0,
-        precio_full: parseFloat(document.getElementById('precio-media3-full')?.value) || 0,
-        cantidad: serviceQty,
-        nota: ''
-      });
-    }
 
     // Telephony
     let telefonia = { tipo: voipType };
