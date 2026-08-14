@@ -330,6 +330,8 @@
         <div id="v-jornada-list"></div>
       </div>
 
+      <hr style="border:none;border-top:1px solid var(--gray-100);margin:20px 0;" />
+      <div class="card-label" id="v-plans-label-inner" style="margin-bottom:12px;"></div>
       <div id="v-plans-list"></div>
       <div class="confirm-section">
         <button class="btn-confirm" id="v-confirm-btn" disabled>Confirmar selección</button>
@@ -516,6 +518,8 @@ function renderViewer(data, quoteId) {
   document.getElementById('v-doc-btn-text').textContent = tx.docBtn;
   document.getElementById('v-doc-btn-sub').textContent  = tx.docSub;
   document.getElementById('v-plans-label').textContent  = tx.plansLabel;
+  var innerLabel = document.getElementById('v-plans-label-inner');
+  if (innerLabel) innerLabel.textContent = tx.plansLabel;
   document.getElementById('v-plans-intro').textContent  = tx.plansIntro;
   document.getElementById('v-confirm-btn').textContent  = tx.confirmBtn;
   document.getElementById('v-confirm-note').textContent = tx.confirmNote;
@@ -552,40 +556,33 @@ function renderViewer(data, quoteId) {
     var moneda = window._moneda || 'USD';
     var servicios = window._serviciosGenerados || [];
 
-    // Actualizar precio en el selector de planes — precio correcto por servicio y jornada
+    // Obtener precio de un servicio segun jornada seleccionada
+    function getPrecioSvc(svc, jornada) {
+      if (!jornada) return null;
+      // Jornada normal (media o completa)
+      if (svc.precios && svc.precios[jornada] != null) return svc.precios[jornada];
+      // media_3meses seleccionado → precio de inicio
+      if (jornada === 'media_3meses' && svc.precio_inicio != null) return svc.precio_inicio;
+      // completa seleccionado cuando viene de media_3meses → precio full
+      if (jornada === 'completa' && svc.precio_full != null) return svc.precio_full;
+      // fallback a precios_combinaciones
+      return null;
+    }
+
+    // Actualizar precio en el selector de planes
     window._planesOfrecidos.forEach(function(p, pIdx) {
       var priceEl = document.getElementById('precio-plan-' + p.id);
       if (priceEl) {
         var svc = servicios[pIdx] || null;
-        var precio = null;
-        if (svc && selectedJornada) {
-          if (svc.precios && svc.precios[selectedJornada] != null) {
-            precio = svc.precios[selectedJornada];
-          } else if (svc.precio_inicio && selectedJornada === 'media') {
-            precio = svc.precio_inicio;
-          } else if (svc.precio_full && selectedJornada === 'completa') {
-            precio = svc.precio_full;
-          } else {
-            var clave = p.id + '|' + selectedJornada;
-            var val = (window._preciosCombinaciones || {})[clave];
-            if (val != null) precio = val;
-          }
+        var precio = svc ? getPrecioSvc(svc, selectedJornada) : null;
+        if (precio == null) {
+          var clave = p.id + '|' + selectedJornada;
+          var val = (window._preciosCombinaciones || {})[clave];
+          if (val != null) precio = val;
         }
         var precioStr = precio != null ? formatPrecio(precio, moneda) : '';
         priceEl.textContent = precioStr;
         priceEl.style.display = precioStr ? 'block' : 'none';
-      }
-    });
-
-    // Actualizar precio dinamico en cards de servicio
-    servicios.forEach(function(svc, idx) {
-      var el = document.getElementById('gen-precio-svc-' + idx);
-      if (el && selectedJornada) {
-        var precio = null;
-        if (svc.precios && svc.precios[selectedJornada] != null) {
-          precio = svc.precios[selectedJornada];
-        }
-        el.textContent = precio != null ? formatPrecio(precio, moneda) : '';
       }
     });
   }
@@ -785,51 +782,68 @@ function renderGeneratedQuote(data) {
     var jornadasHtml = '';
     var hLabel = idioma === 'en' ? 'Service Schedule' : 'Horario del Servicio';
 
-    if (svc.horario && svc.horario.modalidad === 'media_3meses') {
-      // Caso especial: transicion media → completa
-      var from4 = idioma === 'en' ? 'From the 4th month:' : 'A partir del 4to mes:';
-      jornadasHtml = '<div class="gen-schedule"><div class="gen-schedule-title">' + hLabel + '</div>'
-        + '<p><strong>' + jNombres.media + ':</strong> ' + (svc.horario.texto_inicio || '') + '</p>'
-        + (svc.horario.texto_full ? '<p><strong>' + from4 + '</strong> ' + svc.horario.texto_full + '</p>' : '')
-        + '</div>';
-      // Precio transicion
-      if (svc.precio_inicio && svc.precio_full) {
-        var lbl1 = idioma === 'en' ? 'First 3 months' : 'Primeros 3 meses';
-        var lbl2 = idioma === 'en' ? 'From 4th month' : 'A partir del 4to mes';
-        jornadasHtml += '<div class="gen-precio-transition">'
-          + '<div class="gen-precio-phase"><span class="gen-precio-phase-label">' + lbl1 + '</span><span class="gen-precio-phase-amount">' + formatPrecio(svc.precio_inicio, moneda) + '</span></div>'
-          + '<div class="gen-precio-arrow">→</div>'
-          + '<div class="gen-precio-phase"><span class="gen-precio-phase-label">' + lbl2 + '</span><span class="gen-precio-phase-amount">' + formatPrecio(svc.precio_full, moneda) + '</span></div>'
+    // ── Renderizar jornadas de forma unificada ──
+    // Puede haber: media_3meses solo, completa sola, media sola,
+    // o cualquier combinacion: [media_3meses, completa], [media, completa], etc.
+    var jornadas = svc.jornadas || [];
+    var tieneMedia3 = jornadas.indexOf('media_3meses') >= 0;
+    var tieneCompleta = jornadas.indexOf('completa') >= 0;
+    var tieneMedia = jornadas.indexOf('media') >= 0;
+    var horarios = svc.horarios || {};
+    var precios = svc.precios || {};
+
+    jornadasHtml = '<div class="gen-schedule"><div class="gen-schedule-title">' + hLabel + '</div>';
+
+    // Media Jornada los 3 primeros meses
+    if (tieneMedia3) {
+      var lbl3m = idioma === 'en' ? 'First 3 months (Part-time)' : 'Media Jornada — Primeros 3 meses';
+      var lbl3mFull = idioma === 'en' ? 'From 4th month (Full-time)' : 'A partir del 4to mes — Jornada Completa';
+      var horIni = (svc.horario && svc.horario.texto_inicio) || '';
+      var horFull = (svc.horario && svc.horario.texto_full) || '';
+      var pIni = svc.precio_inicio ? formatPrecio(svc.precio_inicio, moneda) : '';
+      var pFull = svc.precio_full ? formatPrecio(svc.precio_full, moneda) : '';
+
+      if (horIni) {
+        jornadasHtml += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--gray-100);">'
+          + '<div><strong>' + lbl3m + ':</strong> <span style="font-size:13px;color:var(--gray-700);">' + horIni + '</span></div>'
+          + (pIni ? '<div style="font-size:18px;font-weight:800;color:var(--navy);white-space:nowrap;margin-left:16px;">' + pIni + '</div>' : '')
           + '</div>';
       }
-    } else if (svc.horarios && Object.keys(svc.horarios).length > 0) {
-      // Multiples jornadas — mostrar cada una con horario y precio
-      jornadasHtml = '<div class="gen-schedule"><div class="gen-schedule-title">' + hLabel + '</div>';
-      var jornadasOrden = ['media', 'completa'];
-      jornadasOrden.forEach(function(j) {
-        if (svc.horarios[j]) {
-          var precio = svc.precios && svc.precios[j] ? formatPrecio(svc.precios[j], moneda) : '';
-          jornadasHtml += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--gray-100);">'
-            + '<div><strong>' + jNombres[j] + ':</strong> <span style="font-size:13px;color:var(--gray-700);">' + svc.horarios[j] + '</span></div>'
-            + (precio ? '<div style="font-size:18px;font-weight:800;color:var(--navy);white-space:nowrap;margin-left:16px;">' + precio + '</div>' : '')
-            + '</div>';
-        }
-      });
-      jornadasHtml += '</div>';
-    } else if (svc.horario && svc.horario.texto) {
-      // Una sola jornada
-      jornadasHtml = '<div class="gen-schedule"><div class="gen-schedule-title">' + hLabel + '</div>'
-        + '<p>' + (svc.horario.texto || '') + '</p></div>';
-      if (svc.precio) {
-        jornadasHtml += '<div class="gen-precio" id="gen-precio-svc-' + svcIdx + '">' + formatPrecio(svc.precio, moneda) + '</div>';
+      if (horFull) {
+        jornadasHtml += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--gray-100);">'
+          + '<div><strong>' + lbl3mFull + ':</strong> <span style="font-size:13px;color:var(--gray-700);">' + horFull + '</span></div>'
+          + (pFull ? '<div style="font-size:18px;font-weight:800;color:var(--navy);white-space:nowrap;margin-left:16px;">' + pFull + '</div>' : '')
+          + '</div>';
       }
     }
 
-    // Precio dinamico (cuando hay precios por jornada pero no horarios multiples)
-    var precioExtraHtml = '';
-    if (svc.precios && Object.keys(svc.precios).length > 0 && !(svc.horarios && Object.keys(svc.horarios).length > 0)) {
-      precioExtraHtml = '<div id="gen-precio-svc-' + svcIdx + '" style="text-align:right;font-size:28px;font-weight:800;color:var(--navy);margin-top:16px;padding-top:12px;border-top:2px solid var(--gray-100);"></div>';
+    // Media Jornada normal
+    if (tieneMedia && horarios['media']) {
+      var pMedia = precios['media'] ? formatPrecio(precios['media'], moneda) : '';
+      jornadasHtml += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--gray-100);">'
+        + '<div><strong>' + jNombres.media + ':</strong> <span style="font-size:13px;color:var(--gray-700);">' + horarios['media'] + '</span></div>'
+        + (pMedia ? '<div style="font-size:18px;font-weight:800;color:var(--navy);white-space:nowrap;margin-left:16px;">' + pMedia + '</div>' : '')
+        + '</div>';
     }
+
+    // Jornada Completa (solo si NO viene de media_3meses o si viene como jornada adicional)
+    if (tieneCompleta && horarios['completa']) {
+      var pCompleta = precios['completa'] ? formatPrecio(precios['completa'], moneda) : '';
+      jornadasHtml += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--gray-100);">'
+        + '<div><strong>' + jNombres.completa + ':</strong> <span style="font-size:13px;color:var(--gray-700);">' + horarios['completa'] + '</span></div>'
+        + (pCompleta ? '<div style="font-size:18px;font-weight:800;color:var(--navy);white-space:nowrap;margin-left:16px;">' + pCompleta + '</div>' : '')
+        + '</div>';
+    }
+
+    // Si no hay ninguna jornada con horario definido, usar horario simple
+    if (!tieneMedia3 && !tieneMedia && !tieneCompleta && svc.horario && svc.horario.texto) {
+      jornadasHtml += '<p>' + svc.horario.texto + '</p>';
+    }
+
+    jornadasHtml += '</div>';
+
+    // No necesitamos precioExtraHtml separado, ya está integrado arriba
+    var precioExtraHtml = '';
 
     card1.innerHTML = imgHtml + titleHtml + jornadasHtml + precioExtraHtml;
     container.insertBefore(card1, plansSectionEl);
