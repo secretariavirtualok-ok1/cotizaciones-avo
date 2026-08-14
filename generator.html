@@ -929,15 +929,22 @@ function renderPriceTabs() {
       media_3meses: { es: 'Media Jornada → Jornada Completa', en: 'Part-time → Full-time', icon: '📅' }
     };
 
+    const hasMed3Now = (sd.jornadas || []).includes('media_3meses');
     const jornadaCards = jornadasOpts.map(j => {
       const isSelected = (sd.jornadas || []).includes(j);
-      return `<div class="jornada-card ${isSelected ? 'selected' : ''}" 
-                   onclick="toggleJornadaSvc('${svc.clave}', '${j}', this)">
+      // Si hay media_3meses, deshabilitar media y completa por separado
+      const isDisabled = hasMed3Now && (j === 'media' || j === 'completa');
+      return `<div class="jornada-card ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}" 
+                   onclick="${isDisabled ? '' : `toggleJornadaSvc('${svc.clave}', '${j}', this)`}"
+                   style="${isDisabled ? 'opacity:0.4;cursor:not-allowed;' : ''}">
         <div class="j-title">${jLabels[j].icon} ${jLabels[j].es}</div>
+        ${isSelected && j === 'media_3meses' ? '<div style="font-size:11px;color:var(--avo-accent);margin-top:4px;">Incluye transición a Jornada Completa</div>' : ''}
       </div>`;
     }).join('');
 
-    const jornadasNormales = (sd.jornadas || []).filter(j => j !== 'media_3meses');
+    // Si hay media_3meses, no mostrar media ni completa por separado
+    const hasMed3 = (sd.jornadas || []).includes('media_3meses');
+    const jornadasNormales = (sd.jornadas || []).filter(j => j !== 'media_3meses' && !hasMed3);
     const priceRows = jornadasNormales.map(j => {
       const jName = idioma === 'en' ? (j === 'media' ? 'Part-time' : 'Full-time') : jLabels[j].es;
       const schKey = `${svc.clave}_schedule_${j}`;
@@ -962,7 +969,6 @@ function renderPriceTabs() {
         </div>`;
     }).join('');
 
-    const hasMed3 = (sd.jornadas || []).includes('media_3meses');
     const med3Block = hasMed3 ? `
       <div class="schedule-block" style="margin-top:12px;">
         <div class="sch-label">Media Jornada → Jornada Completa</div>
@@ -988,8 +994,7 @@ function renderPriceTabs() {
       <div class="svc-tab-content ${i === activePriceTab ? 'active' : ''}" id="price-content-${i}">
         <p style="font-size:13px;color:var(--gray-600);margin-bottom:14px;">Selecciona las jornadas y configura horario y precio para <strong>${isBilingue ? (svc.nombre_bilingue_es || svc.nombre_es) : svc.nombre_es}</strong>:</p>
         <div class="jornada-options" style="margin-bottom:16px;">${jornadaCards}</div>
-        ${priceRows}
-        ${med3Block}
+        ${hasMed3 ? med3Block : priceRows}
       </div>`;
   }).join('');
 }
@@ -999,8 +1004,20 @@ function switchPriceTab(idx) { activePriceTab = idx; renderPriceTabs(); }
 function toggleJornadaSvc(clave, jornada, el) {
   if (!serviceData[clave]) serviceData[clave] = { funciones: [], jornadas: [], precios: {}, horarios: {} };
   const idx = serviceData[clave].jornadas.indexOf(jornada);
-  if (idx >= 0) { serviceData[clave].jornadas.splice(idx, 1); el.classList.remove('selected'); }
-  else { serviceData[clave].jornadas.push(jornada); el.classList.add('selected'); }
+  if (idx >= 0) {
+    // Deseleccionar
+    serviceData[clave].jornadas.splice(idx, 1);
+  } else {
+    // Si se selecciona media_3meses, quitar media y completa por separado
+    if (jornada === 'media_3meses') {
+      serviceData[clave].jornadas = serviceData[clave].jornadas.filter(j => j !== 'media' && j !== 'completa');
+    }
+    // Si se selecciona media o completa, quitar media_3meses
+    if (jornada === 'media' || jornada === 'completa') {
+      serviceData[clave].jornadas = serviceData[clave].jornadas.filter(j => j !== 'media_3meses');
+    }
+    serviceData[clave].jornadas.push(jornada);
+  }
   renderPriceTabs();
 }
 
@@ -1207,6 +1224,16 @@ async function saveQuotation() {
       const jornadas = sd.jornadas || [];
       const jornadasNormales = jornadas.filter(j => j !== 'media_3meses');
 
+      // Leer horarios y precios directamente del DOM (no del onchange)
+      const horariosFinal = {};
+      const preciosFinal = {};
+      jornadasNormales.forEach(j => {
+        const schEl = document.getElementById(svc.clave + '_schedule_' + j);
+        const prEl = document.getElementById(svc.clave + '_precio_' + j);
+        if (schEl) horariosFinal[j] = schEl.value || (j === 'media' ? 'Lunes a viernes de 8:00 a.m. a 12:00 p.m.' : 'Lunes a viernes de 8:00 a.m. a 6:00 p.m. con una hora de descanso.');
+        if (prEl) preciosFinal[j] = parseFloat(prEl.value) || 0;
+      });
+
       if (!jornadas.includes('media_3meses')) {
         const primeraJornada = jornadasNormales[0];
         servicios.push({
@@ -1216,31 +1243,45 @@ async function saveQuotation() {
           es_bilingue: isBilingue,
           funciones: (sd.funciones || []).filter(f => f.trim()),
           jornadas: jornadasNormales,
-          horarios: sd.horarios || {},
-          precios: sd.precios || {},
+          horarios: horariosFinal,
+          precios: preciosFinal,
           horario: {
             modalidad: primeraJornada,
-            texto: (sd.horarios || {})[primeraJornada] || ''
+            texto: horariosFinal[primeraJornada] || ''
           },
-          precio: (sd.precios || {})[primeraJornada] || 0,
+          precio: preciosFinal[primeraJornada] || 0,
           cantidad: 1,
           nota: ''
         });
       } else {
+        // media_3meses: leer desde DOM
+        const horIniEl = document.getElementById(svc.clave + '_horario_m3_inicio');
+        const horFullEl = document.getElementById(svc.clave + '_horario_m3_full');
+        const prIniEl = document.getElementById(svc.clave + '_precio_m3_inicio');
+        const prFullEl = document.getElementById(svc.clave + '_precio_m3_full');
+
+        // Si también tiene jornada completa adicional, incluirla
+        const jornadasM3 = ['media_3meses'];
+        if (jornadas.includes('completa')) jornadasM3.push('completa');
+
+        const horarioM3 = {
+          modalidad: 'media_3meses',
+          texto_inicio: horIniEl ? horIniEl.value : (sd.horario_inicio || ''),
+          texto_full: horFullEl ? horFullEl.value : (sd.horario_full || '')
+        };
+
         servicios.push({
           nombre_display: svcNameDisplay,
           imagen_key: svc.clave,
           imagen_url: isBilingue ? (svc.imagen_bilingue_url || svc.imagen_url) : svc.imagen_url,
           es_bilingue: isBilingue,
           funciones: (sd.funciones || []).filter(f => f.trim()),
-          jornadas: ['media_3meses'],
-          horario: {
-            modalidad: 'media_3meses',
-            texto_inicio: sd.horario_inicio || '',
-            texto_full: sd.horario_full || ''
-          },
-          precio_inicio: sd.precio_inicio || 0,
-          precio_full: sd.precio_full || 0,
+          jornadas: jornadasM3,
+          horarios: horariosFinal,
+          horario: horarioM3,
+          precios: preciosFinal,
+          precio_inicio: prIniEl ? parseFloat(prIniEl.value) || 0 : (sd.precio_inicio || 0),
+          precio_full: prFullEl ? parseFloat(prFullEl.value) || 0 : (sd.precio_full || 0),
           cantidad: 1,
           nota: ''
         });
