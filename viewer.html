@@ -828,19 +828,27 @@ function renderGeneratedQuote(data) {
       ? '<div class="gen-schedule"><div class="gen-schedule-title">' + hLabel + '</div>' + rowsHtml + '</div>'
       : '';
 
-    // Layout: título arriba, imagen e horarios dentro del mismo bloque crema
+    // Layout: imagen completa arriba (cara visible), horarios debajo
+    card1.style.padding  = '0';
+    card1.style.overflow = 'hidden';
+
     var imgHtml = svc.imagen_url
       ? '<img src="' + svc.imagen_url + '" alt="' + (svc.nombre_display || '') + '" '
-        + 'style="width:160px;min-width:140px;object-fit:contain;border-radius:8px;flex-shrink:0;align-self:center;" />'
+        + 'style="width:100%;height:auto;display:block;" />'
       : '';
 
-    // Construir bloque crema con imagen y horarios juntos
-    var innerBlock = rowsHtml
-      ? '<div class="gen-schedule" style="display:flex;gap:20px;align-items:center;padding:16px;">'
-        + imgHtml
-        + '<div style="flex:1;">' + rowsHtml + '</div>'
-        + '</div>'
-      : imgHtml;
+    var scheduleHtml = rowsHtml
+      ? '<div style="padding:20px 24px 24px;">'
+          + '<div style="font-size:11px;font-weight:700;text-transform:uppercase;'
+          + 'letter-spacing:.6px;color:var(--gray-500);margin-bottom:14px;'
+          + 'padding-bottom:10px;border-bottom:1px solid var(--gray-100);">'
+          + hLabel
+          + '</div>'
+          + rowsHtml
+          + '</div>'
+      : '';
+
+    var innerBlock = imgHtml + scheduleHtml;
 
     card1.innerHTML = innerBlock;
 
