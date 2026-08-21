@@ -292,12 +292,17 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
         <div class="card-subtitle">Selecciona un cliente existente o crea uno nuevo</div>
 
         <div class="field">
-          <label>Buscar cliente existente</label>
-          <input type="text" id="client-search" placeholder="Escribe nombre o empresa..." autocomplete="off" />
-          <div id="client-results" class="hidden" style="border:1px solid var(--gray-200); border-radius:6px; margin-top:4px; max-height:200px; overflow-y:auto;"></div>
+          <label>Buscar cliente o prospecto</label>
+          <input type="text" id="client-search" placeholder="Nombre, empresa o correo..." autocomplete="off" />
+          <div id="client-results" class="hidden" style="border:1px solid var(--gray-200); border-radius:6px; margin-top:4px; max-height:220px; overflow-y:auto;"></div>
         </div>
 
-        <div style="text-align:center; color:var(--gray-400); font-size:13px; margin:12px 0;">— o crea uno nuevo —</div>
+        <div id="lead-banner" class="hidden" style="background:#fef9ec;border:1.5px solid var(--avo-orange);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#7a5200;">
+          📋 Datos pre-cargados desde prospecto: <strong id="lead-banner-name"></strong> — edita si es necesario antes de generar.
+          <button onclick="clearLeadBanner()" style="margin-left:10px;padding:3px 10px;font-size:12px;border:1px solid var(--avo-orange);background:white;border-radius:5px;cursor:pointer;color:#7a5200;">Limpiar</button>
+        </div>
+
+        <div style="text-align:center; color:var(--gray-400); font-size:13px; margin:12px 0;">— o completa los datos —</div>
 
         <div class="field-row">
           <div class="field">
@@ -587,6 +592,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 // ══════════════════════════════════════════════════════════
 let currentStep = 1;
 let selectedClientId = null;
+let selectedLeadId = null;
 let serviceCatalog = [];
 let voipCatalog = [];
 let selectedServices = [];   // Array de hasta 3 servicios seleccionados
@@ -721,7 +727,7 @@ function validateStep(n) {
 }
 
 // ══════════════════════════════════════════════════════════
-//  STEP 1: CLIENT SEARCH
+//  STEP 1: CLIENT + LEAD SEARCH
 // ══════════════════════════════════════════════════════════
 let searchTimeout;
 document.getElementById('client-search').addEventListener('input', function() {
@@ -732,30 +738,84 @@ document.getElementById('client-search').addEventListener('input', function() {
 });
 
 async function searchClients(q) {
-  const { data } = await sb.from('clients').select('*')
-    .or(`nombre_contacto.ilike.%${q}%,empresa.ilike.%${q}%`)
-    .limit(8);
   const box = document.getElementById('client-results');
-  if (!data || data.length === 0) { box.classList.add('hidden'); return; }
+
+  const [{ data: clients }, { data: leads }] = await Promise.all([
+    sb.from('clients').select('id,nombre_contacto,empresa,email,telefono')
+      .or(`nombre_contacto.ilike.%${q}%,empresa.ilike.%${q}%,email.ilike.%${q}%`)
+      .limit(5),
+    sb.from('leads').select('id,full_name,company_name,email,phone')
+      .or(`full_name.ilike.%${q}%,company_name.ilike.%${q}%,email.ilike.%${q}%`)
+      .not('status', 'eq', 'converted')
+      .limit(5)
+  ]);
+
+  const rows = [];
+
+  (clients || []).forEach(c => {
+    const payload = JSON.stringify(c).replace(/"/g, '&quot;');
+    rows.push(`
+      <div style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--gray-100);font-size:13px;"
+           onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='white'"
+           onclick="selectClient(${payload})">
+        <strong>${c.nombre_contacto}</strong>${c.empresa ? ' — ' + c.empresa : ''}
+        <br><span style="color:var(--gray-500);">${c.email || ''}</span>
+      </div>`);
+  });
+
+  (leads || []).forEach(l => {
+    const payload = JSON.stringify({
+      id: l.id, full_name: l.full_name,
+      company_name: l.company_name, email: l.email, phone: l.phone
+    }).replace(/"/g, '&quot;');
+    rows.push(`
+      <div style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--gray-100);font-size:13px;border-left:3px solid var(--avo-orange);"
+           onmouseover="this.style.background='#fffbf0'" onmouseout="this.style.background='white'"
+           onclick="selectLead(${payload})">
+        <strong>${l.full_name}</strong>
+        <span style="margin-left:6px;font-size:11px;font-weight:700;color:var(--avo-orange);background:#fef3c7;padding:1px 6px;border-radius:10px;">PROSPECTO</span>
+        ${l.company_name ? ' — ' + l.company_name : ''}
+        <br><span style="color:var(--gray-500);">${l.email || ''}</span>
+      </div>`);
+  });
+
+  if (rows.length === 0) { box.classList.add('hidden'); return; }
   box.classList.remove('hidden');
-  box.innerHTML = data.map(c => `
-    <div style="padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--gray-100); font-size:13px;"
-         onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='white'"
-         onclick="selectClient(${JSON.stringify(c).replace(/"/g, '&quot;')})">
-      <strong>${c.nombre_contacto}</strong>${c.empresa ? ' — ' + c.empresa : ''}
-      <br><span style="color:var(--gray-500);">${c.email || ''}</span>
-    </div>
-  `).join('');
+  box.innerHTML = rows.join('');
 }
 
 function selectClient(c) {
   selectedClientId = c.id;
+  selectedLeadId = null;
   document.getElementById('client-nombre').value = c.nombre_contacto || '';
   document.getElementById('client-empresa').value = c.empresa || '';
   document.getElementById('client-email').value = c.email || '';
   document.getElementById('client-telefono').value = c.telefono || '';
   document.getElementById('client-results').classList.add('hidden');
   document.getElementById('client-search').value = '';
+  document.getElementById('lead-banner').classList.add('hidden');
+}
+
+function selectLead(l) {
+  selectedLeadId = l.id;
+  selectedClientId = null;
+  document.getElementById('client-nombre').value = l.full_name || '';
+  document.getElementById('client-empresa').value = l.company_name || '';
+  document.getElementById('client-email').value = l.email || '';
+  document.getElementById('client-telefono').value = l.phone || '';
+  document.getElementById('client-results').classList.add('hidden');
+  document.getElementById('client-search').value = '';
+  document.getElementById('lead-banner-name').textContent = l.full_name;
+  document.getElementById('lead-banner').classList.remove('hidden');
+}
+
+function clearLeadBanner() {
+  selectedLeadId = null;
+  document.getElementById('lead-banner').classList.add('hidden');
+  document.getElementById('client-nombre').value = '';
+  document.getElementById('client-empresa').value = '';
+  document.getElementById('client-email').value = '';
+  document.getElementById('client-telefono').value = '';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1355,7 +1415,13 @@ async function saveQuotation() {
     const { data: quote, error: qErr } = await sb.from('quotes').insert(quoteData).select().single();
     if (qErr) throw qErr;
 
-    // 5. Show result
+    // 5. If quote was made for a prospect, update lead status to "contacted"
+    if (selectedLeadId) {
+      await sb.from('leads').update({ status: 'contacted' }).eq('id', selectedLeadId);
+      selectedLeadId = null;
+    }
+
+    // 6. Show result
     const link = VIEWER_BASE + '?id=' + quote.id;
     document.getElementById('result-link').value = link;
     document.getElementById('result-preview').href = link;
