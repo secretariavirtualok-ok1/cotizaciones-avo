@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulario de Registro | Asistente Virtual OK</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --primary: #1a2e6b;
+            --primary-light: #2a4299;
+            --primary-dark: #111e4a;
+            --accent: #29ABE2;
+            --bg: #f0f4fb;
+            --white: #ffffff;
+            --text: #1a202c;
+            --text-light: #4a5568;
+            --muted: #a0aec0;
+            --border: #e2e8f0;
+            --success: #38a169;
+            --error: #e53e3e;
+            --radius: 14px;
+            --shadow: 0 4px 20px rgba(26,46,107,0.08);
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding-bottom: 60px;
+        }
+
+        /* ── HEADER ── */
+        .header {
+            background: #ffffff;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 14px rgba(26,46,107,0.15);
+            border-bottom: 2px solid #1a2e6b;
+        }
+        .logo-img { height: 44px; width: auto; display: block; }
+        .lang-btn {
+            background: #1a2e6b;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 18px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.15s;
+        }
+        .lang-btn:hover { background: #2a4299; transform: translateY(-1px); }
+
+        /* ── HERO ── */
+        .hero {
+            background: linear-gradient(140deg, #1a2e6b 0%, #2a4299 100%);
+            padding: 36px 24px 58px;
+            text-align: center;
+            color: #fff;
+            position: relative;
+        }
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: -28px; left: 0; right: 0;
+            height: 56px;
+            background: var(--bg);
+            border-radius: 50% 50% 0 0 / 28px;
+        }
+        .hero-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.22);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 4px 14px;
+            border-radius: 20px;
+            margin-bottom: 14px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            border: 1px solid rgba(255,255,255,0.4);
+        }
+        .hero h1 { font-size: 26px; font-weight: 800; margin-bottom: 10px; line-height: 1.3; }
+        .hero p  { font-size: 14px; opacity: 0.85; max-width: 480px; margin: 0 auto; line-height: 1.65; }
+
+        /* ── PROGRESS ── */
+        .progress-wrap {
+            max-width: 620px;
+            margin: 0 auto;
+            padding: 36px 24px 0;
+        }
+        .progress-steps {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            position: relative;
+        }
+        .progress-track {
+            position: absolute;
+            top: 17px; left: 9%; right: 9%;
+            height: 2px;
+            background: var(--border);
+        }
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.4s ease;
+            width: 0%;
+        }
+        .step-ind { display: flex; flex-direction: column; align-items: center; gap: 7px; z-index: 2; flex: 1; }
+        .step-dot {
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            background: var(--white);
+            border: 2px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700;
+            color: var(--muted);
+            transition: all 0.3s;
+        }
+        .step-dot.active   { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: 0 0 0 4px rgba(26,46,107,0.15); }
+        .step-dot.done     { background: var(--success); border-color: var(--success); color: #fff; }
+        .step-lbl { font-size: 11px; font-weight: 600; color: var(--muted); text-align: center; line-height: 1.2; }
+        .step-lbl.active   { color: var(--primary); }
+
+        /* ── FORM CONTAINER ── */
+        .form-wrap { max-width: 620px; margin: 28px auto 0; padding: 0 24px; }
+
+        /* ── STEP CARD ── */
+        .step-card {
+            background: var(--white);
+            border-radius: var(--radius);
+            padding: 30px;
+            box-shadow: var(--shadow);
+            display: none;
+        }
+        .step-card.active { display: block; animation: fadeUp 0.3s ease; }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .step-card h2 { font-size: 19px; font-weight: 800; color: var(--primary); margin-bottom: 5px; }
+        .step-desc    { font-size: 13px; color: var(--text-light); margin-bottom: 26px; line-height: 1.55; }
+
+        /* ── FIELDS ── */
+        .fgroup { display: flex; flex-direction: column; gap: 18px; }
+        .frow   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        @media (max-width: 480px) {
+            .frow { grid-template-columns: 1fr; }
+            .step-card { padding: 20px; }
+        }
+        .field { display: flex; flex-direction: column; gap: 5px; }
+        .field label { font-size: 13px; font-weight: 700; color: var(--text); }
+        .req { color: var(--error); margin-left: 2px; }
+        .opt { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 4px; }
+
+        .field input,
+        .field select,
+        .field textarea {
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 13px;
+            font-size: 14px;
+            font-family: inherit;
+            color: var(--text);
+            background: #fff;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+        .field input:focus,
+        .field select:focus,
+        .field textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(26,46,107,0.10);
+        }
+        .field input.has-error,
+        .field select.has-error,
+        .field textarea.has-error { border-color: var(--error); }
+        .ferr { font-size: 12px; color: var(--error); display: none; }
+        .ferr.show { display: block; }
+        .field textarea { min-height: 100px; resize: vertical; }
+        .field input[readonly] { background: var(--bg); color: var(--text-light); cursor: default; }
+
+        /* Section label */
+        .sec-label {
+            font-size: 11px; font-weight: 800;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            border-bottom: 2px solid #1a2e6b;
+            display: inline-block;
+            padding-bottom: 4px;
+            margin-bottom: 12px;
+        }
+
+        /* ── DAYS GRID ── */
+        .days-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .day-chip { position: relative; }
+        .day-chip input[type="checkbox"] { position: absolute; opacity: 0; width: 0; height: 0; }
+        .day-chip label {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 46px; height: 38px;
+            padding: 0 10px;
+            border: 1.5px solid var(--border);
+            border-radius: 9px;
+            background: #fff;
+            font-size: 13px; font-weight: 700;
+            color: var(--text-light);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .day-chip input:checked + label {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        /* ── TIME RANGE ── */
+        .time-row { display: flex; align-items: center; gap: 10px; }
+        .time-row select {
+            flex: 1;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 14px; font-family: inherit;
+            outline: none; cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .time-row select:focus { border-color: var(--primary); }
+        .time-sep { color: var(--muted); font-weight: 700; font-size: 18px; }
+
+        /* ── TOGGLE YES/NO ── */
+        .toggle-wrap { display: flex; flex-direction: column; gap: 8px; }
+        .toggle-lbl  { font-size: 13px; font-weight: 700; color: var(--text); }
+        .toggle-row  { display: flex; gap: 8px; }
+        .tog-btn {
+            flex: 1; padding: 10px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            background: #fff;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer;
+            color: var(--text-light);
+            transition: all 0.2s;
+        }
+        .tog-btn.sel-yes { background: #e6f4ea; border-color: #38a169; color: #276749; }
+        .tog-btn.sel-no  { background: #fff5f5; border-color: #fc8181; color: #c53030; }
+
+        /* ── CONDITIONAL BLOCK ── */
+        .cond-block {
+            display: none;
+            margin-top: 10px;
+            padding: 14px;
+            background: var(--bg);
+            border-radius: 10px;
+            border-left: 3px solid var(--primary);
+        }
+        .cond-block.show { display: block; }
+
+        /* ── DIVIDER ── */
+        .divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+
+        /* ── NAV BUTTONS ── */
+        .nav-row { display: flex; gap: 12px; margin-top: 20px; }
+        .btn-prev {
+            flex: 1; padding: 13px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            background: #fff;
+            font-size: 14px; font-weight: 700;
+            color: var(--text-light);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-prev:hover { border-color: var(--primary); color: var(--primary); background: var(--bg); }
+        .btn-next {
+            flex: 2; padding: 13px;
+            border: none; border-radius: 10px;
+            background: var(--primary);
+            font-size: 14px; font-weight: 800;
+            color: #fff; cursor: pointer;
+            transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-next:hover { background: var(--primary-light); transform: translateY(-1px); box-shadow: 0 5px 16px rgba(26,46,107,0.28); }
+        .btn-next:disabled { background: var(--muted); cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-submit {
+            flex: 2; padding: 13px;
+            border: none; border-radius: 10px;
+            background: linear-gradient(135deg, #29ABE2 0%, #1a8abf 100%);
+            font-size: 14px; font-weight: 800;
+            color: #fff; cursor: pointer;
+            transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(26,46,107,0.35); }
+        .btn-submit:disabled { opacity: 0.65; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* ── SPINNER ── */
+        .spinner {
+            width: 17px; height: 17px;
+            border: 2px solid rgba(255,255,255,0.35);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        .btn-submit .spinner { border-top-color: var(--primary); border-color: rgba(26,46,107,0.25); border-top-color: var(--primary); }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── SUCCESS ── */
+        .success-wrap {
+            display: none;
+            max-width: 560px;
+            margin: 50px auto;
+            padding: 0 24px;
+            text-align: center;
+        }
+        .success-wrap.show { display: block; animation: fadeUp 0.5s ease; }
+        .success-card { background: #fff; border-radius: var(--radius); padding: 48px 32px; box-shadow: var(--shadow); }
+        .success-icon {
+            width: 70px; height: 70px;
+            background: #e6f4ea; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 30px; margin: 0 auto 20px;
+        }
+        .success-card h2 { font-size: 24px; font-weight: 800; color: var(--primary); margin-bottom: 12px; }
+        .success-card p  { font-size: 14px; color: var(--text-light); line-height: 1.6; margin-bottom: 8px; }
+        .success-ref-block {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 22px;
+            background: var(--bg);
+            border-radius: 10px;
+            font-size: 13px;
+            color: var(--text-light);
+        }
+        .success-ref-block strong { color: var(--primary); font-size: 15px; }
+
+
+        /* ── SCHEDULE TYPE ── */
+        .sched-type-row { display: flex; gap: 8px; margin-bottom: 16px; }
+        .sched-type-btn {
+            flex: 1; padding: 9px 6px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            background: #fff;
+            font-size: 12px; font-weight: 700;
+            cursor: pointer; color: var(--text-light);
+            transition: all 0.2s; text-align: center;
+        }
+        .sched-type-btn.active {
+            background: var(--primary); border-color: var(--primary); color: #fff;
+        }
+        .sched-type-btn:hover:not(.active) { border-color: var(--primary); color: var(--primary); }
+        .sched-panel { display: none; }
+        .sched-panel.show { display: block; animation: fadeUp 0.25s ease; }
+        .sched-note { font-size: 12px; color: var(--primary); font-weight: 600; margin-top: 8px; line-height: 1.5; }
+
+        /* ── Custom schedule: per-day rows ── */
+        .custom-day-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .custom-day-row:last-child { border-bottom: none; }
+        .custom-day-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 130px;
+        }
+        .custom-day-check input[type="checkbox"] {
+            width: 18px; height: 18px; cursor: pointer;
+            accent-color: var(--primary);
+            flex-shrink: 0;
+        }
+        .custom-day-check label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+            cursor: pointer;
+            margin: 0;
+        }
+        .custom-day-times {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+        .custom-day-times.visible { display: flex; }
+        .custom-day-times select {
+            padding: 6px 8px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text);
+            background: white;
+            cursor: pointer;
+        }
+        .custom-day-times select:focus { outline: none; border-color: var(--primary); }
+        .day-chip input:disabled + label { opacity: 0.38; cursor: not-allowed; }
+        @media (max-width: 420px) { .sched-type-btn { font-size: 11px; padding: 8px 4px; } }
+
+        /* ── HINT TEXT ── */
+        .hint { font-size: 12px; color: var(--muted); line-height: 1.4; margin-top: 2px; }
+    </style>
+</head>
+<body>
+
+<!-- ══════════ HEADER ══════════ -->
+<header class="header">
+    <img class="logo-img" id="logoImg" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABnIAAAFHCAYAAACVqNKUAAAACXBIWXMAABcRAAAXEQHKJvM/AAAgAElEQVR4nOzdX1Ib19b38d5vpXynwmcEkHu5ICOwMgKTEQAq3xuPwDAC43uXgBEERmAxAkNZ94ERPKF0l5t+azk/JQqWhNTde/feu7+fKuqc5zkJtLpb/WetvdZyZVkWAAAAAAAAAAAAiM//45gAAAAAAAAAAADEiUQOAAAAAAAAAABApEjkAAAAAAAAAAAARIpEDgAAAAAAAAAAQKRI5AAAAAAAAAAAAESKRA4AAAAAAAAAAECkSOQAAAAAAAAAAABEikQOAAAAAAAAAABApEjkAAAAAAAAAAAARIpEDgAAAAAAAAAAQKRI5AAAAAAAAAAAAESKRA4AAAAAAAAAAECkSOQAAAAAAAAAAABEikQOAAAAAAAAAABApEjkAAAAAAAAAAAARIpEDgAAAAAAAAAAQKRI5AAAAAAAAAAAAESKRA4AAAAAAAAAAECkSOQAAAAAAAAAAABEikQOAAAAAAAAAABApEjkAAAAAAAAAAAARIpEDgAAAAAAAAAAQKR+4sAAAAAAAAAAAOBXbzQZFEWxVxTFS/2hP4uiGE+H/Vt2PVZxZVmygwAAAAAAAAAAaFhvNNkpiuKkKIr9oii2lvz2x6IozuxnOuz/yTHAUyRyAAAAAAAAAABoWG80sQTOhw1+qyV0jqfD/gXHAvNI5AAAAAAAAAAA0KDeaGLJmIOKv/FyOuwfcjww8//YEwAAAAAAAAAANKNmEsccqJoH+I6KHAAAAAAAAAAAGtAbTY6LovjY0L78dTrsjzku+KnzewAAAABAbb3RZK8oipdFUezop3jy3xGne/0Uc//9z+mwf8vxCqM3mgy68DnXdD8d9u8b+U0AftAbTew+vcee8eqWQfXdpu9Zk5U0FzxPoyCRAwAAAGATCjrv6YVyTz9b7MRkvV604b3RpNCw3Vv93Cs4xYrQ5n3J7QPVcNpw8AuAaMGFBYR32SfeMNME5rDhZ+Pt3miyPx32r9i73UYiBwAAAMBCvdHEkjUD/ewR/OmcLSV6/kn2KMFzVxTFWAmeMRUUABA3JXHGLLzw6v102D/L+PNhfT6SeftFUZDI6TgSOQAAAAD+YSv+lLix/9xmz2CB3fmkXm80eVBwYcxqUQCIi+7rFyRxvDqaDvsXGX8+bMbHwifasIJEDgAAANBl6uO9r583nAyowBJ+7+xHFTvXSuxcMScAANrTG02sMuCcQ+CNtSAdMFcOMx7n3rG4CiRyAAAAgC7SCt1Dkjfw4I1+znujyaUSOlTqAEBAvdHkTEl2+EESB0BQJHIAAACAjtDMm2MPQ1iBZQ7sZ6792hkzdQDAr95ocqHrL/y4UxKHqtMOcc7ZrKkdzY20n6uyLFttqeecs2erl/o/bQ7Wn5pheF+WJc9bmSGRAwAAAGRObR6Oqb5Bi+bbr10roTPmgABAc9Qu1QK7r9mt3txYO1qSOHlzzu1oLs0sabPoOxVDNdbLuW37zzY65x61jf/8lGVJBVnCSOQAAAAAmVJv/BP6aiMy31uv9UaTOyV0GBANADUpiTP2NGgdf7ucDvuH7Iv8OOdmMyMH+snh2XlLyZ1/EjxzyR27VozLsmRRTUJI5AAAAACZIYGDROxqjo6dqyckdACgmt5osqfALG1T/fk0HfaPc/1wXaSqm9nMyK4kQOeTOx+U2Bnr54p2bHEjkQMAAABkojea2MvoGQkcJGZ7LqFzPB32rziAALAekjhBHLHYIA+qvDnsWPJmla1ZpXRRFB+dc3dqz3hFG7b4JJ3Icc7NehW+VNnbKv8MfKJsDAAAADnRDJwTeuIjcZbQ+b03mtyoQof3NgBYQRW45+wjb6xa4ZAFBulzzs0qb5gXudqufqxa50ELxKjUiURSiRzn3N5cv8JNX1Ln+wEWGk52xckIAACAVKkfvr1gHXAQkRF7d/vSG00uVaHDQGkAeKI3mlibr4/sF28siTOYDvtUJSRqrvrmmGr1SrZ1jbFKHYujXyiOznNZS/5f7BtoXzrn3LFzzi6cXy0j2NBKw9c6Gf+w3+2cO9QXHAAAAIieAjj3JHGQMTu373WuAwCkN5pckMTxytpL7ZHESZPNvnHOnek5+SNJnEa8VvXfvXPuQvOFEFi0FTlKqhzrx3efz12djGf6op+RXQQAAECMeqPJjlbE0UYNXWDvgh81/8na29BNAUBnqRL3gvZQXt2pEoe4YGKUXDhhkZNXW9q/B6rSOWGESThRVuQ4506UNf0QeFjblv7mvbYBAAAAiIYqE25J4qCD7Jy/pToHQFcpiTMmiePVJUmc9KibkyU4/yCJE9T3VrjOOYujH3boc7cmqkSOc25gB7+FBM5TWxrqdKu5PAAAAEBrLHjTG03Gag/R5nMy0KZZdc5YAU0A6ITeaLKnJM4uR9yby+mwf0gSJx1K4JzQarh11rrunISOf9EkcvTF+xJZ30K7QX6lOgcAAABtUUupe6pwgH+81uycAbsEQO5I4gRxZEmcDnzObChhcBtBMQD+RULHs9YTOcqejvXFi5VV51xpbg8AAAAQRG80sQVFv/OCCvzAvhNf9B0BgCz1RpNDJXF4DvDHkjgXuX643NgcHMWRzyMrBsC/ZgmdsXXfYr80p9VEjoZQjRNZXWg9SMckcwAAAODbXCu1mBc7ATH40BtNrmi1BiA3SuKck8Tx5rEoil9I4qRDHZP+oEo9GbMZOlfKAaCm1hI5mj1zm1hp6C7JHAAAAPg010KFl1RgPd8X3em7AwDJ640mZ0riwI+HoigG02H/lv0bP4sh2xxzFjgly57T/rBEHDH1elpJ5MxV4qS4qoBkDgAAALzQzA/64AOb2yWZAyAHvdHEKkTecTC9uSuKYo8kThpUhfOVZ+MsWCLulnZr1QVP5CgBcpV4aSjJHAAAADRKLVS+0EIFqMy+O1/1XQKApKitqiUXDjhy3tyoEufPTD9fNhKZqY7Nbc+1WyOuvqE2KnKuMsmi2megjyYAAABqm+uDD6C+c5I5AFKiOV9U5Pp1OR32SeIkQBUb97QZzpq1W7t3zu13fUdsImgiR+VwPr+ED8quz/88evx7b5xzxx5/PwAAADJHH3zAC5I5AJKglpD3JHG8Op0O+9wTEqDYMRXq3WDH+Hfn3BnVOesJlsixwVQeyuEscfOpKIpfy7J0ZVnulGU5ePJjJ8L/iqL4Tf/sQ8Pb8FGfDQAAANgIffABr871HQOAKM3NxiNo7c/RdNg/yfXD5UKt1K5opdZJ7zQ7h/j6M0JW5DT5AH2p5I0lbo7Lshyv+ofLsvyzLMsr/bM7SurcNLg9vBwAAABgIwow0wcf8OtAVW8AEBVm43lnHXp+nQ77xOwi55zbUULzTdf3RYfZ7JyvdL5aLUgiR2VxTZSI3imBc/hc8mYVJXVs1cOvDVXo7HKiAQAAYF290eSEJA4QzDvarAGIiZ4DaKvqjyVxbB5O5dghwlAVxi2tBSHW+eqCVmuLeU/kaMc3keQ4Lctyr04C5yn9rj1V+NR1wkkGAACA5yigTNsIICxm5gCIgipyeQ7wxxaB702H/dtcP2AuNOie1oJ4yha7jWm19qMQFTnHNb+Qj6rC8dLPUm3X7IH+qOav2mooYQUAAIBMKZDMClygHSRzALSmN5q87I0mV1TkenWnSpz7jD9jFpxzdj/+nSQOlthVMmfADvqX10ROA9U430shm6zCWaYsy4sGkjnHVOUAAABgkd5oskcSB2jdmb6LABCMJXGYAeLd5XTYt0qcPzP/nMlTEodnYjzHknxfdL50nvnJ8144rJlZtSROsFJIS+Y454oaFxP7rFYWmNwgNWU47YXGHi5WZTv/VO9KW91wG/L4NEnleRsPPdVspWQp0binYzz778vcz46zjnWUK1qcc7n1vL1QYjlKGkK4s+Y5dDt3zYj2HIqJ9u+efmb7epnZ/h1r/0bxwlL1+hq545jud127Z+dCgWP6tAPts3e2sX0nWbENIAQ9A1xpmDf8sCQOwd4EkMRBBecWZyjLsvOdsEIkcqp630bAQckcu8m+q/grjlNI5Ogz7utn04Fi/6wgcc49KihhP1cJBWot+PU6gu3wTgG/fQX7NjnW/9k/c8f6Ssc6llUuuR3H6IJ86ls7O4c2efl4eg49zJ1D44jOodYouTrbt1X37/f+2tq/s3171eLHyvH62mq17dw9e1Bh387fs+0/rhO8ZydPq3AvaB0BRMO+i1e90WTAym0APs0t5OAZwJ+j6bCf3ILqLiKJgxreWfxE41E6y1trNa0q3jRBMHNdlmVrq3mV4bur+K/v6rNHx05455y1f7PAzVcF/6oeo5ktBYk+FkXxh1VHUPLWPjsHnXNnOtZflJhs6ljbTff/nHNX9KrMlwWOnXOW2P5TfWsPGlhBtq3fY7/vXr+/k+eQfW77/PZd0neqqf1r3/Xf7bjpGhDl/QjPW3LPbiJBxj27HRcN3IcBNGs3xU4KANKhmVwkcfx5JImTDpI4aMCB3mE7O9bE54yc/Yr/3mPNuTpNqbMNVT+7FwrqzwKGHz2X875Wyds9waHw5o71Hwro+jzWb9SrkmOdESUYxgocH3h86djS7/+iG3EnEjpz+/eL5yGnW7oG/NGl/ZsDJXAu1A4t5D37hDl/fvRGkxP64QPRetMbTTrfpgNA85TEOSeJ4833mdokcdJAEgcNsnfYziZzYkzknMXQ6qMsSwu03VT816MImCkYdKKgvs+A4SLbc8GhqBJbOZoL/LV5rG8JFqdLScBZgiF0W6zXcwmdLIcPP0ngtLV/r6jQidfcPfvecxJ1kW1V/NySmG+WtW2atT8EEK2P+q4CQCN6o8kFQWuvHpTEYf5jAkjiwIPdriZzfCZyqgaqYhqQfFLx32t91aWSJ7cRBA+21eZnTADRD2u9Mxf4a9PuXLCYVd0JmUv4tj3XxP7+V7UEy+IcUnD+rKUEzlNvFKhn5XFklASf3bPbXLU5S8xzz26A5uK0Oa8KwPou9J0FgFqUxGn73TxnNgZhjyROGrRQkyQOfOhkMsdLIqfGqvzLmIZfqyqn0qyctlaVzwUNf/fcjmVTr1np2ywd6yu13ompXPuN5p+wsjFyqsKJIeH71DvdkJOuztH23+rzxMKuFR+73lc2JnOJPu7Z+bmgnQqQjG3m5QCow5LBvdHkliSOV9eqxIkmbojl9D48ZhfBo84lc3xV5FQNvsW4arHqA33wAKRO3HFkQcN5W1rpy0tSTXMB4lh77m+pOoeV/5GaqwCIdfj27IacZCBZ2/01suD8vNdKuGbZyi4FSsbHluibxz27Bs3cYC4OkBabl0NLaAAb640mO4rFxPpulYPL6bC/TxInDYpPsqgJIXQqmeMrkVN158WYqa26TUFbkigYd5/Ig8MBq8GrU9u8ccQB4nkfCQLGR0mGLwk8VM0CyUklBFVhkUL5+JZa2VF1EdhcMj6Ve/Yt9+z1KZhTtT0vgHbRYg3ARnqjSUrPdal6Px32eWdJyxXfCQS025XKal+JnCotle5iaqs2U5Zl1b6bwRI5c+WKKWW6X3d1MFUdCrj+ntixPiCZE49EBw0mkxDUdsZaYbHMOcmccObu2Skk42c6O0yyIlYfAunaosUagHWpii+1WExqjqbDfkyztPEMvRO3PR8W3fOmC7FHX4mcKu4j2panbir8O0ESOYkmcWYIDG0g0QD8DMmcCGRwDkX9AK9zPNWe2CRzAuCenT8FdHhxBdJGizUAz+qNJikuskzJY1EUv06HfeIICdE7JXOi0BaLG2XdGSGm1mpVK186ywaVZ7D6ozPlb3Uo+Jf6KhSSOS1KPIkz8y7WZIPav6X+wHqu1o3wYG6OXer37BjnGUZB7Zi4zwF5OKPFGoBleqPJSQbvVjGzJM5gOuwzKD8hmcStkL4POS9S9ZXIya0PYnRJJgWErjJZ/fEm9pX2bcok+DdzwKr/8DJ7oLJkQ5X2nd4o+fExpm2q4ULnC5qXy3X8NUn5pU5YlQtkw9pfJjWjD0AYvdHEnoM+sLu9ubMON9Nhn8XeCVHcivbCiMV5rnGNnyLYhhREN7tHQVlfCbMbfeanN86BWsb56OtvK+3HZVmGWulrrfxOA/2tunwG/260L+ZbG9oNeM/jsbYL6m2N+VNPNXkcdypWVTS5DY2uOvKc9H3UdWLZObTn6e9eWUViDHPVVBnpO6h99+Q+5Ou7WcxmA1iyrMb+bfr6eljh8940/F2q1f5VixV83bPvtH2L7tkvPf3dA92zSehIbzTZSXA+FoDVPljAdjrsx9wCHEAgqtK7ooWqV3eqxIkxBofVfL7vAFVYW/C9siyzeo4jkZMgrf5usoXPox5IrtZJpCgwvK+fNw1ux0Wo4Ky+yNH3TVRvxyZvhg861hfrJFIUpB4okNrkA+uFgvy1lWXZ2HFUpcfG360mt8GDs4aD/g/6neMNzqF9nUNNnctbOo9jqMxpetXR7Ho81j5e+tCh83Wv4X1b6HedVF2J3PT1VZ9z03N4HMv3UvfsJgP8sdyzz5TMIcD5N5JaQJ7OdP0E0GFK4owJVHt1OR326d6RIA8xSqAJs7hRVpU5vlqrwZO5csUmWED2qCzLl2VZHq5bDWOJFluFW5alXax/thtuQ9uzRSDkXyoDbKpke3asLVF2vG41jAXodKwHDR/r3dwHkMWgamJqCatw+FXn0NmG55D983Y+/6rf04TXbbfp01ycphKc37+jVm2j6/HFcwHysizHc/t29v18bGh73sXWwi5Fumc31dbw8ck5UvWefdrQecI9W3qjyYDVuUC23ug7DqCjeqPJniqfSeL484kkTpoajlECTdvNrS04iZz0nDW0+tsCOXt126IoSHuo4FATAdo3BA//0UTwz4J17xV8b+pY/6KS57o+qFoD/jRxw7Jz6DdL5lnioM4vUuJhoITOQwPbdqYHx+D0d5tIRtr+PZ19R6tWJM59P+1F87qh/cHssvqOG6qI+6QETuVzpPj3PDlp8Dx5rRV4XcfCBCBvfMeBjlISZ+yxrTGK4mg67DOTLF3MxUHssprVTSInIQp6111db8HTXyyQ02QLMwWHLED7voFf1/lsvgJjdVf33ilZ12gw1ioxVAHwqYFfx4uxJ6p4qvvCcaPgcaOzq5QQ2mugwmurxUHETSTVZ9/Rxr4Huhbb9eO3BqoudnN64AlN9+y6VZWPqoQ79nDP3leFT12dTvhRjQN0wmuqcoDu6Y0m9hz8lSC1N49K4nQ+/pMqxa2abN0M+HKWy0JyEjlpqRvsmwUNmxoy/wMlDX6tGUDcJnhYOzBmAfKBz9kFFlhsIAh4oBZyaJCqReomOC5VheNlZpXaPR02MBT/OHRVTkNJddu/3gbvKfm210D1HMnW6pq4Z+/UrYRbRZWav3DProXvCNANfNeBDlES55xj7o09ew5I4qSLlmpIzGxeTvJI5CSigcDhnQL7XoKy8xR0GtQMDHW2tLbiYO95l5qfEOJYXzSQzKGMunn7NVeOXSrJ4p2qUeqcQ21U5dQN5gTZv0oSDWomc7oepK8ksXv2bQP37E4GOKnGATqFqhygI3qjyQVJHK/ulMTxtsAYQTQ19gEIJYtZ3SRy0lEnUPkQKiA0o8BQnb75ux2elVPnWN+FCsDPNJDMOWBWTuPq3JyCJXFmdA7VabMWLJGjlUd1rm1B96+u+4OaM4lItm6uzjF+bOmeXeeeu93RWTms0Ae6he88kLHeaPJSSZy6lfdYjiROPojhIEUfUo81/xTBNmA9dYJC+yEDQjNWmeOcO60xI+BQgwU7QwmNqj1GH2sG4iqzQLwuhlUfeve7PmehKTUruu7aCtpbckPnf5XV7VtWNaKEkG91qp1a2b92/VeQfVxx2y2x7rUtZ4bq3LODJnFm7Pg652zO3ceKv+Iwl3L1dWj4MdU467Fr359Pnuns/+aa0g47d+dbkg70f+92aSdUZFU5O9Nh31vrYgDtsCSO7lNcC/2xhXvH02E/+HMuAMy5UHwjyWsRiZwEKABXNXB42mbwzdomKbBcJdjRxdW9dT5zkHZqKxwrGFAliXBIIqcxdQLIbZ9DhwrsVbne7Qfq0Zvkd1RB+pOaQXoqc9age3bVZGrb9+wzbX+Ve/Ybq1hL9YG4Ar4Py90oGDaeDvudWpCTiKXHRK3DZj8kKhc7qfmsBSAyWpxxQRLHq8vpsM+1My8k5JCqbb3LJVlpTWu1NFQNHD5o/kTbqgY7tjrYqqXqw82Nhpu3RsG7qufbLu3VGlO1KutT2xUXmulSNaFXtZJtbWqrVvXvtBqgLxSkrzEvp4uJ9aqqfgcfIklo16oAbnA7oqVVu7Rd+a8btVn933TYt5YpJyRx0mPHTMfOrmP/0zG96fp+eWJf1wAAGVASh0ocv96TxMkSldVImbVY20tx+0nkpKFqUCiK7KKCl1XnX3RmTo6CxFUfIKN4MFJrKwLFLdGNqEolwGNEqxHOqg5dD5D4rXo9eoyo4qxqYn2bZOvaqp6HJzFUsyihyj17NYIR/7Jz5Wclby5ol5IPO5Y6pva9/rnmLLucbPHMCuShN5rUaT2M9RxNh306b+SJZz6kLslrE4mcyClwViUw+xBoXsS6qn5BOpPIqfFZbxR4iwXHuj1V9+FVLO2QtB1VzyHfKyqq7t+ziPbvuEayle/oM2rcsx8ju2dXTex25Ryhrdq/CZxD5oXkz46xVlOT0Pkb1wAgcb3RxK5pv5PE8cYWsv1iCwIy/XygIgfpe+2cS+6ZjkRO/KoGRaK6Yaoqp0rw0EuJs1UuOOfGm/742JY5VYPQsR3ri4oVFUmWNUamcqIhss9R9Zz2HUTO4jtKstWrXK7j9xXv2duqLs2WWrBUnYGUgxsSON31JKHT5ZZru7oWAEhQbzSxZ+Fzjp03FguwSl0C/RnTAkEgdSepvb+SyIlf1VY2Ma58qDTDxTnnI3j4UkNcN/3xqdLnjGwV90yVY93lwFhTqlwvHtqe3fJUjSCy76BKlWtAbBVzRdVrcY37UZfkkuwramxT7sHNrq7Ef1SP+wEJHCihY8+t76u2Q80ALRaBBPVGE3u+ecex88be4XZI4nRG1U4PQCy2IhozsBYSOfGrEtx/iDBwWKj/bBVdCR5WyQLHuhqy0rH2lLTrkioVbLGupKmSbPDWGqHGILzo9q/avFW5dvhOZuegyv3qMbZkqlQ9d3NP5HRxNoa9pO/R4x5P6ZzY62gghzk5QEJ6o8nL3mhizzYHHDdvblSJw+yU7qAqBzl4l9I8YBI5eYpy9UON0suuJHJyCsKzAiewGuWgsZ5DsSUD2b9YR5X7Vaz37KrblW1rNQ1F7lov/cvpsL9HFQ6WUXXOXgdn52zTXg1IgyVx9OzLoiR/LlW1SxKnW3inRC6SWbBGIid+VV4QYg6iU3rZrCgDKzUCgFTkVFc1mBBrcC627aqaUI71elxp/9aoTMJyMb8AVancynnxRddW4L/XPBTgWTpXTju2p/h+AJFTwvXe1+xdfPeJ54VuKsvyqsMtVpGXN6l0CCKRE7/cVn5WWaHBXIblYl4hyw09DbEmA7NI5KiNWYyq7t+sB9k3gJWeed+zu7TY4IhWatjUdNi3HuNHHdpxtFcDIqYkzriD1bQh2fNCV+cH4m9V568CsUliVg6JnDzlVt6YfSIn01XutFdLQKTztADEgfYYomDQdhQb458FZS5y/5DwQ+dOV5I5tFcDItUbTaxC5CtJHG9s0eZvPC+ARA4y8jqFqhwSOeuhIqQhZVkOyrJ0G/7QbitBFY91EhlwYE1V2lKFQqIV2ExXVt6fEpRBXTqHutJmjfcUIDK90cQqRM45Lt5YEsfm4RDA75hFQW61V3vo+r5BNqKPSZLIWU9qK614oUhMjZkyALCxiFu+IS600vtXF56tLtUaC6hN59JlB/Yk711ARHqjiSWSP3JMvLGZx3vTYZ/4RccoiXPlnFv0ftBkO95r2vSjRdFX5ZDIeYZzbqflwXhcwLAK1WLIkq69ANKTa7vG3OcfWWCGHvdo2rHOrZy94awB2tcbTV72RhOrDDjgcHhzp0ocWnN305laFS6qUr9oMHZpiaLDru9stCrq849EzvPaPoBVVjrQq7k7CHYjV5zbQPuqJC+ye7nvjSa5r7i3F+/D6bBPpR4apXPqMPeFaR24RgBRsySO5gSTWPXnUkkcnhU6yDl3MrfA/YfqbXV7aKwqR+3arru+39Gag5gXFpPIWUElgymuTiSRk6YqKxZ5cUSuKp3bZVmOOSOA+pxzVZ8lcnzBz/1ee0KLFPiicyv3ln28ewEt6Y0me0ritNlFJXfWepUFHx2lgPZ8XHTbObdowftZQws3ZvfUQ2bvoEXRPruSyFntRKWDbaoSlNyuEYBBe6o8GL1e0qMUSF2VweK0ogSaUzV5kWNCIOdEzs102G+yrznwA51jObdYY2EV0AKSOEEcWRKnA58Tyy2Ki/5wTqgqp4ng99bc79vnHR8t2Y811koiZwllmN9FsClVW5RUCYKiXVUrCTjWyEqN2WSsKAeaU/WlPcfvYc6LY5iLg1ByPtdYQAcE1htNDvX+3PbC25xZEuei6zuhy7RAfNHcqYUD4cuybGThxux3l2V5y7MqWrJsHlTrSOQ8YRk355z1YzyPZJOqBvdZNZGeqsEvjjVyU/Wcpq0a0IAaydQHrZ7LRm802ck4SHRJSzWEMh32xxn3u9/WjA4AASiJc04SxxurgPiFJA5WzL15XBG/aiI+9c89tSxLOw9PORhoQZRJRBI5YkELDfC6j2lIXlmW9xX7Qi7rW4l4VQ1CL1wNAaSo5mwyApJAM6q2RcgxmRrtoMsG5D63BPGhKgdALb3R5CyiRbc5stjTgIUeUIzp9ZIdcbxs8ZaqaD7V3IH/uaeWZWnPrJedPygIbTfGsSWdTuSo+uZQFTh/FEXxIdJVHVUDI7ygJ0Q3wpuKW8yxRi6Oq16Hy7K84iwA6lE1zqIWCuvI8TuY60IJqza/7m4AACAASURBVMap2r4XqETnXK5VOSyqAjzrjSYXkbS/z5W1xNojiQNZFmN6UJXMUmVZHtdssbaobdshyRy0ILpFSJ1L5Fg2zSpvnHN2c/o/reaIpgJniaqBkW1VGSEdVY+1VeUwKwdJUwC56o0y18AQEFqdNhpU5KSDdiloy7I2LamjtRrgibUu7I0mtzUWmuB5N6rEyapFLqp5phpn3c4/h2rBVsXCKgiSOWhBdHHW7BM5c1U3F845uyl9VeVNld7vrdAq86oXwA8xloJhqTqrmS/UlgpI1VWNqkiCkkBNzrnjFS9tz7nMbT6O5JjIedC8EiA4nXtV2kbHjvctwAPNnxqnFL9JkFXpksTBvGULwm/KslzrGVIt1qou0tzSIs9Fv5dkDkLaim3RfJaJnCVVNweJD8OrE6S8IsCfBs1EqlpZYOf3mGONFFmyvcYL2iNt1YB6tPLuY41fkmsyNcfgbK4VEUhHjvfsnOdpAa3ojSZ7mmFMEsef0+mwz2xl/EMJlGULuzbq+KMWbFXn5SxtWapkzmnF3wtsikRO01R1s59y1c0a6rx0bxPgT0qdY71LgAapURVAnVYJnPNADarcrRNYfVh3dV6CUl4EtAyJb7Qtx8TvdgTbAGSjN5oMVImT4304FkfTYZ9W/Hhq2TlxV+V5X/NyqlTQrJw9V5albedRhd8LbIpEThNUdXPsnBur6ub3DKpullKlRp3ywV2SOWnQzfGmxsYeOOeowkISnHNnNasAHknkANUpiVM3UJJlEEArgXPzoIHzQGs0SDu79mq90YSqHKABvdHEVtt/IYnjjb0//Tod9mlNjf9QDGlZ0LrOO7clc+42/HdWJnKKfyt+fsm0ZSviEVV7taQSOXNVN/equvlYo5d7iuoGSiyZc6/2KYhb3WP9Rok7+nUjSqqktFXh72pu31mmczkA71QN97VmoORBL1E5ynFBBNU4iEWOVXwkcoCaeqPJiVrjww9L4gyYlYclDpe8F9R63tf7+mDDZM72OvEszeLZq7kYGngOiZx1WG9GVd1YdUE5V3XTydJ1VeVU7S85YxflL5ohRMVGpBqoyinmqrCqDpgDvNBqhlslHOugGgeoQM9X45rVcDPcY9Jy2/UdgGgQRATwH73R5EIt8uGHBdH3VBUJLLLsub72O3fFZM5ai9Dtd5dlaf/s++pbCKxEImcZqxaxVjvOObu5/KEgQ91gX05OFLys64Oqc45J6ESriaGDlrj7aFVszjmGGKJVur6PlZRvIiF/TDUOsD4lcC70fNVERfNNWZY5V3jkWMFM8ByxyDGQSCU8UEFvNHnZG02uas7MxGp3qsShvSoWUvXLsnf0RqrvKyRzNophlWV5plZrm7ZxA56zFUvHo5gSOYfOuT/VC/WdqgnwhC58TQXkt5Qou1fLun2SOvFQBdZpQxtkN+Rz+44pUUp7PQQxN8/sXtf3ptphXmfczglojJI3h2pl+EeDQZLHBp9HEAgBHMQi0xXhvEcBG7IkjhYZsHjXn8vpsG+VOCyAwyrLnusvm1w8OZfMuV7jH9+1d5kNf/9tWZZ7qs5pYhE8MBNFVc5PEWzDTCfbpVVhq1+dc5cNBmO29Lu+/z7nnGWv/1yyavP7/0+tv+BZWZYnSro0FfzeUqL0nXOuUPu2P5esiuRYd4C1WfTwKXf0s+dpSCkBZORk4OF7+FLfvx2Pz1eHWnCAdLA6EbG5Y/Ee0F290WRPs9uIBfljSRzem7COZedJ49X3Subsq1PAc3HN4yqtnK06R7//LIJqvxvF1yzu9ueqGVVKbu/NxVMGPCtFI4oF8TElcrCZY32pfXyhZ79zUfLge89aJQEedDH6/kNAxxvL+t57CojPjvGiFVDzx/pONx071le0s8pKin2o9zkHkZHXDSbrQ/mUeUu1XHHdRGw4J4GOUhJn7OkdF387mg77dDDAszTDdtF38cHnM39Zlocaq7Fqbud+1Zmcs45GSuicBHznsr9ri++vpsP+RvtPlXP/SfQoubOfadvnlETxzk4iJ1F2QVKlhq8A/zq2F1Ty2AXygiBrc+aOdZsPurv6OVCLtmutzCCpg9COqBIDWmVzcSq9TCUotzZJLLhBbHiGBDqoN5ocapU8SRw/rHvBMUkcbGBZgsD7wi1Vztzqby26JmxboqlOQknxg4Hiat4TOmof21glnJI7F03NKkJ1dg61HY+KaUYONjTXWzKWvo+7yqT/n2bubNTLEstZn8/IWklZBc+55iudMFsJgZwyFwdo1V0svYEDyW1wOYkcxCbHOTkAVlAS55wkjjcWGxqQxMGGlj3fBzmPFBjfUwuyRRqJhdnfKcvSYqi/rvhbwCqtV0WRyFnPQ6wbpgB/TMmcGavc+EMJHYL8DdAKhKPINmtLrblI6MA3a+XkY54PgPVYEmdAFSYALMVzMLBCbzS5UBIHfjwoiUOSHGtzzu0tmVP1oHhjEDaqQUmW0wV/702TC8XnEjo/qwVa1Xjqw5LZ4qFdRBgTzlXriRxaqy32OGsbpS/lccxzJOziGkHrrWUONMTsxEomI9u25Fg1gspOYzvWs4SO9R89ZnYCGnZEJQ7QqhtmUwHAs3Kr4gMaoyRO2wPHc3anJA7PatjUssB0KwkKW7zpnJvFY+cTTCdNd6nRnO9DLUiezeJZdw75J9umdd+PeqPJjp4TZj/LFn/c6+d73G+d77TihFdK6Cyaf43mtP6sRyLnX3e6UF08zTpr2HvUlMzZ0WdY98ITigX5P2qA2qEulqhoLnH39MYWA9ue3zVD55CgH2p61HlEYhBoz6UNImX/AwCATWlId4wxipx8f/cmiYOKWpuPs4xiXntPFtUfaIF44/FExa2+z6BRXHVfSaNF161HLXB7NtHVG00G+l37G8Tu/jO/pzea/BOrXlVtp89gi+iPNfICfmzZuRmyWu2prrdWu1arqp/LsrQDcdzmwajLvrj2OZQZjpFdkGZJCNSg83RP53CM3uhYszIRVc3aOJHEAdrxqGo4kjgAAGBjWoFOEsevy+mwv08SBzVEVZEzo/imVeH8MjfPxnurdbV4O1Ns1VqvvZ/7+xaj2FuVxLHktc0C640mlnD6UhTFu5oLsHf1O772RpNbzRlbtf1n2me0WvOn1Thn1xI5D0py/FaWpSvL0rKoF7lViFhCSsO7YpztY9U5X5xzBIZq0o3NMvu/RXqRtpvVWJVYwCZOlVynvzPQjhu9pNDSEAAAbKw3muypNRBJHH9Op8M+cRVUpoW3i1r238TSXcViAppnY4vwB03Oylnjb8+SOrbA1Gmh6dL4cW80OVZbtHNP3XPsenpuSaLeaLI0zja38PvOwzagKIKdg4vknsh5VMXCe1Xd7KjqJvsV3soQ72lQWIxB/nPnHDNzGqDzeUdD2mKzpVZrPGBiHTe6VntfaQNgoQdV4ax8SQEAAFhGAcYY5/fm5Gg67PPOhLqirMZZRAvMWq2EWJbcshZqVi2jlmYhrnvfRxr0RpOxKh9/oHe5AckcL1rtMpVjIudOVTe/lmX5UlU3Z10MSMyVIu5on8SW0HnnnGO1bwN0rA9V+hljQuecZA5WuNE1m+Ax0I5ZAmeHKhwAAFCV2v78ThLHG4vp/Dod9nleQxOWJUai7IyhuFdU8YLeaHKiFmptVB9+H1+xrN2aEk8kc5pHRU5NDwpcW5nd/+Zm3USXQW6LLnbHOtneR/YlPiDA3xyVfs4SOqeRtdc7p80a5jzq2v2LEjhcs4HwrkngAACAJiigec7O9MbenwbTYZ/3JjRlWSKHc+wZmoVj++lDy5uypXZrC9/llMw5ZGZOo3y0zVvbT23+8Rps9ba1kxozQ2F9+gJbO7Mz9cK0zOy+srhtsgD/nww1b45WKdiD9ImO9aGOd9s9ii+ccwO+t531oIfCK77vQCseZ99BPUNRAQcAAGpTEPGAPenNnZI4UcwtQTYWxYceYpmPEytL4uidKqYZYAdqs7b/9Dph8Tctqv7S3ublRXHNVhKeqSRyHhR0uGLVdjMUSL9VYuf7SaiKnR1l5V8++UM7nrOOFuDfI6jUPB3r49kv1rGeHeNFx3rZwLsm2O+90rHm4SAONx63Yjz3n7ccc2ChBw3F9OFeP3YfuCeJDgAAmqSA5lUEi0NzRhIHjVNcaBHeF1aINIkzY9dhm5vzw/XCYunOudMIKohQU+yJHAtunNDuw791E2Sq7thTJc+bBjdsSw+ArQ4v6wId62eP91zCZ9DwsbaE4IXOIbTM2ppxDIBWXWieHQAAQDIiD2jm4nI67NOKHj4sm/NBImeJRK55u8vibfbOqTgfiff6Bm21IIx1Ro61/nhPz/b42GpeOyZlWdpF4X+aTdTUHJZd5xzBrEhYwqcsy7O5Y33aYF/NN8zLAQAAAID09EaTPQV8SeL484kkDjwikbO5q0SueW96o8nZkv+Na0riYkzkfB/gZgHkCLYFK1ibJCV17AbwvqEg/7FzbtkNBS3RsT7Rzf60oa2wWU1P27oBAAAAACKlJM647YHPmTuaDvvHnd4D8G1ZN5xGWvhZNx/nnMX3bIzCeMGPxYMOm4j/WVzpyd9pfNFwbzQ5SayS5V1vNFlUlXPfYEyvy1rrJhVbIscqO3bo4Z4eJd52Gpi3saUh/YjQXELnF/XqrWN7fnYPAAAAACBevdHEVnN/9ThTteselcShMw18W7iots5cciVULHlzr+vERxvCrwTI0593RVGcF0Xxh/3z+veqLvQdP/k7v6+YAbQxJa9TnC1zoXZwT5012G2nq1pblB5bIueQYdjpUpDfLpaXNT/EAVU5cVOytYljXedmDQAAAAAIQEmcc/a1N9+705DEQSCNxtwsEVMUxb2SN5tW623r37vfdNyCVfYsaXfWZAuxVL+TW0ra/Ifi7nTBqodEjgWE62R+EY+yLA81O6cOqnIip8TdYc1kzhZVOQAAAAAQr95ockESx6s7JXHoToNQFiVbNu6wY4uwrZ2ZEjF1K/Xs3//gnLu11mxr/O1DVfZ4owR2yrPADnqjyaLqJKpy6mntnIgpkXMfwTagITY7x4bz1fhtVOUkooFkDokcAAAAAIiMteVREueAY+MNSRwkScmWWw+zYyxIPl7WHm02E+eZ5HJTFSc5LDL/4TOoKueqnc1BHbG1VkNGyrK0AP11jU/UZCkk/DquMTNnSyspAAAAAAAR0GyFMUkcr66VxGHEAIJZp9rlOfod4zWrcB5U7TP7eVjj37Hf++VpMkexo9tnrkunTcxeVzXOpm3iYvRac36eor1agkjkwLfDGuV6BPcToWx+neO136kdBgAAAACR6o0mOwrSptxSKHaX02F/nyQOWrBsvsda4y7UPee5JM6DRi78ryzLHZunPfdj//7/9L8/l9S5srk5VoHjnPtTVTirkivXZVk2VUWTU/eYHz6Lkl3rJNUQERI58EoB/qoXv+0mVgogDN0ETiv+sTdWHsuhAgAAAID2aOX2LUkcr95Ph30WriJVVyuSOLaQ+72SNxeKCf5AM5cvlNQ5WrEA/PvcHFXgPFf9c9PUgnBdB3O6Bu6ryvIp2qtV1Fa8mkQOvNO8nKpZXio10lJnYNrC/qcAAAAAAP96o8n+Bu2SUM3RdNinpRGSpNZmyxIc3+c9lWW50fmtmOFejXb95lIVP01VuOWWaN1aEl8lkVNdK4vRSeQglKqljQT3E6KbZtWHUpJ2AAAAANACzYP4nSSON7bg8ZfpsH+R6edDN+ws+ZSPSuJUmk1TluW94n+bLgK3f/63siybTrzkGIv84TOVZblWOz3Eg0QOglCGvUqlxmuOUHKqPpjSRg8AAAAAAuuNJmeaPQE/vge5p8N+7QHsQMvul/z5/brVMPr3113g+6DW/ntlWTZaVaIWZDm2llyWnLoJvB2ogUQOQqoU4GdOTlq0kuK6wkbTgxkAAAAAAuqNJvae/o597o21i9ohiYMcaJH25ZOPctRUZYcqeo6W/M/2XfqkChybwXPSYCu1ebnGILeXzMlZlpxDhH7ioCCgccUHRIbgp8eO9ZtNt9qSdlVLcQEAAAAA61FA74ouGF7ZSvf96bDvI9gMVFUrUWFtzJxzJ2qzdtt0MsWSRc65q7ntvNeC4VByHvGwp3jdPBI5CSGRg5CqZugHNf5dtKNqMoakHQAAAAB4pCTOmK4IXl1Oh/3cBqYjD8viLmsnZJRY8ZYAUHKIOGDzFiVyWEydEFqrIRhdiDcdXIYE1SirpY0eAAAAAHjSG032FIAliePPJ5I4iNiyihMC+n/LuSJnURKPisGEkMhBaFUy9lRpdAfHGgAAAAA8UBLHFt1tsX+9OZoO+8eZfjbkYdkCWlpsAetr5ftCIgcpoEojTTdd3wEAAAAAEIPeaGIVIl9J4njzaEPYp8P+RaafDxmwucRLrgGPgefQAElr6/vCjJzIOeeqtKg6ZmB8WnQzPauw0RxrZIvrH9AuDTHdtLWADTxlFSoAABHpjSZ2b/7IMfHGkjiD6bDPewhit+w5/YojB8SPRE78XlfYwkFmvS270K/xvuKxjrkV2U4E24BnOOdean5VjHL7TiAcKjmbMaj4PQQAAJHojSZWIXLA8fDmriiKQ5I4iJ29+6+4FpDIARJAa7U85RbIzP6BqEYgPeZjvR3BNgThnEs5aRVlwFsPmUBVbZ0/dxwxhmUCABCD3mjykiSOd3dU4iAhJ0s21dqqkcj5Fy3m8JzHtvYQiZz4VZkzEnNQmZW9zYo1CF/1HEz1ATiG71zVh41YEyZUVGCmSou9tr6TVZIYMZ/rVbaNQAYAAC2zJI6eoUji+HOpJA6LWBA9tfN/t2Q7q7T5z1nOiZxF72p009lca++8JHLyFGtwv+p2deXB6KHCvxNrADDVY131YrzpDInG1Ri0lts5xOoZmO2EqrpiTsgzDBkAgMT0RpM9JXF2OXbeXE6H/UOSOEiB3ouWVdw8ksj5Qc4xhUXXLBI5CSGRE78qgeXdSANYVYNVXVndW+Vm0XoCYYmq29XqDbNGi7tYArFVkoH7HrajCZXOoRoJLcQrpQRrleqh7UjbM1bdf1X2AQAAaABJnCCOLInTgc+JDCg2OF7R+v4k4pm5bck2Bjkd9he9q9ENZXOtxZ1I5MSv6skRY3C26jZ1JZFT5XNu1ah08qnKsX6MJAhfpZ3hm0iSp1X2325sQWTtyzcV/tUqxw7xS+k+mNM9O8mEPAAAXdUbTQ4VsKWi1h9L4lzk+uGQl7kkzrLE7l1ZllTjPKGZV63NQPFo2TxXEjmbI5GDpaomMaJaIaJAcZXA7EOHVgdUPdbHDW9HLc65wYrVHqvEkrCruh0xBGKrroSPbUUZSV/8oyzLyt/JFhKsudyzX1bsqR9LQh4AgE5REuecJI43FtT9hSQOUqG4zP2KJM5jhHGAmOTYZeCHz6RYbZX4Xde1FqcmkRO5siyrXjxe68Idi6o3iC61aKn6WdsIVq6S+rGuGog9aXg7qsglkVM1OUkiJ19Vqq22Qie6lXSqsnprN7J7dtX9Rls1AAAC640mZ0riwA9rXz3QKn0gahaYd85ZwvHLM4nd4xoL5rpg2UyhlC1KRMc6riF2rX13SOSk4briVsYQWJ6t7CUo9AytYq4y4yR4sHIZtXmrsoq7iOhGWXU7bM5FqwmRGonf1rd9xjm3X6Ond44PW/hb1WN73EKiu+q2cs8GAAAb6Y0mFph7x17zxloR7ZHEQezsGV4JnD/WiMm8L8uS6rLVcostPCy5jpHIqYbWalip6gUklqqcsxol3l0LzFb9vB8imXNStb/qYyyrQdTKb1nv0OecRFAdVTXxe9b2tuvvVz2H7hjSmLWq18Y2Et11KmljaNF4wj0bAIC49UaTl73R5LbGIjo870aVOLxjIAXrLqo9ZS7O8/S9v4x9OzewLHEX46zW6LXZTpxEThrqBEYu2gzOKpFU9eHyuoOB2TqrIloNoDnnLFj6uuK/HttqkKrbsx3Bqvo6Ae+2j8NJjf6srCjKmB6UqiZYP6haMJSrGsMxY7hnV13Ve8d8HAAA/LMkzjMDzFHf5XTYJ4mD3ByVZRlFF4BE5BJjeFy0YFZdWZirtrmqcYlGkMhJgJIZVVfZb7d18VGFSJ3kQudW9qoqpUp7tUIzFlpZWaEg6ccavyKXRI5512abMpVIVw0iv2lr2/V367SFIJGTv1qJ7lAJEt2z6yRUW7n3af/U+dus7AMAwLPeaLL3zABz1Hc6HfYZAo+cWIzpF9qpbWY67I8rzmqNzdmSpDTXuWpaXbxIIicddQIkb9QrM5i5gFDV7O5jh28ydVZIBE8iKIlTZy7CTWxD9hSIrVNGexa4AuCpOt+d85bOoTrXuEvaqnVCnSSlLWoYB6x2qXM+v27pnj2uc8+mrRoAAH71RpNBzfs1nnc0HfapWECKlsUfrGp+J7aYS0KimEddw7JqnJ0aHXW6rtXvEomcRGiIeZ1M8EGowNBcQKjOKqEur+yt05anCBmIn0vi1HmZiDVhV+cBfktB47aSOXW/P6mdQ1QCdICSdXWO9W6oZI5elDp1zyaZCgCAP73RxJ7Nv5DE8cbev3+bDvtULCBVy95x6iy67bzpsG/vdZ8S3g8nS6pxSFhX1+p3ikROWup+0Sww5LW9jIKytzUDQgszxl3RQLCyUCDe6z7ULIW6AfiHWCuvNOuhTlWO7ZevbbQqa2DbC51DXlefaN98rXkOXbO6qFPOaia6dwMmWVO5Z9dN4nT6ng0AgG+90cSeyc/Z0d7Ys4zNw6G6GClb9k7MYqv6TmqMQGjTzXTYX1SNs1djljmoyMG6GqjKMW/spFMQvlEK+n6tMax85qTrK3s1gK7ujcLarN02HbC0oKKSRE2sCIu9J2cTqxTOfQdjlziuGfA2H7XtO01umM6hq4ZeSFMvdcYGGkp0z5I5Xs+dRO7ZTQxKphoHAABPeqPJRc1ZpFjNhlbvadU9kDKexz1RRct+Ypv9uCLexiK86h7afvclkZOeJgJPlmj5Ym1bmgjQWoDJEgYNPWBa/04uKn9r4ljvqirkrIlEgioobmsOpZ+5VqAzWqpsOW1g+ywYe++cOwk8cL2J79IskFx725XAOdZwuDcNbNsnHSN0y1kDie4tJSrHPpIkc5pIVs/u2Y0kVXXPHuueXTcZ/6CFBwAAoEG90eRlbzS5YtW0V3eqxOF9AsBKSvYeJbSX9hdd2xTTYzZOda3HMEnkJEYthJoILBd6KPxDwaGNssuzgKxz7l6VGXVX9M7EXqERTFmW9uB+3dDfs8TL/yl5t+mx3lEQ/14VFHUrrgqtDkilkqKJoHGhgOkHJXTOQrR2UoD1roFfVWvb7Z9XFdd9Q8HjQseEAHIHKUnZ1L3itZIklqw8bDrR2mAyuFDys849+1CLLr40+PDOPRsAgIZZEkfBoiYWPmGxy+mwv7dkdgSQk7bm9mZHM7TqtrAP4Wg67P+QcNCiQBbO19N69eZPbW8ANmfBWQVxmkqe2APiG+dcoTYwYwVcn2Zv7QZgX/xBg3973imzLn5wqOPQ1FDLA81deNRxvtXP0wfYwdyxbiJx89RxKpUUFjTW9+1rQ79yS4k1a333MPd9m91o7xveN4cNzDKaebrtty2eQ4e0c+ouq+Zzzn1qqDqw0D3tXK0Q7+a+l7N70m3V8y3je/an2KsqAQBITW80sfv3lafnZ/ztYTrssxgFWdH70aKP5LP7QOfYtaM3mhQRV0seKeG0yEWDscWuav39l0ROupoMzs573VKZ3Q3tWX40l0T40vCv3poFAxv+veu4LMty2Y0lSpZgdM6999CfenvuAeCD/vO0yUoTbbuPAanb+mnjHDolgAx9T3wkKXYX/M5faz607SsplMs929qgMp8KAIAGKYnj4x0f/7Vts4dI5iBDDwuSwFsWU1LHFzRAyZw/G1xU2JSlSRx1SKGlWj2PMRQf0FotUTp5cnnweEhwcFgwClin1ItzFQv+JXneanZTCmW0P1DiLMltX+CSpC+Kf1us7atVY9RUZZfLarhHVvYBANCs3mjia6EmFjvojSZjtbEDcrFs4RkLsBo2HfaPFaeL4V3UtuHXFUmcwwiTTimKYjExiZyEKaOeeoDfLjj7tEhaLZNA/F3qwT8loZqYOROctj35cyjVRCD8mEuQpJDMSW1A5iLfkzjcswEAaI6SOOckcYKz1ekkc5CTZZ1PXiuYjwYpcTJoOUZkrbZ3Fs3EKf5N4jTdnaWroqhqI5GTOAX4Uw0MzQJCzMVZQ+KB+LuMgn9t36gry+EcimA7EBndQ1JJ5nDPBgAA/7AWXwTZWmXtdO/V1g5Imrq5PCz5DGfOOc7zhk2H/dvpsL+nFvkh30cf1UptMB32F8bZSOI0joocNCPRwBABoQoSDcTnlMSZtXMaaOVDchI9h26oAsAqJHO8454NAEDDlMSJdWB2l2ypModFY8jBsjZq389z5xznuQfTYd/av+8p1uLznfRRSaOdZa3UCpI4PtypG0jrSORkQoGh31IIYimwv0NAqBoF4lMJAmYZgLfPU5blIOGZOXYOfYpgU9ZhM3FI4uBZc8mc6CvmdM/+NaF7NkkcAAAaYq28eqPJLUmcqFiQ+4va3AHJ0giG6yXb//08d86dOOdoKdiw6bB/Px327Rqyo2TLsuqoKu4UB7QEzsmyKpzi7yTOGUmcxkVRjVOQyMmLLtixB7EuWVlfXyJBwNPcA/BzSbUUgrH/UZZlTMP5ljliJg42MZfMWfbyEg21PtiL/J59TRIHAIDm9EaTHQWEdtmtUTrvjSYMhkfqDp95z/9QFMWtBfxpt9Y8S7Io2WLX+1+U1Nm0o8uj3sXeF0Xxs7VvswqcZxI4O845e297F9kuycHS6qfQfur6kciNBVtUKnkS2ZfXLkKHSjahARYEtAu1LihvItqnDzrW0WSsfbKkmm6WF6m9kGnbx9r21xFs0sydziGCx9iYksf7TW1P4QAAIABJREFUzrlj3QujHRys8uw9WxWnF6pY2D37pCzLs4i2CQCApGkOyzjmZxN899GOlVbWA8mx9yHFBVddb7YVM3znnCsUx7F3E+s+ss9Rb4bN0LGk2eyX6T7wUgv6nlZF2T9n77JW2bNRG68U3n0T9hBTbIpEToYUxDp2zlnS5CyC4LJV4RxThdO8uYDlvo71dsubZCsNzrp2rHVR30vx5qlA8kA9VM9a3vZHnT8nLW4DMmFJiLn7YEzJ7h/YOT+3rW0nVS+VxImiBzAAADnQ/JUrgmzJOLAWeLa4bNUKeCBWc4u8100eb8/iSRYbUBcYNEyJnaKpVl1zC/ljWpibm6gKEmitljGriCjLck/tk5rszbguKx38xVojkcTxyyqdyrKc9eFso1WWBf5+tmBkl4+1Vq+3eRwq04NaW9v+qJk9OyRx0CRLRmhF2a8VytmDspctzd5q8579q+7ZJHEAAGiI5q58IYmTHFsINFZCB0hOjRmivJNHzhI46q7yhSSOd1ElNUnkdIAFaBXkPwoQyHpUUP8XzUehNVJASqS81LH2PXdhFnz/mcDfvyyRpWSEjwF3Xj3Z9vcBtv1B+8gSOFTtwRstbBgooXMZ856eu2f/Fij5dKkEzqArLTEBAAilN5qcMHQ6abtK5jBHBEnSYrE9vXeva1sdOxCvKxI4QdzFFtcmkdMhCg5ZIOtnBWmbDPRfK3mwo6A+CZwW6VjvabDapwYD8rNE3W+WMFLwnQTOArOkyFxA9jKVpI62/Uzb3vQ59DB3Du10vYoLYSmhYy8l/9M96zrWQ6BKS9/37P/pnk0CBwCAhvVGk4vIZuChGpI5SJ4WbP6sd/F1OnB0ripHc0uj55zbo8IzmOhaDDIjp4MUeLcWUDY/4KVKLff0ny/XmKlzoyFo9jMmABQvJdSONTNpR8d5dqx3npmp86hha/f6zzEJumosIDvrq6mb7vzPc8eh7W1/eg4NNtj22Tn0zw/nEGKg5OHF7MFMvYUHc0Mno1nd1NA9+8+56zj3bAAAPFIrLlZL52VLyZzj6bDP7BAkSe8V3yttNGd5oP97UVJgu0uzcvQ+uNPG39Y9YxZf2dE73vf/ezrsL9omqqXC6Uwi59cK/07Mq/ovKgyiSmKFuYJZV7ENb/JNgSyX96f8L92077t2rGOjREaSyQydQ119ccnuPlCWZaeugavonhB9gqOr92wAAFKhgNx4jYUWSI8Fu897o0lBMgepmy02dc5dac7KIif2v+feQUMLVq+0gLUNtmjvYMHfXdYSfL+l7eyayxjPfS+JnNxWe84FwAEAHcR9AAAAAKuo9dZVzNX2aIQlc/amw35bQV+gMRa/dc6dLmkDua3kRrZt1tTxYLZILvhiOSX/lyVmfkgYq8ML95gwokzYMyMHAAAAAACgIiVxxgTYOuOdZiABydP8nGXzOI+V7MjVlSoo26o8Wtba7mE67C8qkqCtWhgPsRapkMgBAAAAAACooDeaWGDtK8OnO+egN5rcakU9kLpDzbh9akutv7LjnLuYm2XWVmJ2WWXfsu0hkRNGtFVoJHIAAAAAAAA2pCTOOfuts2wl/7g3mrQyJB1oimb5LgteH6ilVzaUxJnNpblro/pC949lVZw/JM+cc8uqd9Csx5hn0pLIAQAAAAAA2IBaa5HEgSVzbtVeD0hWWZaWPLhZsv1ZtBK0NnHOufFcEqdoseJoWeLscjrsL2rzRjVOGGcttdlbC4kcAAAAAACANVgrLSVxDthfkC1V5gzYIUjcshZru865ZW3AkqBZP+O5dmqFZqEET1I9U43zQ4LHObfzZLvhx2PsrQRJ5AAAAAAAADxD81CeruYGCiVzvihACySpLMv7FZUiJ0ooJEet4e5VQfefz9TSZ1n2d6+nw/79Bv88mhV1NU5BIgcAAAAAAGA1zUEZLwgEAvPOe6MJQVcka0WLta0UW6ypkujrgvkybVXjHG84G+cliweCiL4apyCRAwAAAAAAsJzmn9ySxMGaPqj9HpCqZS3WXjvnkkhUWvWQ5uF8XPKPBG8Vp6rOVdU44wX//6Rb2iUk+mqcgkQOAAAAAADAYr3RZF+VOE9XcwOrHPRGkysFboGkPNNi7YNalUVLyabbFXNlbsqyvGph+09W3Et+SNioGodEjn9JVOMUJHIAAAAAAAB+pHknv5PEQUVvLAlIMgcpWtFizYyVZIiKc+7QOWdJqA/PXLeDz7JSZee7Jf/z5ZLZOMfcf4JIohqnIJEDAAAAAADwX73RxIKY5+wW1GTt+G4VxAVSs6zFmiUX7q3yJYaEzlwC53zF/JmZU1Uchbas3eIj1TitekilGqcgkQMAAAAAAPAvzTdZtnIa2NS2KnNI5iApz7RY21Lly/855y6cc4OQn00zcM6cc3+umcAp1FIt+Iyf3mhysmLG2sl02F9UDXJGNU4QJ6lU4xQkcgAAAAAAAP4eRN0bTWwezgG7Aw3bUjIneEsnoI5nWqzN2DXzi1XFKLmy72On22weVQHZ/Js/lHBfN9lhlRdetmsVJXA/LPlH7qbD/g/VIJak4j4UhCX2llVKRemnfPY9AAAAAADA5jTHZLxi1TRQlwWcz3ujSTEd9pMKHqLzLAFyv0bSZFvJlXfOuUIJoFv93JdlOV53R6rCx67Llgix//66xkGw9mX7oSsvdF+5WvGPLEvscn0II7nWdSRyAAAAAABAZ2nF9Jg2NgjEkjmD6bBPdQ6SYAkQm0NTFMXvG27v6/kEjJI75q4oikVJlZeekumHZVneevi9zzlb0fLtdDrs/7BNqmaqk7TCej61dE7UQiIHAAAAAAB0EkkctOTAKnNsRfiS+RhAVMqyvHLO/ayZOXXbfoWsfDyybQ/4977rjSbHK/aTtVT7YVaPc+4l1ThBPKyY/RQ1ZuQAAAAAAIDO0bySryRx0JIDzc15yQFACsqytPZodt20hM4ntSyL2ac2ZqBYxV1RFB9X/CPLqvFOuB8FcRi6zV5TSOQAAAAAAIBO0Wrpc446WrarZM4OBwKpUELnuCxLS0L+VhTFZYRJnUvbxtB/VFWeqyqA3i9pqTbQfCH4db3JrKbYNNZa7cXnbzsrMoqN+evtqyRLn+a9+PxtoEFdPt3/9fZV5azzi8/f7Fj6fpAY//X2VeUvz4vP35I/Fzy6n/389fbVfewbG+g7EauLqscohWtJLNhX1YT6buZwb5/HMxEAAHHrjSYXDbQGAppiyZxbzc1JbmYDuk1ty74nLpxzlsSwGS97eo9surrkYcXMmXmXqhwKStV1Fys+9+V02D97+v+kpVowDyHe031qekbOB98b/OLzt6u/3r5K/cZ2seaFp473Nf/9w0DDtepkQb2fbzl48fmbfYob7etayTOPBh0+nmMl3aoIsd9uMnmgYF9VYyuY3vj+I5nc2+ftBLqmkcgBAGADCrKdkcRBhLZUmXM4HfaDz/MAmqDh8f+81znndvRuZO/jL5XgKZ6JNz4oRvKnfte9/nNf76fPeV+W5Q/JEt90fxmvmP9zt2L7Q8SJkXBLtZnGEjm2ovzF52/XAQI+xylnz158/rYX6MvJjR/zXuvnw4vP3x51fpxlFjgF0CBVlXhP4kjS93YAABC/NYJsQNssmfN7bzQ5mg77rM5H8qwFmxIxlRcUO+cOFcN6LpZqsa7jlmbiPHd/sW2zJO0PSQR9vlDv3V32KeWWajNNz8gJkTzYD/A3fArRn/E6hXZaaM2WVqB9ffH521ht9ADgqZD329Tv7QAAIGKaWUASB6k4740mVF6js6zVmCU4nHP3mmX2XBLHqngGbSRx5OyZ+8vCtolqRRe8eqiD7tqYl+RDo4kczQbwPdxqK/HAc4hgFdU4WJdV6Zy/+PztVrMwAGAm5INO6vd2AAAQKZI4SNQHzXICOsMSG865C1XxrJPAMZfWsk1t3YKySpzeaDJ+pl3n0ZIkznPzdNCMx5wWjjZdkVNQlbOcglS+v6CPuQ3bRhD2UvPF5lS8+PztJbsc6LaAbUDnUZUDAAAaZfNGlMQhUObPQ64fLAIHFiRW2yYgS865gXPuTNU3X5UUWeeabdee38qybGXuyVw7tVXzfla1SbxggUEQh2rxlwUfiZwQJWFv1Ls/NVTjIHbWl/Oe6hyg89ooO0713g4AACKkJM45SRxvbJXzL9Nhf0cr4uGHBYlJ5iALqrjZd86dOOfGzjlLwHwpiuLdhgsJT1WF00oMdM2Za5fLkjiWuGIuThCnbZ0jvjSeyNHw9BArMpJauRtwaDS9FVHXlqpz6MkLdFdb91iqcgAAQG290eRMSRz48TA/82E67FvS7BP72hsLFt+qTSAQHSVnxit+/nTOlaq4+d1aBypJuWmi3ZLGP5dledJGFU7xb7vO+zWSOAtbh9vsHyWu4Ne1nSe57WMfFTlFoGRCakOKQgSnHpRIA5rw4cXnb7TpAzomUBvQZbIYQAgAANqjuSIEyfy5s5XwT2c+TId9e447yuyzxmRblTkkcxAdVT3cKjmz6Kfu++UsgdNqm6w123U+l8RhkYF/dp/Kcgavr0ROiLKlbfXwT0WI4BTVOGjaAckcoHParIpJ7d4OAAAioaHTt88MnUY9N6rEWbgSXm2EflPbNTTPgsdfFUwGolKW5bEC6E15VKVf6wmc4r+VnquSOKcrkjh7xG2DsPNmv62KLd+8JHL+evvKvlzXAbY/iZW7AYdGMx8HPpDMAToiYBvQVajKAQAAG1lzXgHqsVXmS5M4M9Nh3+ISA5I5Xp33RhOemRGjut/9R1Xf/FaW5UtLDkWQwNnpjSbjNSo9j6bD/sJWXkriPFfJg/rs/Bm0fc745KsipwiUVEill36IG+y1EmiADyRzgG6I4b7KnBwAALC2NecVoJ6lq8wXUdu1QcOr8/FfH9VGEIiGqiAGG26PVfqdFkXxq5I3h7EMqO+NJvtzLeOWseTBb6pI/AFJnKDs3Ml65Ii3RM5fb19dBFiBsaVe/rELEZSiGge+HSTyfQNQXQwr+1K5twMAgJb1RpMBATLvlq4yX4VkThAHlsxRRRoQBQXSn87LelTC5lpJG/vffynL0pVlaRUUJ2VZjmP5DGrVaXHW35+5vzyq3eTCmCxJnKCOYkkA+uSzIqegKifY0OhHJc4A386YXwHkKWAb0HVQlQMASE3WK0BjpDkhXwiQebNylfk61IZtoFZJ8MNmQo1J5iAmZVleKEkz+3mphM2+kjYXsVZO6N5yv0bLcUtS7yhp/QPnHAsNwrEkTifi4r4TOSGGOL1RT/9YUY2DnNgNiKQhkKeY+mzHfm8HAOCpLIfqxkrzQc67vh88WrnKfBOWzFFbNpI5/uwqmcOiS6Aiq/DULJzzNZIvn6bD/t6ymWHOORYahNOZJE7hO5Hz19tXlpV88Pk3JMqVuwGHRodImAEzuy8+f9u4tB5A9GK7l1KVg7ZF096hIQR3EJtNe+gD32kuyEf2hje2ynxv2SrzqpTMeZ/83okXyRyggt5osqP7ypdnZuEUc5WKSxdBOudYaBBOp5I4RYCKnCJQkiGmVcTzQgShHpQwA0I6fvH5G6XbQCYCtQHdVKz3diBV3LcBJG1uZsEBR9KbO1Xi3Pv4A9Nh/2zB7Aw0Z0vJHBZEAc+YS+D8seZ95Vqt1JZWKjrnWGgQTueSOEWgRE6Itl/bkc7tCBGEohoHbdji3AOyEuPLXqz3diBVtCtEbLjGY22a/zEO1PGiqy5XtQpqimbu/KKV7Wievav/rjkfAJ6okMCZVeHsr2il9tI5d8tCg2A6mcQxP/n+A3+9fXX/4vO36wAPXJY0ieZGFXBoNPNx0JYDa7Fm33GOAJCugG1Aq4jq3g4kLsRzKbAJ+sZjLWoVdcV1zKtLtT4Lwtq22TwKBoF7dW7fnVUtoICqlCjca3BRhiVILBFy1XRbxxlVqh2v0T5tns32Ol6V4HbODXSP4loWRmeTOEWIRI5cBQgSxbaaOMTN8pogOlpmN2/m5QBpi7n1Am0h0KbsBpdb0Gw67Oc2+wcJUgA3N7yXeaAkDsF+v45UJROUkjk7Or67me7btr2zaraQSTrkrTeaHCsG5OOabHHjD73R5EbJk9oJHV1jjvVeucligDttw8rnZuec7YsPdbcTa7HKqMOyLDtd0BCitZpV5VwEKJvdUo//WIQIPlGNg7axugdIX8zf49ju7eiWHGcQ0soKscjxXCSR0zCt+CaJ489jW0mcGa1yt8TuTVvb0AEHvdFkrPaEQGVqR/YxwDX5tWY9VXoPtAUAlnDqjSa3ap/2boMkzoOui3urkjjOuR21UiOJE4bdrwZdT+IUoRI5EmJnR7FyN9DQ6EclyIA2WZCVFfNAogK2Aa2DawzQnByrIJAmzkWspADeOUkcb74HxdpM4sxYMmc67A/Uwgh+zALjJHNQiZI4Iee/bM3aAz73D9p5bW3TbBt7o4ktqviqhNMmlX52TTydDvs7z10XnXPHWvBFJWEYVh21V5ZljovsNhYykRNiMPob9fpvG9U46BKCrEC6Uqiqi+Xeju7JcXU9wXPEIsdzkQBDQxQwPM/iw8TpQUmcqM5Ztf86jWBTcmVB5/t1AuPAPLVDbWuI/39in0raDFRxM0vc/F9RFL9rGzddpPi9AqcoCkvgrBwboCqccaCqJPztWpU4VD1LsETOX29f3eoL4lurQeWAQ6NDJMaAdZDIAdKVyveX6wyCmw77Ob4wbGU6mwQJ0bDh7AIgqwYhYyPHLQYMu+D7yubYkjgzCqQexbE1WdpSZQ7PAthEm3ORt61FmtoDlkrafFEypUriZuZGLdS+V+Csuoc7515qFs4fqm5DGKdlWe6XZcnz1ZyQFTlFoORD26uLQwSbHpQYA2KwpfZMABISqA1oU5jHhbaEWIQUGnOn0LYck/N3EWxDLljl7M+1KnGiDoqprdFvAeYsd5V9x75UnT+CblE7vraTF7sNbcOjWjj+Yu0c12kt6Zw7VMUts3DCseP0W1mWbSYQo/VT4A27UtbUp20LKreY6AgRbKIaJ5wUhy62cZPdq9lO4r7Bfb0X4AXwocGWO6wuQFtSCqS1fW9Hd90nMEdqU1S4oTUKCOV4DvI8h9hdqnVZEqbD/pWqRsYk97yx+SMvp8M+8SWskvqi3UfFoq/surLuv+ScGyj2yhycsGxhzD6t1JYLmsj56+2r+xefv10HaD123MZqw4BDo5mPE8hfb18lV3L84vO3l/oOHAd86K11c//r7StbCdHIoM0Xn7+NAySzLv56+4rVAUhWwDagTWrl3o7Ou82whYK1VzuMYcA1OinLtmoKNgOxOn1u9kOMrP2b5rlcEUz15qPt45SSfMAaHnRf3ih5U/ybwDmhhVorTqnCeV7oipxCN2HfwaO2VnmFqMa5toRYgL+DRP319pWtCDx58fnbVcAVTLRWA9KS4mpoqgjQhlyfuY6bWkABbCjXF3TezxCro5QT9zavbq4yh2SOHweqljxk1hcSNUvc2AKscZUZYGqhdkgCpxV2/A7LsmRRzBpCz8iZrbz33et0S73/QwsRZKIaB2tRC6JQgc+XHBUgKSnOnGnr3o5uy7Wd3y6DjhGa5jHk1qpwhkQOYmMxl19zqL5UcmGg2RbwwxZbj5XQAebFlNx7VEt+uxac2jWuKIr/TYf9HasqszaBmyRxnHMvnXPHzjm7h5+TxGnFJ1sYThJnfW1U5BRKRhx4/hv7IVcaBhoa/ahEGLCWv96+Gr/4/O0mwA2J1VFAIgK2AfUh6L0dmA77FtTIdT+cUVGLwLJtl2HXigg2A5ixYOegyqr0WCmZc6h7su9YUlftKplzmNO5g3rU4vCh5ffHRttDqn3aIdeSVlGFU1HwihwJMUztjWYAhEI1DmJF0BPAvBSrcWZC39uBQi8aOdpVhQTgXW80Oc64Gucugm0AZux83Mk1EK9ZLkcRbEquZskcFnpgXpsxpccm/r5zbs85d6bqmy8kcVp1ShVOda0kctTyKcRLcZC2UgGHRodIgCE/tHoAMC/1WTPMykFoOb9knNFGBb7pHMt5eC0r1xGLO1XiZD3nRO3iSOb4szWrzMn1A2IzqoZpa9GCtUurFNOyypu55M3XoijeZbyoJAXWLejnsixPyrJkHldFbVXkFIGSEqFWHYcIKj0oAQYAQCWB2oD6lnJFEdKU8/PXFpW7COAig3vPKqwoRQwup8P+XleG1SuZ80uA+ctdZdfsc5I5mHPYwvftcpOWas65HefciXPuyjlXqvKG5E37rJDj17IsB2VZstC8pjYTOSHahG1rFoBvIYJKVOOgKsqiAczkUM0S6t4OzOQepH3TG02odIMXCgKG6FzQJhI5aNsntRzrFLWPG2TcAjUGlswhFoXZ921PVRUhnFa4rs0S2QOOWBQs8XdUluUObdSa01oi56+3rywLdx3gT3lNsgQcGs18HFQVItHISiggcgHbgIZ4maYqB8HoxTX3+9wF/fDRNJ1TuQcAH6q2fAEacjQd9jv7XDQXXGZWlT/veqMJ1buw79v9dNgfqLXhtYfnY3uP/GTttzapxJmxdl3WtsvmhGkOC3Gqdjxq/1sCh2tHw35q+e9fBQgq+V5hGOKh6VqJL2AjLz5/OwmUaKTtHxC/IG1ANQfh3PPfoXoAoY0zryrYUjIn+9kKCENzcXJvqVZQjYMWWaDsWC3GOs3uW3b/0jUn9wrAthwoOc9zAmatDaO99mj+irVYu1BLuOMOPI/E4FELeM6YgeNPm63VrCrnIkCGdEszAXwJEUyiGgcbe/H5m92sPgTac1ykgfgFaQOayb0deKoLz2K7BKXRBCVxxjqncsd3Bm14VEC980mcGUsuTId9i81cxrFFWfr+nNAbTXa6viOQBpvHQoVOELaY870qcE5I4vjVaiJHQrwYe0m2BBoa/aigGPAsa51k5+WLz9/spfJjwD1GRQ4QsRbagCZ7bweW6Eqwdpf2KWjARUeSOAUL7tCCOyVxeP9aQDM1TqPbsHzYtf2WdqxIyZOWa0fM1WrMzdwMHKpwAmm7tVqhsqsDz3/jjQW4PbQnoxoncy8+fyu7vg/WxIsEELfQbUBTvrcDP7Ce4L3R5K4jwWlrn1KoZQ8vZFibKnHs3eV1R/baHd8RBHZHa6vn2WyN3mhyH6DVb1dtqTJnfzrsU5WIZCjR8L0tnHNuoLZrvt9Zc/OoZz1L3BAHbEHrFTl/vX11Gygb2mjSJeDQ6NwHhCIPPMABcQu68CDVezvwjC5VqhwoSPMygm1BAubaqXUliVN07JqA9l2TxFmf2s79SislbyyZ86U3mtDqGEkqy3JclqWdv/9TW7A7juRKN6pmsuqbQ5I47YmhtVoRKFnR9GrkIEOjFQwDYnb319tXvFAAkWqxDWiK93Zgla5VSc964dM+BSvpHLntUDu1GTonIJRLm/9CEmczqhYZkMzx6rw3mpxk/PmQObVds+oSe5b5uSiKT7Re+8edklw/l2U5KMvygvZp7YslkRPiIXhbMwKaEmRodIC/AdRFNQ4Qt7bagKZ4bweWsvZqHVytN0vmsOIWC/VGk2M9C4aYwxaTO10TAN/ea+4LKtAsoT1W23v1gfl6yEFZlvdlWR7bzJeiKH7paKXOzVzyZk9JLp53IhJFIkf97a8D/KlGki8tDI0GYsZDGxCpNtuApnZvB9bUxXvellbcXvVGk50ItgcRsHOhN5pYAudjgKrPGPH8ixCOpsM+iztrUtJ1QDLHqwM9J9CSFVmw1mFzlTr/U1uxywyrdR5UhfSbfU5V3pC8iVgsFTlFoKRFU6uSQw+NBmJ1R/s/IGpttwFN6d4OrKPLi2wsKXxLCxXoHLjt2Dycp0jkwCdrBfaL5rygAdaWbjrs7ykQCz/eMF8POVL7tQvNhtlRC7YjJUBSSxDfzCVurOpmR1VIV7RNS0M0iRz11vfdu3RLswLqaqtNDRAbVogBcWu1DWhi93bgWVrVG6LSLFZbaqFyT7u17rFjbsfezoGOVuHMXDOrBB7Zc9NALcHQMLWpI5njz64WfdD6GNlSC7YLJUCs/ZgriuJXtST7pGRJ27O5HrQdp0o6/WLbqYqbWeKG4oEE/RTZJlvy4sDz39ivs4KqxaHRQGweOE+BeEXUBjT6ezuwoYtALQtjtj034Nj2xxmB7Typnd6hfro2B2cZ7jfw5U5JHK6nHlkyR60hz7P9kO3aVmUOCUl0RlmW40Xzo51zA/3X2X/u6Gf236s8W9m9YnafuNfPn6qWtuohvncZiy2RcxYg2PPGZgbUaFtGNQ7wN1qrAHGLpQ1oCvd2YG3TYd96wD8Q1P5uW9UZVqVzrWfYK4KQaVNbnH39dD1p+dSDXQPi2iRkwlZO73P9DMPa1vVGk0LPqV2uMPRlS8mcY1oEosuU4CkWJXmAKqJK5FiP/Refv4V4Md6v0hKqzaHRQGSoxgHiF8XCg9jv7UBFF0pg4F9v9GOVOnd6YbWfe1bkxk0tcGY/A7XGwWLcZ+DDpVp+ISAlc251ryKZ07wtPRMUJHMAoBmxVeQUejj+6PlvHFd8CG97aDQQC140gIhF2AY05ns7UMUZiZyVdvXzrvg7UVCoVzjPuHHZI3i5kUfaqsGDT9NhP0QVNRawhQbWAkzfbZLYfpyrzRoxBACoKcZEzlWAYM+2zQ6okDBpdWg0EIlPf719RVkoELfY2oDGfG8HNmatb3qjyWWAtoE5sYTB667vBCTtgrZXaNgRlQrtm0vmjEnmeHOgRR3HXEcBoLr/F9u+U3/76wB/aqOkTERDo4E2PTAbB4hbjG1AY723AzVxPwS6hQV3aIpVd/1GEiceSi4MAj2vdtWB5ua87PqOAICqokvkSIhkxqarlWMZGg20xV449v96+4oVNEDcYm0DGuO9HahsOuzbM9slexDohEt954G67J3K2kyxgDMylsyZDvv73Nu92lUyZyfjzwgA3kSZyFHP/UfPf2ZLMwTWFVs2xV4IAAAW6klEQVSbGiC0Y1oWAUmIsg1opPd2oC6qcoBu4LuOJtwpicM7VcQ0y+V91/eDR5bMsXZ2e9l+QgDwJNaKnCKmlbsRDo0GQjvi/ATil0AbUKpykBWqcoBOoBoHTSCJk5DpsG+Llo66vh882lJlDs/tALCBmBM5IXoQv9EsgedQjYMuI4kDpCP2NqAx3duBprBSH8jXI/PX0IBLJXFoUZ0QzTD6NUBFeVdZMuf33mhCNT0ArCnaRI5aOD0E+FMrkzQxDo0GAnkkiQMkJ+qFB7Hc24EmaaX+KTsVyNIZwXfUZBVdh5xHaZoO+2NLwpHM8eq8N5qwKAYA1hBzRU4RKLnx3AqrWIdGAz5ZoHVAEgdIR0JtQGO4twNNOyPIA2TngcV2qOlI81aQMLXD21F7PPjxoTeaEHsAgGf8FPkOslW/Hz3/jW2bKbAikRLl0GjAo+uiKA7/evuKVWNAWlJpAxrDvR1olK207o0m9sx4zp4FsnFCFQVqOFJrLmRA93mrzBlrWD+ad9AbTSxhts+1Ny4693f005bxk797G+I86Y0mNoN2r+XPvsy46f2g7+A6CxDGqlhc9ntear+Z+f9eh73b39eZNafPNzuWe9q2OsbapmCzFKNO5FgP/hefv10HaG12vOhETWBoNNAkW3V4/NfbV5yPQGICtgG9ffH526CB33MX4CV44b0d8MUCdurz/pqdDCTvhiA8KnrUPBwWk2RGwdI9VY4cdH1/eGLPUGNLHJDMaZeeafcDvWOu48PTf6Y3mhSKY93PgvxKMNS6/ipxday2ir47XtTxQdtr++CioXawO4v29QJWRXejePbLuaTInu991htNHpVAuVr2rDaXSBroP33F9+ePwZWOgdekTuwVOYV2hO8Lx7JVzLEPjQaa8KiqsDOqcIBkhZoJ47uSpknMyUEb7NnxK3seSB4LAVDFg6oJSOJkzNrl9UYTe29+1/V94Ykt9rrtjSZ8l1qgCpSLhCrPtvXzz0IqC6pPh/2NK2hUrXGR4KKsbSUUjm3e1HTYD9X16XVL+2pLeYI3mq9lc+jGs4o+PcOFPn+3dU941xtNTqfDvre5X7HPyCnUi993z/EtzRZ4KpU2NUAVDxrOvPPX21cnJHGApDET5kfL7u2ANwo42L31/7d3B7ltXNkagJmHQDNCzgqsN6dgeQVRVmBlBbYIzVteQeQVRJkLtLWCllcQaQUtQZzHXsGLwJkmebjuo36Kn22JZNWture+DzAaaNghWSyyWPe/5xygXG9ytsigGqnaeMfC8zAsppP023t/6MehRU+jMqeJdkw8UlTh/KuC9oFLX8PjtV8WXlmfAo5fU9VgVKQMQfqu+H08m6cKnT9i42nX52+qVrps6z3ofZATcoQdfwttChoaDUudc6PR6HQ0Gv18e7AtwIEKZGwDWiJVOWQXO7AMRIYyXbW5i5JqXUQ7NfdVAxItfX7OsPF4qNJ63L9igZ2WxXGuZdbjV2e3fEm0Unvb8zZqy3gZlUVD0rcA7lmE0Y2HOaUEOTnKwl7EjIE7qnGoQVpISnOmXo9Go+e3B9tPbg+2X5mDA1VRjfN1n1/bIReLDlAmn12WdbqYToQ4A7WYTs5iBoMwpz1vx7O5+50WRUuqXO24cnh0kBML7TWGHi+EoJ171sZaTRFBzu3B9mW0gWrbp/Am49Domr4oa/XTmn9OOzwu+7cH2zu3B9t7twfbx/E5Auqj6uTbHB+y02INivRaWyyWlNrwWSgbuPje2FWN26pP7aIqfn1dO6qoGuUmzUtZ4u+/qri7hQrj7h02XZXzfUEv/jjDkOXDeJwciz4fLaz33+3B9lIlmZ/bOLlO7/FORz0aj9PjO8+gXpnagJbu0MYJupDaM0WrhpJ7bcNQXGQcDkwd9qO1FnwKc+Kaf17BfJG+ejmezdNTO1QB17iaNr4tu4ZXc7XX0/FsvheVg3RjM8LCxn5jltJabZSpDdnTmDWQ44PsRmEAYv7Mq45KrdMXxruNk+uhDDmDIVJt8rC7azt0YU+7Fei9G9dTlpDOl5+FOHwuwoXdjrty1O5lW3Mnhiot9Fe2MXCZtmpDmDXr9033Gq3cLaYi5/Zg+8PGyfX7DC3P3mX6IEtEByJVxGycXB92NDjuWYSGSv6hMhnbgNbg0PcgXUiLOnGD/Ls3AHrLfBMe6ybOFx0P+KL4LnkVlSMvHaVW3A0Rf+Wz2IgmNryl78bHvhdtV6ovU5Gz28DjLfPal7XVwPp0E69xGanF5Dq/qZp4zfelMS0f1vj3Txqosmy0SrOk1mqjCD/aXrTKUQb7PgVTGR6Hnrg92E6VMbsd/Zh7uXFyfZ6eg/MBqmJ3zeM5VnQm9ekez+avM7QIBpZnLg6PlRanUosa9/E8KM1OGs/ml679rbkLcwSr61t1of8mNsudNb0ZYjybb8WC/n1PvhA6ff7cd5Y8H1at7LqJDdPHOTaCRNvGoxVDsFwVR6+bbFEbG+GO1lijv2pyo05Ubx2tmkmkf9/Ud1VRQU4shh9XUPanGmeYDs3LARpUcz/fpm2meUICbbqSbmziBsDuXOiPU3NxeKRGF4QYhrj2/9lRZ44h2LxXmWONLb/WQrQIzL8Umjf9Pq9ajZRC/bXmaS8jHmt3PJuvVNyQWhFmuH41ep+dPtPj2fx8jblj75p8zXGu7636HqwRGv4/Jc3IuVP6F/SNhaRhMi8HaErMfKm9n2/TVOXQqbQ7NxYDge5dxWcSHpICvx0hDquIWUrPzctrTVrn+GcKcyp9fX11Wkkl1CrrY1c5Q5zPHK3471qfF9vGNTL+m6u+5rbOz84305YY5JS+a8pOgQGLipiuPvjPKvj88Hc5fjy13cM2l89Ls0unGmd5L2KuEHRpV5gDnbvqoGc8ZToV+LGuWPDeFea06u14NrfWsZpV7veH3GKyszXdgbYR7NVr7kN71eKCnFgI/9iDp7IqF5eBi4qs046OQpqX42akHll2Bm6cXNdQyVBbNYbqktU4bnTqbgiyxRzozE20RFFdwUP2hTg0JRZgt2zmaNU/xrO57jdQkYrm0g26tdqo4DDkoxklhMMOf8QdR1smeKyiqz82Tq6PMs1Wy1JiHWFs6bPiuqKSic7ZmQuduYme/obV8y03EeJYEKZRESCn6/+FI9ual2muRpoJUunrA8rU2AaiUoOcUtuTqcbhE/NyaEiuhYgfN06ui7yZ3Ti5TjdLv/TgqTRJVcnqngqy6QNhDmR30+ZgZqpxd54IcWhFCnMW08luhx06hiC1ChPmAFUqMsi5PdhOi5fve/BUlmU+Dv9hXg7riu/CXFJbvvNSZoykoDIqcX7P+LCtV+TE8X/R9uNUTlUOvSDMgWyEODzGR+cJuUTbvjcOeGvSeseH8WxuAxdQle8LfjFnhS1mvc+86EoB0rycqBh42cGz/bQwHzN7KNfFigMKV5Ee54+Nk+urCC362l8+faZ2Omg/luM7XjXO+qo5hhFW9k26rmRpM1iDtGA4ns134ztVy0RonhCHx7iK88TsJLJZTCdH49k83T+8ddRbsRmVOWkumt+mQBWKDXJiAfy4oJte1Th8zWEsOj/r4AileTmXZjcV7TJjkHPnWUfna5/dZArrVZOsbzPNGaokxO5r20A3y0sQ5kBrhDg8Rur08UqIQxdSG7/xbJ7OvXd+A7QiHdPfx7O5uVdAFUqdkXOnlHDkRtUDX2NeDmuyYNoPOdqqpcD3aSHHo+9UNtEr2qxB44Q4PMbpYjrZE+LQpcV0cuY3QOvejmdzG+KA4pUe5JQy40M1Dt9kXg5rEOT0Q47veTcfzXlRyrwnhiMWnHeixQ+wuvQZ2hHi8IA3MacEOuc3QBa/jmdzG6yBohUd5MTi98cePJWHWCTnQVG1ddrRkUrzctzIFCgqut4P/Tj0QI4gRxVJsxxPemcxnXyIXbkWcmA1F1GJYzYp35LaLPVxzhwD5jdAFi/Hs/nZeDbXkQQoUukVOaMCQpKP5o+whMMOf7gdR+smyqPqr1vvI1BrTQSt+mY3S4UTvZRa/Cymk50ON3dAqVKbLAPr+ZbUuuonszLoq/j+2vUboFUvUlcLYQ5QohqCnL4vYKrG4dHMy2EVUc2lp3J3ciwGqB5p3lPhNX0WLX/2vUnwKPvaZPGAu7lJ2hLTa7Gh45Uwp1XPIsxxLwAUpfgg5/Zg+0PP2wrZKc9SzMthRd63bqSqy1a/52OWy4seH4OSqcqh12LX+PNCWglDF9Jn47kKCx6QOh5smZtESWzoaJ0wByhODRU5ox6HJe8jaIKlmJfDCo5V5XQiR3911TjtcWzpvXsDkM1Dg79Ln4kdi/M84CoqcbTcozgRUgtz2rMZYY71D6AI39fwNqVF742T6+Mezg9QjcM6DmPh5lkHRzHNy7k036kcqS1ffA/+MvRjkdHHCF3blqNq5PXtwXbvqro2Tq7/bPnavpmC60zvI6wsFiD3xrP5YQTIZmYxZGnjytFiOlGNzENOtdyjdCnMGc/m6b783PW/FemYvh3P5iPVnUDf1VKRM+phaHJjYYh1mJfDCo6138mq9YWBmOHyNMOL6uvGgxzPS1UOxYiF693YYQ5DdBFVOEIcHvKbEIdaROXhrnu9VqUwx7UF6LWagpy+feGqxmFt5uWwjAj/zPzII7XOzDEsN8f72ec2oDm+g17EHCIoQlrMWUwnKeR9raUmA5LO9deL6SS1yNK6mofsL6YTv4mpyr1WqzZztOcf49nchmygt6oJcmLBu0+7EyyA0wjzclhGDN7v6nwZio85qnFCjmqR3m48yHhtV5VDcaIiYScqFKBm71Xh8Eg3EeJYiKVK0Wp119y8Vr1MrezGs7nuJEDv1FSRM+pRePLRbBEadtjhzpvjaO9EObo8X4ZgL6qfWhUhatt9sEtoA5rj2m7XLkVKlQmpQmE0Gv2s3QoVSuf0T4vpZE8VDo+QQpxdIQ61S2FO+l60ea9VqTvJ+Xg2V7UP9EptQU5fdhXbLUajzMthGR2fL7XbzxjUD7oa554cz/GpwJqSLaaTs8V0khYb3vjupwJ3bdS2FtNJjjamlO8qQhybKRmMmAH1xjvemhTmpMoc9whAb1QV5ESP/z6UmJqPQ+PMy2EZcb7sWtBr1G+5qldiZsuLDA/V+891xmu7qhyKt5hOjkajkUCHUt3EubuljRpLEOIwWHHd33cGtGYzKnN2K319QGG+r/ANO8u0+PU1fR4aTeHSIvLGyXX6EfGyg1eS5uWcF9CGiZDCnDhfzjO06Krd6e3Bds6F/hzVOCW1Ac1xbTcnhypE//yj8Wx+HAHloWsAPXcTGwuO4/yFx0obPV45bxiy1E5wPJt/iN/LrvfNS8f09/FsnnX+Vszo2Y15iJ9L7/e5tqMwPLW1VrsbDN/lDkTVOLTNvBweTWVOI1IlzqvMj5kjNCpmt3Oma/tmzCWCKkQPfRU69Nn9Cpwji/Es6TTmJzlvGLxoQ+mer11vx7P5UdsPkgKc8Wye7n3+ZzQa/XM0Gv3yhT9vR6PRH+PZ/FzrNxiW6oKc0FWYUsLQaApnXg7LuhfmGIS9vP3MlTijCEufZnio0jYe5Hi+qnKozl2gs5hOnkT7la42g8CddA6mnc1PBDis6HXMBwFCtBfccZ1v1S8RsrTpfIkOLD9G67d1wpxVzpetNR6vdJ3dLwrtGFUc5HS1y1g1DlmYl8Oy4pzZ6ckcsRKk0Ot5R+F8js92iW1Ac3zvvIj5RFCl1BJkMZ2ka8HztJvdzl0yuolz7nk6B3O2p6E6+2YowZdFq61dYU6rXo5n87Nofdao8Wx+GOsty9hc8z5plc0UewMOFZ51ODNp1fdZC76K1Dgj524uxMdMO5rv84OSbMzLYVlRzbW3cXKdfiAe6aH8Vb+l4xPHqws5dvkUt/Eg47V9z/Wc2sWu3VexCLEXf7qcMUm90gaSM8ENDUhh4G58fwFfEVWOO1E50sVawRC8iEqY3YarSletNPxxPJtvZZyZsxmv/zCu8Y3eN8fv0y8FRVufVQN9/ve24v/barnaN81MSq1h3+U45uPZfC82e/64yr83S6kuVQY5IS3C/Jrx8UoaGk09DuPCteyujSakeTmXzvvy3B5sp/fuXXxP+nH/fy4iwDnv6gnEjJa2A7aS24DmuLYfCnIYirjJTd8H7z4LdXaF/azoJtrCnLWxuMNgCXFgSan94Hg2H7nfa01ag7lMi+wNfjets66ztWLlxeWKAcFmzOp5G+fZTfy3PrdS+LCmd4/cHHm+xvP7JVrtjb7x2tfxpKF1PtX3lak5yDnLHORY9CG7VDEQC7/nHSy43M3L2e2wcoEV3c1a2ji5PorqnCH/wE+tB457Em6oxvm2HNf2p2lOkZCaobkf6oz+vftv916o08WGEcpxdRfexMBtaNJVhDjuN2BJEeacx4I7zXt6rzKn63uH3bgWL6up573ZUWjzJS/iPXnoeNT42j/nnrYytc7IGUXv/5yzIMzHoRPm5bCO9F15e7CdwsD/Ho1Gb2I2zBDc9er/6fZge6cPIU7MZsnR2qjYz2zGa3tX36nQG+nmdzGdHMZMnR/S92VcJy7s7hu0mzgH3sQ58UPMvDkU4tCCCyEOrCdaW+67drfmrs3Yqm3Rulbrtfsx9/dD+N1irboyNVfkjOKEzbEoVuLQaCpiXg7riu+wT9U5qRrh3i7svu4sWcVV7Eg5uz3Y7uMPmhzVODW0Ac1xbc/xXkAxYhH1/P4N773+5TvRzmOnwTYQdO8qBiBfRquW9L+XFtTJ6DRVEzjgsL4U5oxn88uOOnkMweZdi7HSZsKl+Snj2fyisvv+5Ol4Nj9aTCdHX/sL6TfNeDY/rbg7yc0jAy0KUnWQE4vbOX781fjByLHQt274ddHQ86jFYSygPOng9ez16HNQwrnba7HQ/5/jGMHO1hcGCW719HXc31mT3qsPXc69WcJWhu+14q9Xua7ta7ZX+3PA1ygbWwbiS+HOfePZfOfeb5KvDa2le5fxnZX8aQYJPfFbqvLyZkBz0vd7tE19Z9NFa95GS68uQuh17ndT2PF7g8+lL9IMm3cPDPuvuc38sQ049fnur7/+GvoxAAAAgE7E4ir/JlCEFt2rqKU9K1WwxjyjVStjflhn0X48m6f22/9Y9d/32MViOvnmNXY8mx9mnrGew1W0R15K/B5ZOtRbTCfftfWaxrP5KsHFT221/O36+dTeWg0AAAB6y3whIJd7FbX0z7sVg5zTdSsvUhVkhHy1Vac8GGYsppPj8Wy+VVGQdRVt8qnQf3lTAQAAAAC6EfN1lm3PfBNt9tcWLeF+TnNVKzkFrh47+zTaef5U+GtP58KbVImjpVq9BDkAAAAAAB2KNmBvYlH+IWlQ/1aTi/aL6eQsqlj2IwgpyUUck9ej0eh5BBqPrj5Lf3cxnWxFmPX+ke9BH1zFOZPOhaPC3jOWpLUaAAAAAEDHYjH+KOaVfKlFVpojdt5W1UX8d9/Fn7u5KVvxpw/uhzONz1WLMOssXvtOvO6+zZX6M86DleYxfcOHCIX6ZJXn86HF59/p8/nur79WmdEDAAAAAABA27RWAwAAAAAA6ClBDgAAAAAAQE8JcgAAAAAAAHpKkAMAAAAAANBTghwAAAAAAICeEuQAAAAAAAD0lCAHAAAAAACgpwQ5AAAAAAAAPSXIAQAAAAAA6ClBDgAAAAAAQE8JcgAAAAAAAHpKkAMAAAAAANBTghwAAAAAAICeEuQAAAAAAAD0lCAHAAAAAACgpwQ5AAAAAAAAPSXIAQAAAAAA6ClBDgAAAAAAQE8JcgAAAAAAAHpKkAMAAAAAANBTghwAAAAAAICeEuQAAAAAAAD00Wg0+l8ER5vEl+ze6QAAAABJRU5ErkJggg==" alt="Asistente Virtual OK" />
+    <button class="lang-btn" id="langBtn" onclick="toggleLang()">EN 🌐</button>
+</header>
+
+<!-- ══════════ HERO ══════════ -->
+<div class="hero">
+    <div class="hero-badge" id="heroBadge">Registro de Cliente</div>
+    <h1 id="heroTitle">¡Encantados de conocerte!</h1>
+    <p id="heroDesc">Completa este formulario para que podamos entender tus necesidades y preparar la mejor propuesta para tu empresa.</p>
+</div>
+
+<!-- ══════════ PROGRESS ══════════ -->
+<div class="progress-wrap">
+    <div class="progress-steps">
+        <div class="progress-track">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="step-ind">
+            <div class="step-dot active" id="dot1">1</div>
+            <div class="step-lbl active" id="lbl1">Personal</div>
+        </div>
+        <div class="step-ind">
+            <div class="step-dot" id="dot2">2</div>
+            <div class="step-lbl" id="lbl2">Empresa</div>
+        </div>
+        <div class="step-ind">
+            <div class="step-dot" id="dot3">3</div>
+            <div class="step-lbl" id="lbl3">Servicio</div>
+        </div>
+        <div class="step-ind">
+            <div class="step-dot" id="dot4">4</div>
+            <div class="step-lbl" id="lbl4">Detalles</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ FORM ══════════ -->
+<div class="form-wrap" id="formWrap">
+
+    <!-- ── PASO 1: Datos Personales ── -->
+    <div class="step-card active" id="sc1">
+        <h2 id="s1h">Datos Personales</h2>
+        <p class="step-desc" id="s1d">Cuéntanos un poco sobre ti. Estos datos nos ayudarán a contactarte directamente.</p>
+
+        <div class="fgroup">
+            <div class="field">
+                <label for="f_fullname"><span id="l_fullname">Nombre completo</span><span class="req">*</span></label>
+                <input type="text" id="f_fullname" placeholder="Ej: María García López" />
+                <span class="ferr" id="e_fullname">Este campo es requerido</span>
+            </div>
+
+            <div class="frow">
+                <div class="field">
+                    <label for="f_email"><span id="l_email">Correo electrónico</span><span class="req">*</span></label>
+                    <input type="email" id="f_email" placeholder="correo@empresa.com" />
+                    <span class="ferr" id="e_email">Ingresa un correo válido</span>
+                </div>
+                <div class="field">
+                    <label for="f_phone"><span id="l_phone">Teléfono</span><span class="req">*</span></label>
+                    <input type="tel" id="f_phone" placeholder="+1 (555) 000-0000" />
+                    <span class="ferr" id="e_phone">Este campo es requerido</span>
+                </div>
+            </div>
+
+            <div class="frow">
+                <div class="field">
+                    <label for="f_country"><span id="l_country">País</span><span class="req">*</span></label>
+                    <select id="f_country" onchange="onCountryChange()">
+                        <option value="" id="country_ph">Selecciona tu país...</option>
+                    </select>
+                    <input type="text" id="f_country_other"
+                           placeholder="Escribe el nombre de tu país"
+                           style="display:none; margin-top:8px; width:100%;"
+                           oninput="onCountryOtherInput()" />
+                    <span class="ferr" id="e_country">Selecciona un país</span>
+                </div>
+                <div class="field">
+                    <label for="f_timezone"><span id="l_tz">Zona horaria</span><span class="req">*</span></label>
+                    <select id="f_timezone">
+                        <option value="" id="tz_ph">— selecciona el país —</option>
+                    </select>
+                    <span class="ferr" id="e_tz">Selecciona una zona horaria</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── PASO 2: Datos de la Empresa ── -->
+    <div class="step-card" id="sc2">
+        <h2 id="s2h">Datos de la Empresa</h2>
+        <p class="step-desc" id="s2d">Esta información nos ayuda a entender mejor el contexto de tu negocio.</p>
+
+        <div class="fgroup">
+            <div class="frow">
+                <div class="field">
+                    <label for="f_company"><span id="l_company">Nombre de la empresa</span><span class="req">*</span></label>
+                    <input type="text" id="f_company" placeholder="Ej: Tech Solutions C.A. (nombre registrado)" />
+                    <span class="ferr" id="e_company">Este campo es requerido</span>
+                </div>
+                <div class="field">
+                    <label for="f_rif"><span id="l_rif">RIF</span><span class="opt" id="l_opt1">(opcional)</span></label>
+                    <input type="text" id="f_rif" placeholder="NIT, EIN, ITIN, RUC, RUT, RNC, NIE, SSN..." />
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="f_address"><span id="l_address">Dirección de la empresa</span><span class="opt" id="l_opt2">(opcional)</span></label>
+                <input type="text" id="f_address" placeholder="Ej: Av. Principal, Caracas, Venezuela (dirección fiscal)" />
+            </div>
+
+            <div class="field">
+                <label for="f_company_desc"><span id="l_company_desc">Descripción de la empresa</span><span class="req">*</span></label>
+                <textarea id="f_company_desc" placeholder="Describe brevemente a qué se dedica tu empresa, sus principales actividades y el sector en el que opera..."></textarea>
+                <span class="ferr" id="e_company_desc">Por favor describe brevemente tu empresa</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── PASO 3: El Servicio ── -->
+    <div class="step-card" id="sc3">
+        <h2 id="s3h">El Servicio</h2>
+        <p class="step-desc" id="s3d">Esta información es clave para diseñar la mejor propuesta y elegir el perfil ideal para tu empresa.</p>
+
+        <div class="fgroup">
+            <!-- Perfil del asistente -->
+            <div class="frow">
+                <div class="field">
+                    <label for="f_gender"><span id="l_gender">Género del asistente</span></label>
+                    <select id="f_gender">
+                        <option value="" id="gender_ph">Sin preferencia</option>
+                        <option value="femenino" id="gender_f">Femenino</option>
+                        <option value="masculino" id="gender_m">Masculino</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="f_age_range"><span id="l_age_range">Rango de edad preferido</span></label>
+                    <input type="text" id="f_age_range"
+                           placeholder="Ej: 20 a 30 años"
+                           style="width:100%;" />
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="f_tasks"><span id="l_tasks">¿Qué necesitas que realice la asistente virtual?</span><span class="req">*</span></label>
+                <textarea id="f_tasks" style="min-height: 110px;" placeholder="Ej: Atención al cliente, gestión de agenda, respuesta de correos, seguimiento de prospectos, manejo de redes sociales..."></textarea>
+                <span class="ferr" id="e_tasks">Describe las tareas que necesitas</span>
+            </div>
+
+            <div class="field">
+                <label for="f_requirements"><span id="l_requirements">Requisitos y habilidades del asistente</span></label>
+                <textarea id="f_requirements" style="min-height:90px;" placeholder="Ej: Nivel de inglés intermedio, conocimiento en contabilidad básica, experiencia en atención al cliente, manejo de redes sociales..."></textarea>
+            </div>
+
+            <div class="field">
+                <label for="f_tech_resources"><span id="l_tech_resources">Recursos tecnológicos y programas a utilizar</span></label>
+                <textarea id="f_tech_resources" style="min-height:90px;" placeholder="Ej: Google Workspace, Microsoft Office, Slack, Trello, Canva, Shopify, WhatsApp Business..."></textarea>
+            </div>
+
+            <div>
+                <div class="sec-label" id="l_schedule_hdr">Horario de trabajo</div>
+
+                <!-- Tipo de jornada -->
+                <div class="sched-type-row">
+                    <button type="button" class="sched-type-btn active" id="st_media"      onclick="setScheduleType('media')">      <span id="l_st_media">Media Jornada</span></button>
+                    <button type="button" class="sched-type-btn"        id="st_completa"   onclick="setScheduleType('completa')">   <span id="l_st_completa">Jornada Completa</span></button>
+                    <button type="button" class="sched-type-btn"        id="st_custom"     onclick="setScheduleType('custom')">     <span id="l_st_custom">Personalizado</span></button>
+                </div>
+
+                <!-- Panel: Media Jornada -->
+                <div id="panel_media" class="sched-panel show">
+                    <p style="font-size:12px;color:var(--text-light);margin-bottom:8px;" id="l_media_days">Lun – Vie (días fijos)</p>
+                    <div class="days-grid" id="daysGrid_media"></div>
+                    <div style="margin-top:12px;">
+                        <p style="font-size:12px;color:var(--text-light);margin-bottom:8px;" id="l_hours_media">Horario (de — hasta)</p>
+                        <div class="time-row">
+                            <select id="f_time_start_media" onchange="autoEndMedia()"></select>
+                            <span class="time-sep">—</span>
+                            <select id="f_time_end_media" disabled style="opacity:0.7;cursor:default;"></select>
+                        </div>
+                    </div>
+                    <p class="sched-note" id="l_media_note">* Las medias jornadas comprenden un total de 20 horas semanales.</p>
+                </div>
+
+                <!-- Panel: Jornada Completa -->
+                <div id="panel_completa" class="sched-panel">
+                    <p style="font-size:12px;color:var(--text-light);margin-bottom:8px;" id="l_completa_days">Lun – Vie (días fijos)</p>
+                    <div class="days-grid" id="daysGrid_completa"></div>
+                    <div style="margin-top:12px;">
+                        <p style="font-size:12px;color:var(--text-light);margin-bottom:8px;" id="l_hours_completa">Horario (de — hasta)</p>
+                        <div class="time-row">
+                            <select id="f_time_start_completa"></select>
+                            <span class="time-sep">—</span>
+                            <select id="f_time_end_completa"></select>
+                        </div>
+                    </div>
+                    <p class="sched-note" id="l_completa_note1">* El horario puede ajustarse modificando la hora de entrada y salida.</p>
+                    <p class="sched-note" id="l_completa_note2">* El horario incluye 1 hora de descanso.</p>
+                </div>
+
+                <!-- Panel: Personalizado -->
+                <div id="panel_custom" class="sched-panel">
+                    <p style="font-size:12px;color:var(--text-light);margin-bottom:12px;" id="l_custom_days">Selecciona los días e indica el horario de cada uno</p>
+                    <div id="customDaysList"></div>
+                </div>
+            </div>
+
+            <div class="frow">
+                <div class="field">
+                    <label for="f_start_date"><span id="l_start_date">Fecha de inicio deseada</span><span class="req">*</span></label>
+                    <input type="date" id="f_start_date" />
+                    <span class="ferr" id="e_start_date">Selecciona una fecha</span>
+                    <span class="sched-note" id="l_start_date_note">* Fecha tentativa de inicio.</span>
+                </div>
+                <div class="field">
+                    <label id="l_form_date_lbl">Fecha del formulario</label>
+                    <input type="text" id="f_form_date" readonly />
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="f_expectation"><span id="l_expectation">¿Cuál es tu expectativa más grande con el servicio?</span><span class="req">*</span></label>
+                <textarea id="f_expectation" style="min-height: 90px;" placeholder="Ej: Incrementar mis ventas, mejorar el tiempo de respuesta al cliente, liberar tiempo para enfocarme en el negocio..."></textarea>
+                <span class="ferr" id="e_expectation">Comparte tu expectativa principal</span>
+            </div>
+
+            <div class="field">
+                <label for="f_notes"><span id="l_notes">Notas u observaciones adicionales</span><span class="opt" id="l_opt_notes">(opcional)</span></label>
+                <textarea id="f_notes" style="min-height:80px;" placeholder="¿Hay algo más que quieras que sepamos? Cualquier detalle adicional que consideres importante..."></textarea>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ── PASO 4: Detalles Adicionales ── -->
+    <div class="step-card" id="sc4">
+        <h2 id="s4h">Detalles Adicionales</h2>
+        <p class="step-desc" id="s4d">Últimas preguntas para personalizar mejor tu propuesta.</p>
+
+        <div class="fgroup">
+
+            <!-- Referido -->
+            <div class="toggle-wrap">
+                <div class="toggle-lbl" id="l_referred">¿Llegaste a nosotros referido por algún comercial?</div>
+                <div class="toggle-row">
+                    <button type="button" class="tog-btn" id="ref_yes" onclick="setToggle('referred', true)">✓ <span id="l_yes_ref">Sí</span></button>
+                    <button type="button" class="tog-btn" id="ref_no"  onclick="setToggle('referred', false)">✗ <span id="l_no_ref">No</span></button>
+                </div>
+                <div class="cond-block" id="cond_referred">
+                    <div class="field">
+                        <label for="f_commercial"><span id="l_commercial">Nombre del comercial que te refirió</span></label>
+                        <input type="text" id="f_commercial" placeholder="Ej: Carlos Rodríguez" />
+                    </div>
+                </div>
+            </div>
+
+            <hr class="divider">
+
+            <!-- VoIP -->
+            <div class="toggle-wrap">
+                <div class="toggle-lbl" id="l_voip">¿Necesitas servicio de telefonía VoIP adicional?</div>
+                <div class="toggle-row">
+                    <button type="button" class="tog-btn" id="voip_yes" onclick="setToggle('voip', true)">✓ <span id="l_yes_voip">Sí</span></button>
+                    <button type="button" class="tog-btn" id="voip_no"  onclick="setToggle('voip', false)">✗ <span id="l_no_voip">No</span></button>
+                </div>
+                <div class="cond-block" id="cond_voip">
+                    <div class="field">
+                        <label for="f_voip_country"><span id="l_voip_country">¿Para qué país necesitas la línea VoIP?</span></label>
+                        <select id="f_voip_country">
+                            <option value="" id="voip_country_ph">Selecciona un país...</option>
+                            <option value="Venezuela">🇻🇪 Venezuela</option>
+                            <option value="Colombia">🇨🇴 Colombia</option>
+                            <option value="Ecuador">🇪🇨 Ecuador</option>
+                            <option value="Perú">🇵🇪 Perú</option>
+                            <option value="Bolivia">🇧🇴 Bolivia</option>
+                            <option value="Chile">🇨🇱 Chile</option>
+                            <option value="Argentina">🇦🇷 Argentina</option>
+                            <option value="Uruguay">🇺🇾 Uruguay</option>
+                            <option value="Paraguay">🇵🇾 Paraguay</option>
+                            <option value="Brasil">🇧🇷 Brasil</option>
+                            <option value="México">🇲🇽 México</option>
+                            <option value="Guatemala">🇬🇹 Guatemala</option>
+                            <option value="Honduras">🇭🇳 Honduras</option>
+                            <option value="El Salvador">🇸🇻 El Salvador</option>
+                            <option value="Nicaragua">🇳🇮 Nicaragua</option>
+                            <option value="Costa Rica">🇨🇷 Costa Rica</option>
+                            <option value="Panamá">🇵🇦 Panamá</option>
+                            <option value="Cuba">🇨🇺 Cuba</option>
+                            <option value="República Dominicana">🇩🇴 República Dominicana</option>
+                            <option value="Puerto Rico">🇵🇷 Puerto Rico</option>
+                            <option value="Estados Unidos">🇺🇸 Estados Unidos</option>
+                            <option value="Canadá">🇨🇦 Canadá</option>
+                            <option value="España">🇪🇸 España</option>
+                            <option value="Otro" id="voip_country_other">Otro</option>
+                        </select>
+                    </div>
+                    <p class="hint" id="l_voip_hint" style="margin-top:10px;">Nuestro equipo te informará sobre los planes disponibles según tu país.</p>
+                </div>
+            </div>
+
+            <hr class="divider">
+
+            <!-- CRM -->
+            <div class="toggle-wrap">
+                <div class="toggle-lbl" id="l_crm">¿Tu empresa maneja algún CRM?</div>
+                <div class="toggle-row">
+                    <button type="button" class="tog-btn" id="crm_yes" onclick="setToggle('crm', true)">✓ <span id="l_yes_crm">Sí</span></button>
+                    <button type="button" class="tog-btn" id="crm_no"  onclick="setToggle('crm', false)">✗ <span id="l_no_crm">No</span></button>
+                </div>
+                <div class="cond-block" id="cond_crm">
+                    <div class="field">
+                        <label for="f_crm_select"><span id="l_crm_name">¿Cuál CRM utilizan?</span></label>
+                        <select id="f_crm_select" onchange="onCrmChange()">
+                            <option value="" id="crm_ph">Selecciona...</option>
+                            <option>Salesforce</option>
+                            <option>HubSpot</option>
+                            <option>Zoho CRM</option>
+                            <option>Pipedrive</option>
+                            <option>Monday.com</option>
+                            <option>Freshsales</option>
+                            <option>Bitrix24</option>
+                            <option>Odoo</option>
+                            <option value="__otro__" id="crm_other_opt">Otro</option>
+                        </select>
+                        <div class="cond-block" id="cond_crm_other">
+                            <input type="text" id="f_crm_other" placeholder="Nombre del CRM" style="border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;width:100%;outline:none;" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ── NAV BUTTONS ── -->
+    <div class="nav-row" id="navRow">
+        <button class="btn-prev" id="prevBtn" style="display:none;" onclick="prevStep()">← <span id="l_prev">Anterior</span></button>
+        <button class="btn-next" id="nextBtn" onclick="nextStep()"><span id="l_next">Siguiente</span> →</button>
+    </div>
+
+</div>
+
+<!-- ══════════ SUCCESS ══════════ -->
+<div class="success-wrap" id="successWrap">
+    <div class="success-card">
+        <div class="success-icon">✓</div>
+        <h2 id="suc_title">¡Registro enviado!</h2>
+        <p id="suc_desc1">Hemos recibido tu información. Nuestro equipo la revisará y te contactará pronto con una propuesta personalizada.</p>
+        <p id="suc_desc2">Revisa tu correo en las próximas horas.</p>
+        <div class="success-ref-block">
+            <span id="suc_ref_lbl">Referencia:</span>&nbsp;<strong id="suc_ref">—</strong>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════
+   SUPABASE
+═══════════════════════════════════════════ */
+const SUPABASE_URL  = 'https://avtznfyenkvfapwxdrho.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dHpuZnllbmt2ZmFwd3hkcmhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTAwNTIsImV4cCI6MjEwMTkyNjA1Mn0.QAIFNFtxnwRrQLkooj7CqK0x2lbWDUaHLnCsBzDYFQo';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+/* ═══════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════ */
+let lang    = 'es';
+let curStep = 1;
+const TOTAL = 4;
+
+const toggles = { referred: null, voip: null, crm: null };
+
+/* ═══════════════════════════════════════════
+   TRANSLATIONS
+═══════════════════════════════════════════ */
+const TR = {
+es: {
+  pageTitle:'Formulario de Registro | Asistente Virtual OK',
+  langBtn:'EN 🌐',
+  heroBadge:'Registro de Cliente',
+  heroTitle:'¡Encantados de conocerte!',
+  heroDesc:'Completa este formulario para que podamos entender tus necesidades y preparar la mejor propuesta para tu empresa.',
+  lbl1:'Personal', lbl2:'Empresa', lbl3:'Servicio', lbl4:'Detalles',
+  s1h:'Datos Personales', s1d:'Cuéntanos un poco sobre ti. Estos datos nos ayudarán a contactarte directamente.',
+  l_fullname:'Nombre completo', e_fullname:'Este campo es requerido',
+  l_email:'Correo electrónico', e_email:'Ingresa un correo válido',
+  l_phone:'Teléfono', e_phone:'Este campo es requerido',
+  l_country:'País', e_country:'Selecciona un país',
+  l_tz:'Zona horaria', e_tz:'Selecciona una zona horaria',
+  country_ph:'Selecciona tu país...', tz_ph:'— selecciona el país —',
+  s2h:'Datos de la Empresa', s2d:'Esta información nos ayuda a entender mejor el contexto de tu negocio.',
+  l_company:'Nombre legal de la empresa', e_company:'Este campo es requerido',
+  l_rif:'Número de identificación tributaria', l_opt:'(opcional)',
+  l_address:'Dirección legal de la empresa',
+  l_company_desc:'Descripción de la empresa', e_company_desc:'Por favor describe brevemente tu empresa',
+  company_desc_ph:'Describe brevemente a qué se dedica tu empresa, sus principales actividades y el sector en el que opera...',
+  s3h:'El Servicio', s3d:'Esta información es clave para diseñar la mejor propuesta y elegir el perfil ideal para tu empresa.',
+  l_tasks:'¿Qué necesitas que realice la asistente virtual?', e_tasks:'Describe las tareas que necesitas',
+  tasks_ph:'Ej: Atención al cliente, gestión de agenda, respuesta de correos, seguimiento de prospectos...',
+  l_schedule_hdr:'Horario de trabajo',
+  l_st_media:'Media Jornada', l_st_completa:'Jornada Completa', l_st_custom:'Personalizado',
+  l_media_days:'Lun – Vie (días fijos)', l_media_note:'* Las medias jornadas comprenden un total de 20 horas semanales.',
+  l_completa_days:'Lun – Vie (días fijos)', l_completa_note1:'* El horario puede ajustarse modificando la hora de entrada y salida.', l_completa_note2:'* El horario incluye 1 hora de descanso.',
+  l_custom_days:'Selecciona los días e indica el horario de cada uno',
+  l_hours_media:'Horario (de — hasta)', l_hours_completa:'Horario (de — hasta)', l_hours_custom:'Horario (de — hasta)',
+  l_days:'Días de atención', l_hours:'Horario (de — hasta)',
+  days:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'],
+  l_start_date:'Fecha de inicio deseada', e_start_date:'Selecciona una fecha', start_date_note:'* Fecha tentativa de inicio.',
+  l_form_date_lbl:'Fecha del formulario',
+  l_gender:'Género del asistente', gender_ph:'Sin preferencia', gender_f:'Femenino', gender_m:'Masculino',
+  l_age_range:'Rango de edad preferido', age_range_ph:'Ej: 20 a 30 años',
+  l_requirements:'Requisitos y habilidades del asistente',
+  requirements_ph:'Ej: Nivel de inglés intermedio, conocimiento en contabilidad básica, experiencia en atención al cliente...',
+  l_tech_resources:'Recursos tecnológicos y programas a utilizar',
+  tech_ph:'Ej: Google Workspace, Microsoft Office, Slack, Trello, Canva, Shopify, WhatsApp Business...',
+  l_expectation:'¿Cuál es tu expectativa más grande con el servicio?', e_expectation:'Comparte tu expectativa principal',
+  expectation_ph:'Ej: Incrementar mis ventas, mejorar el tiempo de respuesta al cliente, liberar tiempo para enfocarme en el negocio...',
+  l_notes:'Notas u observaciones adicionales', notes_opt:'(opcional)', notes_ph:'¿Hay algo más que quieras que sepamos? Cualquier detalle adicional que consideres importante...',
+  s4h:'Detalles Adicionales', s4d:'Últimas preguntas para personalizar mejor tu propuesta.',
+  l_referred:'¿Llegaste a nosotros referido por algún comercial?',
+  l_commercial:'Nombre del comercial que te refirió',
+  l_voip:'¿Necesitas servicio de telefonía VoIP adicional?',
+  l_voip_country:'¿Para qué país necesitas la línea VoIP?',
+  voip_country_ph:'Selecciona un país...',
+  voip_country_other:'Otro',
+  l_voip_hint:'Nuestro equipo te contactará con los planes disponibles para ese país.',
+  l_crm:'¿Tu empresa maneja algún CRM?',
+  l_crm_name:'¿Cuál CRM utilizan?',
+  crm_ph:'Selecciona...', crm_other:'Otro',
+  l_yes:'Sí', l_no:'No',
+  l_prev:'Anterior', l_next:'Siguiente', l_submit:'Enviar Registro', l_submitting:'Enviando...',
+  suc_title:'¡Registro enviado!',
+  suc_desc1:'Hemos recibido tu información. Nuestro equipo la revisará y te contactará pronto con una propuesta personalizada.',
+  suc_desc2:'Revisa tu correo en las próximas horas.',
+  suc_ref_lbl:'Referencia:',
+  err_submit:'Ocurrió un error al enviar el formulario. Por favor intenta de nuevo.',
+},
+en: {
+  pageTitle:'Registration Form | Asistente Virtual OK',
+  langBtn:'ES 🌐',
+  heroBadge:'Client Registration',
+  heroTitle:'Nice to meet you!',
+  heroDesc:'Complete this form so we can understand your needs and prepare the best proposal for your company.',
+  lbl1:'Personal', lbl2:'Company', lbl3:'Service', lbl4:'Details',
+  s1h:'Personal Information', s1d:'Tell us a bit about yourself. This will help us reach you directly.',
+  l_fullname:'Full name', e_fullname:'This field is required',
+  l_email:'Email address', e_email:'Please enter a valid email',
+  l_phone:'Phone number', e_phone:'This field is required',
+  l_country:'Country', e_country:'Please select a country',
+  l_tz:'Timezone', e_tz:'Please select a timezone',
+  country_ph:'Select your country...', tz_ph:'— select country first —',
+  s2h:'Company Information', s2d:'This helps us better understand the context of your business.',
+  l_company:'Legal company name', e_company:'This field is required',
+  l_rif:'Tax ID Number', l_opt:'(optional)',
+  l_address:'Legal company address',
+  l_company_desc:'Company description', e_company_desc:'Please briefly describe your company',
+  company_desc_ph:'Briefly describe what your company does, its main activities and the sector it operates in...',
+  s3h:'The Service', s3d:'This information is key to designing the best proposal and choosing the ideal profile for your company.',
+  l_tasks:'What do you need the virtual assistant to do?', e_tasks:'Please describe the tasks you need',
+  tasks_ph:'E.g.: Customer service, calendar management, email responses, prospect follow-up...',
+  l_schedule_hdr:'Work schedule',
+  l_st_media:'Part-time', l_st_completa:'Full-time', l_st_custom:'Custom',
+  l_media_days:'Mon – Fri (fixed days)', l_media_note:'* Part-time schedules comprise a total of 20 hours per week.',
+  l_completa_days:'Mon – Fri (fixed days)', l_completa_note1:'* Schedule can be adjusted by modifying start and end times.', l_completa_note2:'* Schedule includes 1 hour of rest.',
+  l_custom_days:'Select each day and specify its schedule',
+  l_hours_media:'Hours (from — to)', l_hours_completa:'Hours (from — to)', l_hours_custom:'Hours (from — to)',
+  l_days:'Working days', l_hours:'Hours (from — to)',
+  days:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+  l_start_date:'Desired start date', e_start_date:'Please select a date', start_date_note:'* Tentative start date.',
+  l_form_date_lbl:'Form date',
+  l_gender:'Assistant gender', gender_ph:'No preference', gender_f:'Female', gender_m:'Male',
+  l_age_range:'Preferred age range', age_range_ph:'E.g.: 20 to 30 years',
+  l_requirements:'Assistant requirements & skills',
+  requirements_ph:'E.g.: Intermediate English, basic accounting knowledge, customer service experience, social media management...',
+  l_tech_resources:'Technology resources & programs to use',
+  tech_ph:'E.g.: Google Workspace, Microsoft Office, Slack, Trello, Canva, Shopify, WhatsApp Business...',
+  l_expectation:'What is your biggest expectation from the service?', e_expectation:'Please share your main expectation',
+  expectation_ph:'E.g.: Increase my sales, improve response time, free up time to focus on my business...',
+  l_notes:'Additional notes or observations', notes_opt:'(optional)', notes_ph:'Is there anything else you would like us to know? Any additional detail you consider important...',
+  s4h:'Additional Details', s4d:'Final questions to better personalize your proposal.',
+  l_referred:'Were you referred to us by a sales agent?',
+  l_commercial:'Name of the sales agent who referred you',
+  l_voip:'Do you need additional VoIP telephony service?',
+  l_voip_country:'Which country do you need the VoIP line for?',
+  voip_country_ph:'Select a country...',
+  voip_country_other:'Other',
+  l_voip_hint:'Our team will contact you with available plans for that country.',
+  l_crm:'Does your company use a CRM?',
+  l_crm_name:'Which CRM do you use?',
+  crm_ph:'Select...', crm_other:'Other',
+  l_yes:'Yes', l_no:'No',
+  l_prev:'Previous', l_next:'Next', l_submit:'Submit Registration', l_submitting:'Submitting...',
+  suc_title:'Registration submitted!',
+  suc_desc1:'We have received your information. Our team will review it and contact you soon with a personalized proposal.',
+  suc_desc2:'Please check your email in the next few hours.',
+  suc_ref_lbl:'Reference:',
+  err_submit:'An error occurred while submitting the form. Please try again.',
+}};
+
+/* ═══════════════════════════════════════════
+   COUNTRIES / TIMEZONES
+═══════════════════════════════════════════ */
+const COUNTRIES = [
+  { es:'Argentina',          en:'Argentina',          tz:[{l:'Argentina (UTC-3)',     v:'America/Argentina/Buenos_Aires'}] },
+  { es:'Bolivia',            en:'Bolivia',            tz:[{l:'Bolivia (UTC-4)',       v:'America/La_Paz'}] },
+  { es:'Brasil',             en:'Brazil',             tz:[{l:'Brasília (UTC-3)',      v:'America/Sao_Paulo'},{l:'Manaus (UTC-4)',v:'America/Manaus'}] },
+  { es:'Canadá',             en:'Canada',             tz:[{l:'Eastern (UTC-5/-4)',    v:'America/Toronto'},{l:'Pacific (UTC-8/-7)',v:'America/Vancouver'}] },
+  { es:'Chile',              en:'Chile',              tz:[{l:'Chile (UTC-3/-4)',      v:'America/Santiago'}] },
+  { es:'Colombia',           en:'Colombia',           tz:[{l:'Colombia (UTC-5)',      v:'America/Bogota'}] },
+  { es:'Costa Rica',         en:'Costa Rica',         tz:[{l:'Costa Rica (UTC-6)',    v:'America/Costa_Rica'}] },
+  { es:'Cuba',               en:'Cuba',               tz:[{l:'Cuba (UTC-5)',          v:'America/Havana'}] },
+  { es:'Ecuador',            en:'Ecuador',            tz:[{l:'Ecuador (UTC-5)',       v:'America/Guayaquil'}] },
+  { es:'El Salvador',        en:'El Salvador',        tz:[{l:'El Salvador (UTC-6)',   v:'America/El_Salvador'}] },
+  { es:'España',             en:'Spain',              tz:[{l:'España Península (UTC+1/+2)', v:'Europe/Madrid'},{l:'Canarias (UTC+0/+1)', v:'Atlantic/Canary'}] },
+  { es:'Estados Unidos',     en:'United States',      tz:[{l:'Eastern (UTC-5/-4)',    v:'America/New_York'},{l:'Central (UTC-6/-5)',v:'America/Chicago'},{l:'Mountain (UTC-7/-6)',v:'America/Denver'},{l:'Pacific (UTC-8/-7)',v:'America/Los_Angeles'}] },
+  { es:'Guatemala',          en:'Guatemala',          tz:[{l:'Guatemala (UTC-6)',     v:'America/Guatemala'}] },
+  { es:'Honduras',           en:'Honduras',           tz:[{l:'Honduras (UTC-6)',      v:'America/Tegucigalpa'}] },
+  { es:'México',             en:'Mexico',             tz:[{l:'Ciudad de México (UTC-6)',v:'America/Mexico_City'},{l:'Tijuana (UTC-8)',v:'America/Tijuana'}] },
+  { es:'Nicaragua',          en:'Nicaragua',          tz:[{l:'Nicaragua (UTC-6)',     v:'America/Managua'}] },
+  { es:'Panamá',             en:'Panama',             tz:[{l:'Panamá (UTC-5)',        v:'America/Panama'}] },
+  { es:'Paraguay',           en:'Paraguay',           tz:[{l:'Paraguay (UTC-4)',      v:'America/Asuncion'}] },
+  { es:'Perú',               en:'Peru',               tz:[{l:'Perú (UTC-5)',          v:'America/Lima'}] },
+  { es:'Puerto Rico',        en:'Puerto Rico',        tz:[{l:'Puerto Rico (UTC-4)',   v:'America/Puerto_Rico'}] },
+  { es:'República Dominicana',en:'Dominican Republic',tz:[{l:'Rep. Dom. (UTC-4)',     v:'America/Santo_Domingo'}] },
+  { es:'Uruguay',            en:'Uruguay',            tz:[{l:'Uruguay (UTC-3)',       v:'America/Montevideo'}] },
+  { es:'Venezuela',          en:'Venezuela',          tz:[{l:'Venezuela (UTC-4)',     v:'America/Caracas'}] },
+];
+
+/* ═══════════════════════════════════════════
+   PHONE FORMAT BY COUNTRY
+═══════════════════════════════════════════ */
+const PHONE_EXAMPLES = {
+  'Venezuela':              '+58 412 000 0000',
+  'Colombia':               '+57 300 000 0000',
+  'Ecuador':                '+593 99 000 0000',
+  'Perú':                   '+51 999 000 000',
+  'Bolivia':                '+591 7 000 0000',
+  'Chile':                  '+56 9 0000 0000',
+  'Argentina':              '+54 11 0000 0000',
+  'Uruguay':                '+598 9 000 0000',
+  'Paraguay':               '+595 9 000 0000',
+  'Brasil':                 '+55 11 9 0000-0000',
+  'México':                 '+52 55 0000 0000',
+  'Guatemala':              '+502 5000 0000',
+  'Honduras':               '+504 9000 0000',
+  'El Salvador':            '+503 7000 0000',
+  'Nicaragua':              '+505 8000 0000',
+  'Costa Rica':             '+506 8000 0000',
+  'Panamá':                 '+507 6000 0000',
+  'Cuba':                   '+53 5 000 0000',
+  'República Dominicana':   '+1 809 000 0000',
+  'Puerto Rico':            '+1 787 000 0000',
+  'Estados Unidos':         '+1 (555) 000-0000',
+  'Canadá':                 '+1 (416) 000-0000',
+  'España':                 '+34 600 000 000',
+};
+
+
+/* ═══════════════════════════════════════════
+   ADDRESS FORMAT BY COUNTRY
+═══════════════════════════════════════════ */
+const ADDRESS_EXAMPLES = {
+  'Venezuela':             'Av. Francisco de Miranda, Caracas, Miranda, Venezuela',
+  'Colombia':              'Calle 100 #15-30, Bogotá, Cundinamarca, Colombia',
+  'Ecuador':               'Av. Naciones Unidas N35-17, Quito, Pichincha, Ecuador',
+  'Perú':                  'Av. Javier Prado Este 1234, Lima, Lima, Perú',
+  'Bolivia':               'Av. Arce 2798, La Paz, La Paz, Bolivia',
+  'Chile':                 'Av. Providencia 1234, Santiago, Región Metropolitana, Chile',
+  'Argentina':             'Av. Corrientes 1234, Buenos Aires, CABA, Argentina',
+  'Uruguay':               'Av. 18 de Julio 1234, Montevideo, Montevideo, Uruguay',
+  'Paraguay':              'Av. Mariscal López 1234, Asunción, Central, Paraguay',
+  'Brasil':                'Av. Paulista 1578, São Paulo, SP 01310-200, Brasil',
+  'México':                'Paseo de la Reforma 250, Ciudad de México, CDMX, México',
+  'Guatemala':             '5a Avenida 12-34, Ciudad de Guatemala, Guatemala, Guatemala',
+  'Honduras':              'Col. Palmira, Blvd. Morazán, Tegucigalpa, Francisco Morazán, Honduras',
+  'El Salvador':           'Colonia Escalón, San Salvador, San Salvador, El Salvador',
+  'Nicaragua':             'De la Rotonda El Güegüense 2c al sur, Managua, Managua, Nicaragua',
+  'Costa Rica':            'Av. Central, San José, San José, Costa Rica',
+  'Panamá':                'Calle 50, Marbella, Ciudad de Panamá, Panamá, Panamá',
+  'Cuba':                  '23 y L, Vedado, La Habana, La Habana, Cuba',
+  'República Dominicana':  'Av. Winston Churchill 1099, Santo Domingo, Distrito Nacional, R.D.',
+  'Puerto Rico':           '255 Ponce de León Ave, San Juan, PR 00917, Puerto Rico',
+  'Estados Unidos':        '123 Main Street, New York, NY 10001, United States',
+  'Canadá':                '100 King Street West, Toronto, ON M5X 1A9, Canada',
+  'España':                'Calle Gran Vía 28, Madrid, Comunidad de Madrid 28013, España',
+};
+
+function updateAddressPlaceholder() {
+    const country = document.getElementById('f_country').value;
+    const addr    = document.getElementById('f_address');
+    addr.placeholder = ADDRESS_EXAMPLES[country] || 'Ciudad, Estado / Provincia, País';
+}
+
+function updatePhonePlaceholder() {
+    const country = document.getElementById('f_country').value;
+    const phone   = document.getElementById('f_phone');
+    phone.placeholder = PHONE_EXAMPLES[country] || '+1 (555) 000-0000';
+}
+
+
+const DAY_VALS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+
+/* ═══════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════ */
+function init() {
+    // Form date
+    const now = new Date();
+    const fd  = now.toLocaleDateString('es-VE', {day:'2-digit', month:'2-digit', year:'numeric'});
+    document.getElementById('f_form_date').value = fd;
+
+    // Min start date = tomorrow
+    const tmr = new Date();
+    tmr.setDate(tmr.getDate() + 1);
+    document.getElementById('f_start_date').min = tmr.toISOString().slice(0,10);
+
+    renderCountries();
+    renderSchedulePanels();
+    applyLang();
+    updateProgress();
+
+    // CRM other listener
+    document.getElementById('f_crm_select').addEventListener('change', onCrmChange);
+}
+
+
+/* ═══════════════════════════════════════════
+   SCHEDULE TYPE
+═══════════════════════════════════════════ */
+let scheduleType = 'media';
+
+function setScheduleType(type) {
+    scheduleType = type;
+    ['media','completa','custom'].forEach(t => {
+        document.getElementById('st_' + t).classList.toggle('active', t === type);
+        document.getElementById('panel_' + t).classList.toggle('show', t === type);
+    });
+}
+
+function renderSchedulePanels() {
+    // Mon-Fri locked panels
+    renderDayPanel('daysGrid_media',    true);
+    renderDayPanel('daysGrid_completa', true);
+    // Free panel
+    renderCustomPanel();
+    // Time selectors (media & completa only – custom uses per-day selects)
+    renderTimeSelect('f_time_start_media',    '08:00');
+    renderTimeSelect('f_time_end_media',      '12:00');
+    autoEndMedia(); // sincroniza end = start + 4h al cargar
+    renderTimeSelect('f_time_start_completa', '08:00');
+    renderTimeSelect('f_time_end_completa',   '18:00');
+}
+
+function renderDayPanel(gridId, lockWeekend) {
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
+    grid.innerHTML = '';
+    const dayNames = TR[lang].days;
+    const dayVals  = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+    dayNames.forEach((d, i) => {
+        const isWeekend = i >= 5;
+        const disabled  = lockWeekend && isWeekend;
+        const checked   = lockWeekend ? !isWeekend : false;
+        const div = document.createElement('div');
+        div.className = 'day-chip';
+        div.innerHTML = '<input type="checkbox" id="' + gridId + '_' + dayVals[i] + '" value="' + dayVals[i] + '"'
+            + (checked ? ' checked' : '') + (disabled ? ' disabled' : '') + '>'
+            + '<label for="' + gridId + '_' + dayVals[i] + '">' + d + '</label>';
+        grid.appendChild(div);
+    });
+}
+
+function renderTimeSelect(id, defaultVal) {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '';
+    for (let h = 5; h <= 22; h++) {
+        for (let m of ['00','30']) {
+            const v = String(h).padStart(2,'0') + ':' + m;
+            const opt = document.createElement('option');
+            opt.value = v; opt.textContent = v;
+            if (v === defaultVal) opt.selected = true;
+            sel.appendChild(opt);
+        }
+    }
+}
+
+/* ═══════════════════════════════════════════
+   RENDER HELPERS
+═══════════════════════════════════════════ */
+function renderCountries() {
+    const sel  = document.getElementById('f_country');
+    const prev = sel.value;
+    sel.innerHTML = `<option value="">${TR[lang].country_ph}</option>`;
+    COUNTRIES.forEach((c, i) => {
+        const opt = document.createElement('option');
+        opt.value    = c.es; // always store ES name
+        opt.textContent = lang === 'es' ? c.es : c.en;
+        opt.dataset.idx  = i;
+        if (c.es === prev) opt.selected = true;
+        sel.appendChild(opt);
+    });
+    // Always pin "Otro / Other" as the last option
+    const otroOpt = document.createElement('option');
+    otroOpt.value = '__otro__';
+    otroOpt.textContent = lang === 'es' ? 'Otro' : 'Other';
+    if (prev === '__otro__') otroOpt.selected = true;
+    sel.appendChild(otroOpt);
+    onCountryChange();
+}
+
+function onCountryChange() {
+    updatePhonePlaceholder();
+    updateAddressPlaceholder();
+    const sel      = document.getElementById('f_country');
+    const tzSel    = document.getElementById('f_timezone');
+    const otroInp  = document.getElementById('f_country_other');
+    const idx      = sel.options[sel.selectedIndex]?.dataset.idx;
+    const isOtro   = sel.value === '__otro__';
+
+    // Show/hide custom country input
+    if (otroInp) {
+        otroInp.style.display = isOtro ? 'block' : 'none';
+        if (!isOtro) otroInp.value = '';
+    }
+
+    tzSel.innerHTML = '';
+    if (isOtro) {
+        // Offer common UTC offsets for unknown countries
+        ['-12','-11','-10','-9','-8','-7','-6','-5','-4','-3','-2','-1','0','+1','+2','+3','+4','+5','+5:30','+6','+7','+8','+9','+10','+11','+12'].forEach(offset => {
+            const opt = document.createElement('option');
+            opt.value = 'UTC' + offset; opt.textContent = 'UTC ' + offset;
+            tzSel.appendChild(opt);
+        });
+        return;
+    }
+    if (idx === undefined || sel.value === '') {
+        tzSel.innerHTML = `<option value="">${TR[lang].tz_ph}</option>`;
+        return;
+    }
+    const tzs = COUNTRIES[+idx].tz;
+    tzs.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.v; opt.textContent = t.l;
+        tzSel.appendChild(opt);
+    });
+    if (tzs.length === 1) tzSel.value = tzs[0].v;
+}
+
+function onCountryOtherInput() {
+    // No special logic needed — value is read directly at submit
+}
+
+function renderCustomPanel() {
+    const container = document.getElementById('customDaysList');
+    if (!container) return;
+    container.innerHTML = '';
+    const dayNames = TR[lang].days;
+    const dayVals  = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+    dayVals.forEach((d, i) => {
+        const row = document.createElement('div');
+        row.className = 'custom-day-row';
+        row.innerHTML =
+            `<div class="custom-day-check">
+                <input type="checkbox" id="cday_${d}" value="${d}" onchange="toggleCustomDayTime('${d}')">
+                <label for="cday_${d}">${dayNames[i]}</label>
+            </div>
+            <div class="custom-day-times" id="cdtimes_${d}">
+                <select id="cstart_${d}"></select>
+                <span class="time-sep">—</span>
+                <select id="cend_${d}"></select>
+            </div>`;
+        container.appendChild(row);
+        renderTimeSelect('cstart_' + d, '08:00');
+        renderTimeSelect('cend_'   + d, '18:00');
+    });
+}
+
+function autoEndMedia() {
+    const start = document.getElementById('f_time_start_media').value; // "08:00"
+    const end   = document.getElementById('f_time_end_media');
+    if (!start || !end) return;
+    const [h, m] = start.split(':').map(Number);
+    const totalMins = h * 60 + m + 240; // +4 horas = 240 min
+    const newH = Math.floor(totalMins / 60);
+    const newM = totalMins % 60;
+    // Clamp to 22:00 (última opción disponible)
+    const clamped = newH > 22 ? '22:00' : String(newH).padStart(2,'0') + ':' + String(newM).padStart(2,'0');
+    end.value = clamped;
+}
+
+function toggleCustomDayTime(day) {
+    const cb = document.getElementById('cday_' + day);
+    const timesDiv = document.getElementById('cdtimes_' + day);
+    if (timesDiv) timesDiv.classList.toggle('visible', cb.checked);
+}
+
+function renderDays() {
+    const grid = document.getElementById('daysGrid');
+    grid.innerHTML = '';
+    TR[lang].days.forEach((d, i) => {
+        const checked = document.getElementById('day_' + DAY_VALS[i])?.checked ? 'checked' : '';
+        const div = document.createElement('div');
+        div.className = 'day-chip';
+        div.innerHTML = `<input type="checkbox" id="day_${DAY_VALS[i]}" value="${DAY_VALS[i]}" ${checked}>
+                         <label for="day_${DAY_VALS[i]}">${d}</label>`;
+        grid.appendChild(div);
+    });
+}
+
+function renderTimes() {
+    const opts = [];
+    for (let h = 5; h <= 22; h++) {
+        const hh = String(h).padStart(2,'0');
+        opts.push({ v:`${hh}:00`, l:`${hh}:00` });
+        opts.push({ v:`${hh}:30`, l:`${hh}:30` });
+    }
+    ['f_time_start','f_time_end'].forEach((id, idx) => {
+        const sel = document.getElementById(id);
+        const def = idx === 0 ? '08:00' : '18:00';
+        sel.innerHTML = '';
+        opts.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o.v; opt.textContent = o.l;
+            if (o.v === def) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    });
+}
+
+function onCrmChange() {
+    const v = document.getElementById('f_crm_select').value;
+    document.getElementById('cond_crm_other').classList.toggle('show', v === '__otro__');
+}
+
+/* ═══════════════════════════════════════════
+   LANGUAGE TOGGLE
+═══════════════════════════════════════════ */
+function toggleLang() {
+    lang = lang === 'es' ? 'en' : 'es';
+    applyLang();
+}
+
+function applyLang() {
+    const t = TR[lang];
+    document.title                                        = t.pageTitle;
+    document.getElementById('langBtn').textContent        = t.langBtn;
+    document.getElementById('heroBadge').textContent      = t.heroBadge;
+    document.getElementById('heroTitle').textContent      = t.heroTitle;
+    document.getElementById('heroDesc').textContent       = t.heroDesc;
+
+    // Progress labels
+    ['1','2','3','4'].forEach(n => {
+        document.getElementById(`lbl${n}`).textContent = t[`lbl${n}`];
+    });
+
+    // Step 1
+    setText('s1h',t.s1h); setText('s1d',t.s1d);
+    setText('l_fullname',t.l_fullname); setText('e_fullname',t.e_fullname);
+    setText('l_email',t.l_email);       setText('e_email',t.e_email);
+    setText('l_phone',t.l_phone);       setText('e_phone',t.e_phone);
+    setText('l_country',t.l_country);   setText('e_country',t.e_country);
+    const _cOther = document.getElementById('f_country_other');
+    if (_cOther) _cOther.placeholder = lang === 'es' ? 'Escribe el nombre de tu país' : 'Type your country name';
+    setText('l_tz',t.l_tz);            setText('e_tz',t.e_tz);
+    document.querySelectorAll('.opt').forEach(el => el.textContent = t.l_opt);
+
+    // Step 2
+    setText('s2h',t.s2h); setText('s2d',t.s2d);
+    setText('l_company',t.l_company);   setText('e_company',t.e_company);
+    setText('l_rif',t.l_rif);
+    setText('l_address',t.l_address);
+    setText('l_company_desc',t.l_company_desc);
+    setText('e_company_desc',t.e_company_desc);
+    document.getElementById('f_company_desc').placeholder = t.company_desc_ph;
+
+    // Step 3
+    setText('s3h',t.s3h); setText('s3d',t.s3d);
+    setText('l_tasks',t.l_tasks);       setText('e_tasks',t.e_tasks);
+    document.getElementById('f_tasks').placeholder = t.tasks_ph;
+    setText('l_schedule_hdr',t.l_schedule_hdr);
+    setText('l_st_media',t.l_st_media); setText('l_st_completa',t.l_st_completa); setText('l_st_custom',t.l_st_custom);
+    setText('l_media_days',t.l_media_days); setText('l_media_note',t.l_media_note);
+    setText('l_completa_days',t.l_completa_days); setText('l_completa_note1',t.l_completa_note1); setText('l_completa_note2',t.l_completa_note2);
+    setText('l_custom_days',t.l_custom_days);
+    renderCustomPanel();
+    setText('l_hours_media',t.l_hours_media); setText('l_hours_completa',t.l_hours_completa); setText('l_hours_custom',t.l_hours_custom);
+    setText('l_days',t.l_days);         setText('l_hours',t.l_hours);
+    setText('l_start_date',t.l_start_date); setText('e_start_date',t.e_start_date); setText('l_start_date_note',t.start_date_note);
+    setText('l_form_date_lbl',t.l_form_date_lbl);
+    setText('l_gender', t.l_gender);
+    document.getElementById('gender_ph').textContent = t.gender_ph;
+    document.getElementById('gender_f').textContent  = t.gender_f;
+    document.getElementById('gender_m').textContent  = t.gender_m;
+    setText('l_age_range', t.l_age_range);
+    document.getElementById('f_age_range').placeholder = t.age_range_ph;
+    setText('l_requirements', t.l_requirements);
+    document.getElementById('f_requirements').placeholder = t.requirements_ph;
+    setText('l_tech_resources', t.l_tech_resources);
+    document.getElementById('f_tech_resources').placeholder = t.tech_ph;
+    setText('l_expectation',t.l_expectation); setText('e_expectation',t.e_expectation);
+    document.getElementById('f_expectation').placeholder = t.expectation_ph;
+    setText('l_notes', t.l_notes);
+    const notesOpt = document.getElementById('l_opt_notes');
+    if (notesOpt) notesOpt.textContent = t.notes_opt;
+    document.getElementById('f_notes').placeholder = t.notes_ph;
+
+    // Step 4
+    setText('s4h',t.s4h); setText('s4d',t.s4d);
+    setText('l_referred',t.l_referred);
+    setText('l_commercial',t.l_commercial);
+    setText('l_voip',t.l_voip);
+    setText('l_voip_hint',t.l_voip_hint);
+    setText('l_voip_country', t.l_voip_country);
+    if(document.getElementById('voip_country_ph')) document.getElementById('voip_country_ph').textContent = t.voip_country_ph;
+    if(document.getElementById('voip_country_other')) document.getElementById('voip_country_other').textContent = t.voip_country_other;
+    setText('l_crm',t.l_crm);
+    setText('l_crm_name',t.l_crm_name);
+    document.getElementById('crm_ph').textContent       = t.crm_ph;
+    document.getElementById('crm_other_opt').textContent = t.crm_other;
+
+    // Yes/No buttons
+    ['ref','voip','crm'].forEach(k => {
+        const yEl = document.getElementById(`${k}_yes`);
+        const nEl = document.getElementById(`${k}_no`);
+        if (yEl) yEl.querySelector('span').textContent = t.l_yes;
+        if (nEl) nEl.querySelector('span').textContent = t.l_no;
+    });
+
+    // Nav
+    setText('l_prev', t.l_prev);
+
+    // Success
+    setText('suc_title',t.suc_title);
+    setText('suc_desc1',t.suc_desc1);
+    setText('suc_desc2',t.suc_desc2);
+    setText('suc_ref_lbl',t.suc_ref_lbl);
+
+    // Re-render countries & schedule panels (language change)
+    renderCountries();
+    renderSchedulePanels();
+
+    // Update action button
+    refreshActionBtn();
+}
+
+function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+}
+
+/* ═══════════════════════════════════════════
+   TOGGLE BUTTONS
+═══════════════════════════════════════════ */
+const TOGGLE_MAP = {
+    referred: { yes:'ref_yes', no:'ref_no',   cond:'cond_referred' },
+    voip:     { yes:'voip_yes', no:'voip_no', cond:'cond_voip'    },
+    crm:      { yes:'crm_yes', no:'crm_no',   cond:'cond_crm'     },
+};
+
+function setToggle(field, val) {
+    toggles[field] = val;
+    const m = TOGGLE_MAP[field];
+    document.getElementById(m.yes).className = `tog-btn ${val ? 'sel-yes' : ''}`;
+    document.getElementById(m.no ).className = `tog-btn ${!val ? 'sel-no' : ''}`;
+    document.getElementById(m.cond).classList.toggle('show', val === true);
+}
+
+/* ═══════════════════════════════════════════
+   VALIDATION
+═══════════════════════════════════════════ */
+function validate(step) {
+    let ok = true;
+    function chk(id, errId, fn) {
+        const el = document.getElementById(id);
+        const er = document.getElementById(errId);
+        const valid = fn(el.value.trim());
+        el.classList.toggle('has-error', !valid);
+        er.classList.toggle('show', !valid);
+        if (!valid) ok = false;
+    }
+    if (step === 1) {
+        chk('f_fullname','e_fullname', v => v.length > 1);
+        chk('f_email',   'e_email',    v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v));
+        chk('f_phone',   'e_phone',    v => v.length > 4);
+        chk('f_country', 'e_country', v => v !== '');
+        if (document.getElementById('f_country').value === '__otro__') {
+            chk('f_country_other', 'e_country', v => v.trim() !== '');
+        }
+        chk('f_timezone','e_tz',       v => v !== '');
+    }
+    if (step === 2) {
+        chk('f_company',     'e_company',      v => v.length > 1);
+        chk('f_company_desc','e_company_desc', v => v.length > 8);
+    }
+    if (step === 3) {
+        chk('f_tasks',       'e_tasks',       v => v.length > 8);
+        chk('f_start_date',  'e_start_date',  v => v !== '');
+        chk('f_expectation', 'e_expectation', v => v.length > 4);
+    }
+    return ok;
+}
+
+/* ═══════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════ */
+function nextStep() {
+    if (!validate(curStep)) return;
+    if (curStep < TOTAL) {
+        document.getElementById(`sc${curStep}`).classList.remove('active');
+        curStep++;
+        document.getElementById(`sc${curStep}`).classList.add('active');
+        updateProgress();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function prevStep() {
+    if (curStep > 1) {
+        document.getElementById(`sc${curStep}`).classList.remove('active');
+        curStep--;
+        document.getElementById(`sc${curStep}`).classList.add('active');
+        updateProgress();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function updateProgress() {
+    for (let i = 1; i <= TOTAL; i++) {
+        const dot = document.getElementById(`dot${i}`);
+        const lbl = document.getElementById(`lbl${i}`);
+        dot.className = 'step-dot';
+        lbl.className = 'step-lbl';
+        if (i < curStep)       { dot.classList.add('done');   dot.textContent = '✓'; }
+        else if (i === curStep){ dot.classList.add('active');  dot.textContent = i; lbl.classList.add('active'); }
+        else                   { dot.textContent = i; }
+    }
+    const pct = ((curStep - 1) / (TOTAL - 1)) * 80;
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('prevBtn').style.display = curStep > 1 ? 'flex' : 'none';
+    refreshActionBtn();
+}
+
+function refreshActionBtn() {
+    const btn = document.getElementById('nextBtn');
+    if (curStep === TOTAL) {
+        btn.className = 'btn-submit';
+        btn.innerHTML = `<span>${TR[lang].l_submit}</span>`;
+        btn.onclick = submitForm;
+    } else {
+        btn.className = 'btn-next';
+        btn.innerHTML = `<span>${TR[lang].l_next}</span> →`;
+        btn.onclick = nextStep;
+    }
+}
+
+/* ═══════════════════════════════════════════
+   SUBMIT
+═══════════════════════════════════════════ */
+async function submitForm() {
+    if (!validate(curStep)) return;
+    const btn = document.getElementById('nextBtn');
+    btn.disabled = true;
+    btn.innerHTML = `<div class="spinner"></div><span>${TR[lang].l_submitting}</span>`;
+
+    // Collect schedule data based on active type
+    let days = [], schedStart = '08:00', schedEnd = '18:00';
+    if (scheduleType === 'media') {
+        days = ['monday','tuesday','wednesday','thursday','friday'];
+        schedStart = document.getElementById('f_time_start_media').value || '08:00';
+        schedEnd   = document.getElementById('f_time_end_media').value   || '13:00';
+    } else if (scheduleType === 'completa') {
+        days = ['monday','tuesday','wednesday','thursday','friday'];
+        schedStart = document.getElementById('f_time_start_completa').value || '08:00';
+        schedEnd   = document.getElementById('f_time_end_completa').value   || '18:00';
+    } else {
+        const _dayVals = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+        const startMap = {}, endMap = {};
+        _dayVals.forEach(d => {
+            const cb = document.getElementById('cday_' + d);
+            if (cb && cb.checked) {
+                days.push(d);
+                startMap[d] = document.getElementById('cstart_' + d)?.value || '08:00';
+                endMap[d]   = document.getElementById('cend_'   + d)?.value || '18:00';
+            }
+        });
+        schedStart = days.length ? JSON.stringify(startMap) : null;
+        schedEnd   = days.length ? JSON.stringify(endMap)   : null;
+    }
+
+    // CRM
+    let crmVal = document.getElementById('f_crm_select').value;
+    if (crmVal === '__otro__') crmVal = document.getElementById('f_crm_other').value.trim() || 'Otro';
+
+    const leadId = crypto.randomUUID();
+    const payload = {
+        id: leadId,
+        // Personal
+        full_name:   document.getElementById('f_fullname').value.trim(),
+        email:       document.getElementById('f_email').value.trim().toLowerCase(),
+        phone:       document.getElementById('f_phone').value.trim(),
+        country:     (document.getElementById('f_country').value === '__otro__'
+                         ? (document.getElementById('f_country_other').value.trim() || 'Otro')
+                         : document.getElementById('f_country').value),
+        timezone:    document.getElementById('f_timezone').value,
+        // Company
+        company_name:        document.getElementById('f_company').value.trim(),
+        rif:                 document.getElementById('f_rif').value.trim() || null,
+        address:             document.getElementById('f_address').value.trim() || null,
+        company_description: document.getElementById('f_company_desc').value.trim(),
+        // Service
+        assistant_tasks:     document.getElementById('f_tasks').value.trim(),
+        work_schedule_type:  scheduleType,
+        work_schedule_days:  days.length ? days : null,
+        work_schedule_start: schedStart,
+        work_schedule_end:   schedEnd,
+        desired_start_date:  document.getElementById('f_start_date').value || null,
+        assistant_gender:    document.getElementById('f_gender').value || null,
+        assistant_age_range: document.getElementById('f_age_range').value || null,
+        requirements_skills: document.getElementById('f_requirements').value.trim() || null,
+        tech_resources:      document.getElementById('f_tech_resources').value.trim() || null,
+        biggest_expectation: document.getElementById('f_expectation').value.trim(),
+        notes:               document.getElementById('f_notes').value.trim() || null,
+        // Additional
+        referred_by_commercial: toggles.referred,
+        commercial_name:     toggles.referred ? (document.getElementById('f_commercial').value.trim() || null) : null,
+        needs_voip:          toggles.voip,
+        voip_country:        toggles.voip ? (document.getElementById('f_voip_country')?.value || null) : null,
+        uses_crm:            toggles.crm,
+        crm_name:            toggles.crm ? (crmVal || null) : null,
+        // Meta
+        form_language: lang,
+        status: 'new',
+    };
+
+    try {
+        const { error } = await sb.from('leads').insert([payload]);
+        if (error) throw error;
+
+        document.getElementById('formWrap').style.display    = 'none';
+        document.getElementById('progressFill').closest('.progress-wrap').style.display = 'none';
+
+        const ref = leadId.slice(0,8).toUpperCase();
+        document.getElementById('suc_ref').textContent = ref;
+        document.getElementById('successWrap').classList.add('show');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    } catch (err) {
+        console.error(err);
+        btn.disabled = false;
+        refreshActionBtn();
+        alert(TR[lang].err_submit);
+    }
+}
+
+/* ── BOOT ── */
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(3000) });
+        const data = await res.json();
+        // Set EN for US, CA, UK, AU, NZ, IE and other English-speaking countries
+        const enCountries = ['US','GB','CA','AU','NZ','IE','ZA','SG','PH','IN','NG','GH','KE','JM','TT'];
+        if (enCountries.includes(data.country_code)) {
+            lang = 'en';
+        }
+    } catch(e) { /* fallback to ES */ }
+    init();
+});
+</script>
+</body>
+</html>
