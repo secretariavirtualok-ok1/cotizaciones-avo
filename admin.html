@@ -655,8 +655,8 @@
             <option value="enviada">Enviada</option>
             <option value="abierta">Abierta</option>
             <option value="plan_seleccionado">Servicio seleccionado</option>
-            <option value="en_gestion">En gestión</option>
-            <option value="en_negociacion">En negociación</option>
+            <option value="en_gestion">Contrato firmado</option>
+            <option value="en_negociacion">Pago completado</option>
             <option value="cerrada">Cerrada</option>
             <option value="descartada">Descartada</option>
           </select>
@@ -832,6 +832,7 @@
       </div>
       <button class="btn btn-primary btn-sm" id="mp-save-status" style="margin-top:18px;">Guardar estado</button>
       <div style="flex:1;"></div>
+      <button class="btn btn-outline btn-sm" id="mp-pdf-btn" style="margin-top:18px;" onclick="downloadProspectoPDF()">📄 Descargar PDF</button>
       <button class="btn btn-outline btn-sm" id="mp-edit-btn" style="margin-top:18px;">✎ Editar</button>
       <button class="btn btn-primary btn-sm" id="mp-save-edit-btn" style="margin-top:18px;display:none;">💾 Guardar cambios</button>
       <button class="btn btn-outline btn-sm" id="mp-cancel-edit-btn" style="margin-top:18px;display:none;">✕ Cancelar</button>
@@ -878,8 +879,8 @@
               <option value="enviada">Enviada</option>
               <option value="abierta">Abierta</option>
               <option value="plan_seleccionado">Servicio seleccionado</option>
-              <option value="en_gestion">En gestión</option>
-              <option value="en_negociacion">En negociación</option>
+              <option value="en_gestion">Contrato firmado</option>
+              <option value="en_negociacion">Pago completado</option>
               <option value="cerrada">Cerrada</option>
               <option value="descartada">Descartada</option>
             </select>
@@ -1046,7 +1047,7 @@ function fmtDt(dateStr) {
 function badgeHtml(estado) {
   const labels = {
     enviada:'Enviada', abierta:'Abierta', plan_seleccionado:'Servicio seleccionado',
-    en_gestion:'En gestión', en_negociacion:'En negociación', cerrada:'Cerrada', descartada:'Descartada'
+    en_gestion:'Contrato firmado', en_negociacion:'Pago completado', cerrada:'Cerrada', descartada:'Descartada'
   };
   return `<span class="badge badge-${estado}">${labels[estado] || estado}</span>`;
 }
@@ -1487,7 +1488,7 @@ async function loadDashboard() {
     <div class="stat-card gold"><div class="stat-label">Total enviadas</div><div class="stat-value">${total}</div></div>
     <div class="stat-card blue"><div class="stat-label">Abiertas</div><div class="stat-value">${counts.abierta + counts.plan_seleccionado + counts.en_gestion + counts.en_negociacion + counts.cerrada}</div></div>
     <div class="stat-card green"><div class="stat-label">Servicio seleccionado</div><div class="stat-value">${counts.plan_seleccionado}</div></div>
-    <div class="stat-card amber"><div class="stat-label">En gestión / negociación</div><div class="stat-value">${counts.en_gestion + counts.en_negociacion}</div></div>
+    <div class="stat-card amber"><div class="stat-label">Contrato firmado / Pago completado</div><div class="stat-value">${counts.en_gestion + counts.en_negociacion}</div></div>
     <div class="stat-card green"><div class="stat-label">Cerradas</div><div class="stat-value">${counts.cerrada}</div></div>
     <div class="stat-card red"><div class="stat-label">Descartadas</div><div class="stat-value">${counts.descartada}</div></div>
   `;
@@ -1970,6 +1971,125 @@ async function openProspecto(id) {
   convBtn.textContent = l.status === 'converted' ? '✓ Ya es cliente' : '✓ Convertir a cliente';
 
   document.getElementById('modal-prospecto').classList.add('open');
+}
+
+// ── DESCARGAR PDF DEL PROSPECTO ────────────────────────────
+function downloadProspectoPDF() {
+  const l = prospCurrentLead;
+  if (!l) return;
+
+  // Build schedule string
+  let schedText = '—';
+  if (l.work_schedule_type === 'media') {
+    schedText = `Media jornada · ${l.work_schedule_start || '08:00'} – ${l.work_schedule_end || '12:00'}`;
+  } else if (l.work_schedule_type === 'completa') {
+    schedText = `Jornada completa · ${l.work_schedule_start || '08:00'} – ${l.work_schedule_end || '18:00'}`;
+  } else if (l.work_schedule_type === 'custom' && l.work_schedule_days) {
+    try {
+      const startMap = JSON.parse(l.work_schedule_start || '{}');
+      const endMap   = JSON.parse(l.work_schedule_end   || '{}');
+      schedText = l.work_schedule_days.map(d => `${dayLabel(d)}: ${startMap[d]||'?'} – ${endMap[d]||'?'}`).join(' · ');
+    } catch(e) { schedText = l.work_schedule_days.join(', '); }
+  }
+
+  const statusLabels = { new:'Nuevo', contacted:'Contactado', converted:'Convertido', lost:'Perdido' };
+  const genderLabel  = l.assistant_gender === 'femenino' ? 'Femenino' : l.assistant_gender === 'masculino' ? 'Masculino' : 'Sin preferencia';
+  const lang         = l.form_language === 'en' ? 'Inglés' : 'Español';
+
+  const row = (label, value) => value
+    ? `<tr><td style="padding:7px 12px;color:#555;font-size:12px;width:38%;vertical-align:top;border-bottom:1px solid #eee;">${label}</td><td style="padding:7px 12px;color:#0F1F3D;font-size:13px;font-weight:600;border-bottom:1px solid #eee;word-break:break-word;">${String(value).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td></tr>`
+    : '';
+
+  const section = (title, rows) => `
+    <div style="margin-bottom:18px;">
+      <div style="background:#0F1F3D;color:#fff;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:6px 12px;border-radius:4px 4px 0 0;">${title}</div>
+      <table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #eee;border-top:none;border-radius:0 0 4px 4px;">
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+
+  const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Prospecto – ${(l.full_name||'').replace(/</g,'&lt;')}</title>
+  <style>
+    body { font-family: Segoe UI, system-ui, sans-serif; margin: 0; padding: 24px; color: #0F1F3D; background: #fff; }
+    @media print { body { padding: 10px; } button { display: none !important; } }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #C89B3C;">
+    <div>
+      <div style="font-size:20px;font-weight:800;color:#0F1F3D;">AsistenteVirtualOk.com</div>
+      <div style="font-size:12px;color:#8C8B85;margin-top:2px;">Ficha de prospecto</div>
+    </div>
+    <div style="text-align:right;font-size:12px;color:#8C8B85;">
+      <div>ID: ${l.id || '—'}</div>
+      <div>Estado: ${statusLabels[l.status] || l.status || '—'}</div>
+      <div>Fecha: ${fmtDt(l.created_at)}</div>
+    </div>
+  </div>
+
+  ${section('📋 Datos personales', [
+    row('Nombre completo', l.full_name),
+    row('Correo electrónico', l.email),
+    row('Teléfono', l.phone),
+    row('País', l.country),
+    row('Zona horaria', l.timezone),
+    row('Idioma del formulario', lang),
+  ].join(''))}
+
+  ${section('🏢 Datos de la empresa', [
+    row('Nombre legal', l.company_name),
+    row('N° identificación tributaria', l.rif),
+    row('Dirección legal', l.address),
+    row('Descripción de la empresa', l.company_description),
+  ].join(''))}
+
+  ${section('⚙️ Requerimientos del servicio', [
+    row('Género del asistente', genderLabel),
+    row('Rango de edad', l.assistant_age_range),
+    row('Tareas a realizar', l.assistant_tasks),
+    row('Requisitos y habilidades', l.requirements_skills),
+    row('Recursos tecnológicos', l.tech_resources),
+    row('Horario de trabajo', schedText),
+    row('Fecha de inicio deseada', l.desired_start_date),
+    row('Expectativa principal', l.biggest_expectation),
+    row('Notas adicionales', l.notes),
+  ].join(''))}
+
+  ${section('➕ Información adicional', [
+    row('¿Referido por comercial?', l.referred_by_commercial ? 'Sí' : 'No'),
+    row('Nombre del comercial', l.commercial_name),
+    row('¿Necesita VoIP?', l.needs_voip ? 'Sí' : 'No'),
+    row('País VoIP', l.voip_country),
+    row('¿Usa CRM?', l.uses_crm ? 'Sí' : 'No'),
+    row('CRM utilizado', l.crm_name),
+  ].join(''))}
+
+  <div style="margin-top:28px;text-align:center;">
+    <button onclick="window.print()" style="background:#0F1F3D;color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">🖨 Imprimir / Guardar como PDF</button>
+  </div>
+</body>
+</html>`;
+
+  const blob = new Blob([htmlContent], { type: 'text/html' });
+  const url  = URL.createObjectURL(blob);
+  const win  = window.open(url, '_blank');
+  if (win) {
+    win.onload = () => {
+      setTimeout(() => { win.print(); URL.revokeObjectURL(url); }, 400);
+    };
+  } else {
+    // Fallback: direct download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Prospecto_${(l.full_name || 'desconocido').replace(/\s+/g,'_')}.html`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
 }
 
 // Save status
