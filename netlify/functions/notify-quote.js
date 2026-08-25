@@ -8,11 +8,7 @@
 // ─────────────────────────────────────────────────────────────
 
 const DESTINATARIOS = [
-  'soporte@asistentevirtualok.com',
-  'operaciones@asistentevirtualok.com',
-  'contabilidad@asistentevirtualok.com',
-  'cotizaciones@asistentevirtualok.com',
-  'asistentedegerencia@asistentevirtualok.com'
+  'cotizaciones@asistentevirtualok.com'
 ];
 
 const REMITENTE = 'AVO Cotizaciones <cotizaciones@asistentevirtualok.com>';
@@ -47,6 +43,7 @@ exports.handler = async function (event) {
     precio,
     moneda,
     idioma,
+    voip_selecciones,
     timestamp
   } = body;
 
@@ -152,7 +149,32 @@ exports.handler = async function (event) {
               <td style="padding:10px 0;color:#0F1F3D;">${timestamp || '—'}</td>
             </tr>
           </table>
-          <div style="margin-top:24px;padding:14px 16px;background:#FFF0CC;border-radius:8px;font-size:13px;color:#9A6000;">
+          ${voip_selecciones && Object.keys(voip_selecciones).length > 0 ? `
+          <div style="margin-top:20px;padding:16px 20px;background:#EFF9FF;border:1.5px solid #2E86C1;border-radius:8px;">
+            <p style="font-size:12px;color:#2E86C1;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">📞 Telefonía VoIP seleccionada</p>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead>
+                <tr style="background:#D6E8FF;">
+                  <th style="text-align:left;padding:7px 10px;color:#1A5296;font-size:11px;text-transform:uppercase;">País</th>
+                  <th style="text-align:left;padding:7px 10px;color:#1A5296;font-size:11px;text-transform:uppercase;">Paquete</th>
+                  <th style="text-align:left;padding:7px 10px;color:#1A5296;font-size:11px;text-transform:uppercase;">Pago inicial (3 meses)</th>
+                  <th style="text-align:left;padding:7px 10px;color:#1A5296;font-size:11px;text-transform:uppercase;">Mensual (4to mes+)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${Object.entries(voip_selecciones).map(([key, plan]) => `
+                <tr>
+                  <td style="padding:8px 10px;border-bottom:1px solid #BEE3F8;color:#0F1F3D;font-weight:600;">${plan.nombre || key}</td>
+                  <td style="padding:8px 10px;border-bottom:1px solid #BEE3F8;color:#0F1F3D;font-weight:700;">${plan.minutos} min</td>
+                  <td style="padding:8px 10px;border-bottom:1px solid #BEE3F8;color:#C89B3C;font-weight:700;">${simbolos[moneda] || '$'}${plan.precio_inicial}</td>
+                  <td style="padding:8px 10px;border-bottom:1px solid #BEE3F8;color:#0F1F3D;">${simbolos[moneda] || '$'}${plan.precio_mensual}/mes</td>
+                </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          ` : ''}
+          <div style="margin-top:20px;padding:14px 16px;background:#FFF0CC;border-radius:8px;font-size:13px;color:#9A6000;">
             🚀 <strong>Acción requerida:</strong> Inicia la búsqueda del perfil de <strong>${plan_nombre || ''}</strong> para <strong>${cliente_empresa || cliente_nombre || ''}</strong>. El cliente ya está esperando respuesta.
           </div>
         </div>
