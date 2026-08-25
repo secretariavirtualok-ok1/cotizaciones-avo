@@ -534,6 +534,20 @@ function renderViewer(data, quoteId, isPreview) {
   document.getElementById('v-confirm-note').textContent = tx.confirmNote;
   document.getElementById('v-advisor-label').textContent = tx.advisor + ':';
 
+  // Solo Telefonía: adaptar textos (no hay perfiles/planes de servicio que elegir)
+  const _esVoipOnlyTxt = !!(data.cotizacion_data && data.cotizacion_data.telefonia && data.cotizacion_data.telefonia.voip_only);
+  if (_esVoipOnlyTxt) {
+    document.getElementById('v-plans-label').textContent = lang === 'en'
+      ? '📞 CONFIRM YOUR TELEPHONY PACKAGE'
+      : '📞 CONFIRMA TU PAQUETE DE TELEFONÍA';
+    document.getElementById('v-plans-intro').textContent = lang === 'en'
+      ? 'Review the proposal and select the minute package that best suits your needs. Once you confirm your selection, our team will contact you shortly.'
+      : 'Revisa la propuesta y selecciona el paquete de minutos que mejor se adapte a tus necesidades. Una vez que confirmes tu selección, nuestro equipo se pondrá en contacto contigo a la brevedad.';
+    document.getElementById('v-confirm-note').textContent = lang === 'en'
+      ? 'Select a package above to enable confirmation'
+      : 'Selecciona un paquete arriba para poder confirmar';
+  }
+
   // Si ya seleccionó previamente — en modo preview del admin mostramos igual la cotización completa
   if (data.plan_seleccionado && !isPreview) {
     const planNombre = (data.planes_ofrecidos || []).find(p => p.id === data.plan_seleccionado)?.nombre || '';
@@ -694,7 +708,7 @@ function renderViewer(data, quoteId, isPreview) {
     confirmBtn.title = 'Vista previa — el cliente es quien confirma';
     confirmBtn.textContent = '🔒 ' + (confirmBtn.textContent || 'Confirmar selección');
   } else {
-    const esVoipOnlyQuote = !!(data.telefonia && data.telefonia.voip_only);
+    const esVoipOnlyQuote = !!(data.cotizacion_data && data.cotizacion_data.telefonia && data.cotizacion_data.telefonia.voip_only);
     if (esVoipOnlyQuote) {
       document.getElementById('v-confirm-btn').addEventListener('click', () => confirmVoipOnlyPlan(quoteId));
     } else {
@@ -757,7 +771,8 @@ function selectViewerVoipPlan(paisKey, minutos, precioInicial, precioMensual, no
 }
 
 function checkVoipConfirmReady() {
-  var paises = (quoteData && quoteData.telefonia && quoteData.telefonia.paises_seleccionados) || [];
+  var paises = (quoteData && quoteData.cotizacion_data && quoteData.cotizacion_data.telefonia
+    && quoteData.cotizacion_data.telefonia.paises_seleccionados) || [];
   if (paises.length === 0) return;
   var allSelected = paises.every(function(p) { return !!window._selectedVoipPlans[p]; });
   document.getElementById('v-confirm-btn').disabled = !allSelected;
@@ -1070,12 +1085,12 @@ function renderGeneratedQuote(data) {
 
   // ── CONDICIONES ──
   // Para cotizaciones Solo Telefonía (voip_only) no se muestran las condiciones estándar de servicio
-  var esVoipOnly = !!(data.telefonia && data.telefonia.voip_only);
+  var esVoipOnly = !!(cd.telefonia && cd.telefonia.voip_only);
   if (esVoipOnly) {
     // Solo mostrar la nota de ajuste de tarifas (sin condiciones estándar de contratación)
     var soloTelCard = document.createElement('div');
     soloTelCard.className = 'card';
-    var esEspanaST = (data.telefonia && data.telefonia.paises_seleccionados || []).includes('es');
+    var esEspanaST = (cd.telefonia && cd.telefonia.paises_seleccionados || []).includes('es');
     var ajTxtST = idioma === 'en'
       ? ('Rates are subject to an annual adjustment. ' + (esEspanaST ? 'This adjustment is applied every February.' : 'This adjustment applies upon completion of each year of service.'))
       : (esEspanaST ? 'Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año.' : 'Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio.');
@@ -1137,7 +1152,7 @@ function renderGeneratedQuote(data) {
   // Nota de ajuste de tarifas: siempre mostrada, con texto diferenciado por país
   // Detectar España: flag explícito en condiciones_extras, o España entre los países VoIP
   var esEspana = (cd.condiciones_extras && cd.condiciones_extras.ajuste_es_espana)
-    || ((data.telefonia && data.telefonia.paises_seleccionados || []).includes('es'));
+    || ((cd.telefonia && cd.telefonia.paises_seleccionados || []).includes('es'));
   if (idioma === 'en') {
     extrasCondHtml += '<div class="gen-nota" style="margin-top:16px;">Rates are subject to an annual adjustment. ' + (esEspana ? 'This adjustment is applied every February.' : 'This adjustment applies upon completion of each year of service.') + '</div>';
   } else {
