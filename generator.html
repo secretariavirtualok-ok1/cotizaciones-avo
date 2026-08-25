@@ -526,9 +526,14 @@ Monitoreo especializado del agente, con revisión del 5% de las llamadas y entre
           </ul>
         </div>
 
-        <div class="condition-item">
-          <input type="checkbox" id="cond-ajuste-precios">
-          <label for="cond-ajuste-precios">Incluir nota informativa sobre política de ajuste de precios (~6% anual)</label>
+        <!-- Nota de ajuste de precios: siempre incluida automáticamente (no requiere activación) -->
+        <div style="background:#FFFBEA;border:1px solid #F6E05E;border-radius:8px;padding:12px 14px;font-size:13px;color:#744210;margin-bottom:4px;">
+          <strong>Nota de ajuste de tarifas (incluida automáticamente):</strong><br>
+          Se mostrará el mensaje apropiado según el país:
+          <ul style="margin:6px 0 0 16px;line-height:1.7;">
+            <li><strong>España:</strong> "Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año."</li>
+            <li><strong>Otros países:</strong> "Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio."</li>
+          </ul>
         </div>
 
         <div class="field" style="margin-top:16px;">
@@ -1500,7 +1505,7 @@ async function saveQuotation() {
     });
 
     // Telephony
-    let telefonia = { tipo: voipType };
+    let telefonia = { tipo: voipType, voip_only: voipOnlyMode || false };
     if (voipType === 'incluida') {
       telefonia.incluida_info = {
         pais_key: document.getElementById('voip-incl-pais').value,
@@ -1527,7 +1532,8 @@ async function saveQuotation() {
       servicios,
       telefonia,
       condiciones_extras: {
-        ajuste_precios: document.getElementById('cond-ajuste-precios').checked,
+        ajuste_precios: true, // siempre incluido automáticamente
+        ajuste_es_espana: selectedVoipCountries.includes('es'), // España → mensaje de febrero
         nota_contable: '',
         nota_personalizada: document.getElementById('cond-nota-especial')?.value?.trim() || ''
       }
@@ -1560,7 +1566,7 @@ async function saveQuotation() {
       comercial,
       idioma,
       moneda,
-      modo_cotizacion: voipOnlyMode ? 'solo_telefonia' : 'generada',
+      modo_cotizacion: 'generada', // solo_telefonia identificado por cotizacion_data.telefonia.voip_only
       cotizacion_data: cotizacionData,
       planes_ofrecidos: planesOfrecidos,
       precios_combinaciones: preciosComb,
