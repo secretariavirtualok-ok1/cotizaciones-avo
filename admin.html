@@ -429,6 +429,13 @@
     <div class="nav-tab" data-panel="clientes">👥 Clientes</div>
     <div class="nav-tab" data-panel="prospectos">👤 Prospectos</div>
     <div class="nav-tab" data-panel="planes">⚙️ Servicios</div>
+    <a href="https://cotizacionesavo.netlify.app/generator.html" target="_blank"
+       style="margin-left:auto;display:flex;align-items:center;gap:6px;padding:8px 14px;
+              background:var(--gold);color:var(--navy);border-radius:8px;font-size:13px;
+              font-weight:700;text-decoration:none;white-space:nowrap;transition:opacity .15s;"
+       onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+      🚀 Generador de cotizaciones ↗
+    </a>
   </div>
 
   <div class="main">
@@ -1079,7 +1086,7 @@ async function loadPlans() {
   renderPlansGrid('nc-plans-grid', []);
 }
 
-function renderPlansGrid(containerId, selectedIds, precios) {
+function renderPlansGrid(containerId, selectedIds, precios, jornadasOverride) {
   const el = document.getElementById(containerId);
   if (!el) return;
   precios = precios || {};
@@ -1091,10 +1098,10 @@ function renderPlansGrid(containerId, selectedIds, precios) {
       </label>
     </div>`;
   }).join('');
-  renderPreciosTable(containerId, selectedIds, precios);
+  renderPreciosTable(containerId, selectedIds, precios, jornadasOverride);
 }
 
-function renderPreciosTable(containerId, selectedIds, precios) {
+function renderPreciosTable(containerId, selectedIds, precios, jornadasOverride) {
   // Renderiza la tabla de precios plan x jornada debajo del grid de planes
   const planesSeleccionados = allPlans.filter(p => p.activo && selectedIds.includes(p.id));
   const containerEl = document.getElementById(containerId);
@@ -1104,11 +1111,16 @@ function renderPreciosTable(containerId, selectedIds, precios) {
   const prevTable = document.getElementById('precios-tabla-' + containerId);
   if (prevTable) prevTable.remove();
 
-  // Obtener jornadas seleccionadas
-  const jornadasGrid = document.getElementById('nc-jornadas-grid') || document.getElementById('mq-jornadas-grid');
-  const jornadasSel = jornadasGrid
-    ? [...jornadasGrid.querySelectorAll('input[type=checkbox]:checked')].map(i => i.value)
-    : [];
+  // Obtener jornadas: usar override si se pasa (vista de detalle), sino leer de la grilla DOM
+  let jornadasSel;
+  if (jornadasOverride) {
+    jornadasSel = jornadasOverride;
+  } else {
+    const jornadasGrid = document.getElementById('nc-jornadas-grid') || document.getElementById('mq-jornadas-grid');
+    jornadasSel = jornadasGrid
+      ? [...jornadasGrid.querySelectorAll('input[type=checkbox]:checked')].map(i => i.value)
+      : [];
+  }
 
   if (planesSeleccionados.length === 0) return;
 
@@ -1574,24 +1586,28 @@ async function openQuoteModal(quoteId) {
 
   document.getElementById('mq-title').textContent = `${q.cliente_nombre} · ${q.cliente_empresa}`;
 
+  const jornadaLabels = { completa:'Jornada Completa', media:'Media Jornada', media_3meses:'Media Jornada 3 meses' };
+  const jornadasStr = (q.jornadas_ofrecidas||[]).map(j => jornadaLabels[j]||j).join(', ') || '—';
+
   document.getElementById('mq-detail').innerHTML = `
     <div class="detail-item"><label>Estado</label><div class="val">${badgeHtml(q.estado)}</div></div>
     <div class="detail-item"><label>Comercial</label><div class="val">${q.comercial}</div></div>
     <div class="detail-item"><label>Fecha de envío</label><div class="val">${fmt(q.fecha_envio)}</div></div>
     <div class="detail-item"><label>Primera apertura</label><div class="val">${q.fecha_primera_apertura ? fmtDt(q.fecha_primera_apertura) : '—'}</div></div>
-    <div class="detail-item"><label>Servicio seleccionado</label><div class="val">${q.plan_seleccionado_nombre || '—'}</div></div>
+    <div class="detail-item"><label>Jornadas ofrecidas</label><div class="val">${jornadasStr}</div></div>
+    <div class="detail-item"><label>Servicio seleccionado por cliente</label><div class="val">${q.plan_seleccionado_nombre ? `<strong style="color:var(--green);">✅ ${q.plan_seleccionado_nombre}</strong>` : '—'}</div></div>
     <div class="detail-item"><label>Fecha de selección</label><div class="val">${q.fecha_seleccion ? fmtDt(q.fecha_seleccion) : '—'}</div></div>
     <div class="detail-item"><label>Moneda</label><div class="val">${q.moneda || 'USD'}</div></div>
     <div class="detail-item"><label>Vencimiento</label><div class="val">${q.vencimiento ? fmt(q.vencimiento) : 'Sin vencimiento'}</div></div>
     <div class="detail-item"><label>Total aperturas</label><div class="val">${q.total_aperturas || 0}</div></div>
-    <div class="detail-item" style="grid-column:1/-1;"><label>Archivo Word</label><div class="val"><a href="${q.word_url}" target="_blank" style="color:var(--blue);text-decoration:underline;">Descargar / ver archivo</a></div></div>
+    <div class="detail-item" style="grid-column:1/-1;"><label>Archivo Word (cotización enviada)</label><div class="val"><a href="${q.word_url}" target="_blank" style="color:var(--blue);text-decoration:underline;">📄 Descargar / ver cotización</a></div></div>
   `;
 
   const link = `${VIEWER_BASE_URL}.html?id=${quoteId}`;
   document.getElementById('mq-link').textContent = link;
 
-  // planes edit
-  renderPlansGrid('mq-plans-edit', q.planes_ofrecidos || [], q.precios_combinaciones || {});
+  // planes edit — pasar jornadas guardadas para mostrar precios correctamente
+  renderPlansGrid('mq-plans-edit', q.planes_ofrecidos || [], q.precios_combinaciones || {}, q.jornadas_ofrecidas || []);
 
   // estado
   document.getElementById('mq-estado-sel').value = q.estado;
