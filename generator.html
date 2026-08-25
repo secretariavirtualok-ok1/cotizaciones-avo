@@ -367,11 +367,21 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
             </select>
           </div>
         </div>
+
+        <div style="margin-top:16px; padding:14px 16px; background:#EFF9FF; border:1.5px solid var(--avo-accent); border-radius:8px;">
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:14px; font-weight:700; color:var(--avo-blue);">
+            <input type="checkbox" id="voip-only-toggle" onchange="toggleVoipOnly(this.checked)" style="width:18px; height:18px; accent-color:var(--avo-accent); cursor:pointer;">
+            📞 Solo Telefonía (cliente existente)
+          </label>
+          <p style="font-size:12px; color:var(--gray-500); margin-top:5px; margin-left:28px;">
+            Activa esta opción para cotizar únicamente servicio de telefonía VoIP sin paquetes de servicio. Los pasos de Servicio, Funciones y Precio se omitirán.
+          </p>
+        </div>
       </div>
 
       <div class="step-nav">
         <div></div>
-        <button class="btn btn-primary" onclick="goToStep(2)">Siguiente: Servicio →</button>
+        <button class="btn btn-primary" id="step1-next-btn" onclick="handleStep1Next()">Siguiente: Servicio →</button>
       </div>
     </div>
 
@@ -490,7 +500,7 @@ Monitoreo especializado del agente, con revisión del 5% de las llamadas y entre
       </div>
 
       <div class="step-nav">
-        <button class="btn btn-outline" onclick="goToStep(4)">← Anterior</button>
+        <button class="btn btn-outline" onclick="handleStep5Back()">← Anterior</button>
         <button class="btn btn-primary" onclick="goToStep(6)">Siguiente: Condiciones →</button>
       </div>
     </div>
@@ -599,11 +609,67 @@ let selectedServices = [];   // Array de hasta 3 servicios seleccionados
 let isBilingue = false;
 let voipType = 'none';
 let selectedVoipCountries = [];
+let selectedMinutesByCountry = {}; // { pais_key: 250|500|750|1000 }
+let voipOnlyMode = false;
 let plans = [];
 let activeFuncTab = 0;
 let activePriceTab = 0;
 // Por servicio: funciones, jornadas, precios, horarios
 let serviceData = {}; // { clave: { funciones:[], jornadas:[], precios:{}, horarios:{}, precio_inicio, precio_full, horario_inicio, horario_full } }
+
+// ══════════════════════════════════════════════════════════
+//  VOIP PRICING (hard-coded — fuente: cotización oficial)
+// ══════════════════════════════════════════════════════════
+const VOIP_PRICING = {
+  'colombia': { nombre: 'Colombia', flag: '🇨🇴', planes: [
+    { minutos: 250,  precio_inicial: 126, precio_mensual: 42  },
+    { minutos: 500,  precio_inicial: 150, precio_mensual: 50  },
+    { minutos: 750,  precio_inicial: 173, precio_mensual: 58  },
+    { minutos: 1000, precio_inicial: 195, precio_mensual: 65  },
+  ]},
+  'us': { nombre: 'Estados Unidos', flag: '🇺🇸', planes: [
+    { minutos: 250,  precio_inicial: 79,  precio_mensual: 27  },
+    { minutos: 500,  precio_inicial: 88,  precio_mensual: 30  },
+    { minutos: 750,  precio_inicial: 100, precio_mensual: 34  },
+    { minutos: 1000, precio_inicial: 107, precio_mensual: 36  },
+  ]},
+  'pr': { nombre: 'Puerto Rico', flag: '🇵🇷', planes: [
+    { minutos: 250,  precio_inicial: 88,  precio_mensual: 30  },
+    { minutos: 500,  precio_inicial: 98,  precio_mensual: 33  },
+    { minutos: 750,  precio_inicial: 107, precio_mensual: 36  },
+    { minutos: 1000, precio_inicial: 117, precio_mensual: 39  },
+  ]},
+  'cl': { nombre: 'Chile', flag: '🇨🇱', planes: [
+    { minutos: 250,  precio_inicial: 110, precio_mensual: 37  },
+    { minutos: 500,  precio_inicial: 142, precio_mensual: 47  },
+    { minutos: 750,  precio_inicial: 174, precio_mensual: 58  },
+    { minutos: 1000, precio_inicial: 205, precio_mensual: 68  },
+  ]},
+  'do': { nombre: 'República Dominicana', flag: '🇩🇴', planes: [
+    { minutos: 250,  precio_inicial: 158, precio_mensual: 52  },
+    { minutos: 500,  precio_inicial: 252, precio_mensual: 84  },
+    { minutos: 750,  precio_inicial: 315, precio_mensual: 105 },
+    { minutos: 1000, precio_inicial: 410, precio_mensual: 137 },
+  ]},
+  'pe': { nombre: 'Perú', flag: '🇵🇪', planes: [
+    { minutos: 250,  precio_inicial: 76,  precio_mensual: 25  },
+    { minutos: 500,  precio_inicial: 88,  precio_mensual: 30  },
+    { minutos: 750,  precio_inicial: 104, precio_mensual: 35  },
+    { minutos: 1000, precio_inicial: 120, precio_mensual: 40  },
+  ]},
+  'es': { nombre: 'España', flag: '🇪🇸', planes: [
+    { minutos: 250,  precio_inicial: 72,  precio_mensual: 24  },
+    { minutos: 500,  precio_inicial: 98,  precio_mensual: 33  },
+    { minutos: 750,  precio_inicial: 120, precio_mensual: 40  },
+    { minutos: 1000, precio_inicial: 142, precio_mensual: 47  },
+  ]},
+  'mx': { nombre: 'México', flag: '🇲🇽', planes: [
+    { minutos: 250,  precio_inicial: 76,  precio_mensual: 25  },
+    { minutos: 500,  precio_inicial: 91,  precio_mensual: 30  },
+    { minutos: 750,  precio_inicial: 102, precio_mensual: 34  },
+    { minutos: 1000, precio_inicial: 117, precio_mensual: 39  },
+  ]},
+};
 
 // ══════════════════════════════════════════════════════════
 //  AUTH
@@ -678,6 +744,49 @@ async function loadCatalogs() {
 // ══════════════════════════════════════════════════════════
 //  STEPPER NAVIGATION
 // ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  SOLO TELEFONÍA MODE
+// ══════════════════════════════════════════════════════════
+function toggleVoipOnly(enabled) {
+  voipOnlyMode = enabled;
+  // Dim steps 2-4 in the stepper
+  [2, 3, 4].forEach(n => {
+    const stepEl = document.querySelector('.step[data-step="' + n + '"]');
+    if (stepEl) {
+      stepEl.style.opacity = enabled ? '0.35' : '';
+      stepEl.style.pointerEvents = enabled ? 'none' : '';
+    }
+  });
+  // Update step 1 next button label
+  const nextBtn = document.getElementById('step1-next-btn');
+  if (nextBtn) {
+    nextBtn.textContent = enabled ? 'Siguiente: Telefonía →' : 'Siguiente: Servicio →';
+  }
+  // Auto-select "Planes opcionales" when mode is active
+  if (enabled) {
+    setVoipType('opcional');
+  }
+}
+
+function handleStep1Next() {
+  if (!validateStep(1)) return;
+  if (voipOnlyMode) {
+    // Jump directly to step 5, auto-open optional plans
+    goToStep(5);
+    setVoipType('opcional');
+  } else {
+    goToStep(2);
+  }
+}
+
+function handleStep5Back() {
+  if (voipOnlyMode) {
+    goToStep(1);
+  } else {
+    goToStep(4);
+  }
+}
+
 function goToStep(n) {
   // Validate current step before advancing
   if (n > currentStep && !validateStep(currentStep)) return;
@@ -702,6 +811,9 @@ function goToStep(n) {
 }
 
 function validateStep(n) {
+  // In Solo Telefonía mode, skip service/function/price steps
+  if (voipOnlyMode && n >= 2 && n <= 4) return true;
+
   if (n === 1) {
     const nombre = document.getElementById('client-nombre').value.trim();
     const comercial = document.getElementById('gen-comercial').value;
@@ -1108,11 +1220,18 @@ function setVoipType(type) {
 
 function renderCountries() {
   const grid = document.getElementById('country-grid');
-  const flags = { us: '🇺🇸', pr: '🇵🇷', es: '🇪🇸', mx: '🇲🇽', cl: '🇨🇱', do: '🇩🇴', uy: '🇺🇾' };
-  grid.innerHTML = voipCatalog.map(v => `
+  // Use VOIP_PRICING as source of truth for optional plans
+  // Also include any voipCatalog entries not in VOIP_PRICING
+  const priceKeys = Object.keys(VOIP_PRICING);
+  const extraCatalog = voipCatalog.filter(v => !priceKeys.includes(v.pais_key));
+  const allCountries = [
+    ...priceKeys.map(k => ({ pais_key: k, pais_nombre_es: VOIP_PRICING[k].nombre, flag: VOIP_PRICING[k].flag })),
+    ...extraCatalog.map(v => ({ pais_key: v.pais_key, pais_nombre_es: v.pais_nombre_es, flag: '🌐' }))
+  ];
+  grid.innerHTML = allCountries.map(v => `
     <div class="country-option ${selectedVoipCountries.includes(v.pais_key) ? 'selected' : ''}"
          onclick="toggleCountry('${v.pais_key}')">
-      <div style="font-size:32px;">${flags[v.pais_key] || '🌐'}</div>
+      <div style="font-size:32px;">${v.flag}</div>
       <div class="country-name">${v.pais_nombre_es}</div>
     </div>
   `).join('');
@@ -1120,9 +1239,18 @@ function renderCountries() {
 
 function toggleCountry(key) {
   const idx = selectedVoipCountries.indexOf(key);
-  if (idx >= 0) selectedVoipCountries.splice(idx, 1);
-  else selectedVoipCountries.push(key);
+  if (idx >= 0) {
+    selectedVoipCountries.splice(idx, 1);
+    delete selectedMinutesByCountry[key]; // clean up minute selection
+  } else {
+    selectedVoipCountries.push(key);
+  }
   renderCountries();
+  renderVoipPlans();
+}
+
+function selectVoipMinutes(key, minutos) {
+  selectedMinutesByCountry[key] = parseInt(minutos);
   renderVoipPlans();
 }
 
@@ -1136,24 +1264,49 @@ function renderVoipPlans() {
   const sym = { USD: '$', EUR: '€', COP: '$', MXN: '$' }[moneda] || '$';
 
   list.innerHTML = selectedVoipCountries.map(key => {
-    const country = voipCatalog.find(v => v.pais_key === key);
-    if (!country) return '';
-    const plans = country.planes || [];
+    // Prefer VOIP_PRICING; fall back to voipCatalog
+    const voipData = VOIP_PRICING[key];
+    const catalogEntry = voipCatalog.find(v => v.pais_key === key);
+    const nombre = voipData?.nombre || catalogEntry?.pais_nombre_es || key;
+    const planes = voipData?.planes || catalogEntry?.planes || [];
+    const selMinutos = selectedMinutesByCountry[key] || null;
+
+    const planCards = planes.map(p => {
+      const isSelected = selMinutos === p.minutos;
+      return `
+        <label style="
+          display:flex; align-items:flex-start; gap:10px; cursor:pointer;
+          padding:12px 14px;
+          background:${isSelected ? 'var(--avo-light)' : 'white'};
+          border:2px solid ${isSelected ? 'var(--avo-accent)' : 'var(--gray-200)'};
+          border-radius:8px; transition:all 0.15s;
+        ">
+          <input type="radio" name="voip-plan-${key}" value="${p.minutos}"
+                 ${isSelected ? 'checked' : ''}
+                 onchange="selectVoipMinutes('${key}', ${p.minutos})"
+                 style="margin-top:3px; accent-color:var(--avo-accent); cursor:pointer;">
+          <div>
+            <div style="font-weight:700; font-size:14px; color:var(--gray-900);">${p.minutos} minutos</div>
+            <div style="font-size:12px; color:var(--gray-500); margin-top:3px;">
+              Primeros 3 meses: <strong style="color:var(--gray-800);">${sym}${p.precio_inicial}</strong>
+            </div>
+            <div style="font-size:12px; color:var(--gray-500);">
+              Desde el 4° mes: <strong style="color:var(--gray-800);">${sym}${p.precio_mensual}/mes</strong>
+            </div>
+          </div>
+        </label>
+      `;
+    }).join('');
+
     return `
-      <div style="margin-bottom:16px;">
-        <h4 style="font-size:14px; font-weight:700; margin-bottom:8px;">${country.pais_nombre_es}</h4>
-        <table class="price-table">
-          <thead><tr><th>Minutos</th><th>Pago inicial (3 meses)</th><th>Mensual (4to mes+)</th></tr></thead>
-          <tbody>
-            ${plans.map(p => `
-              <tr>
-                <td><strong>${p.minutos} min</strong></td>
-                <td>${sym}${p.precio_inicial}</td>
-                <td>${sym}${p.precio_mensual}/mes</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+      <div style="margin-bottom:20px; padding:16px; background:var(--gray-50); border-radius:8px; border:1px solid var(--gray-200);">
+        <h4 style="font-size:14px; font-weight:700; margin-bottom:12px; color:var(--avo-blue);">
+          ${voipData?.flag || '🌐'} ${nombre}
+          ${selMinutos ? `<span style="font-size:12px; font-weight:400; color:var(--avo-green); margin-left:8px;">✓ ${selMinutos} min seleccionado</span>` : '<span style="font-size:12px; font-weight:400; color:var(--avo-orange); margin-left:8px;">← Selecciona un paquete</span>'}
+        </h4>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+          ${planCards}
+        </div>
       </div>
     `;
   }).join('');
@@ -1177,10 +1330,11 @@ function buildSummary() {
       <div><strong>Comercial:</strong> ${escHtml(comercial)}</div>
       <div><strong>Idioma:</strong> ${idioma === 'en' ? 'English' : 'Español'}</div>
       <div><strong>Moneda:</strong> ${moneda}</div>
+      ${voipOnlyMode ? `<div style="grid-column:1/-1;"><span style="background:#EFF9FF;color:var(--avo-accent);padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;">📞 COTIZACIÓN SOLO TELEFONÍA</span></div>` : ''}
     </div>
   `;
 
-  selectedServices.forEach((svc, i) => {
+  if (!voipOnlyMode) selectedServices.forEach((svc, i) => {
     const sd = serviceData[svc.clave] || {};
     const svcName = isBilingue ? (svc.nombre_bilingue_es || svc.nombre_es) : svc.nombre_es;
     const funcs = (sd.funciones || []).filter(f => f.trim());
@@ -1215,17 +1369,41 @@ function buildSummary() {
   });
 
   // Telefonía
-  html += `<div style="margin-bottom:16px;"><strong>Telefonía VoIP:</strong> `;
-  if (voipType === 'none') html += 'No incluida';
-  else if (voipType === 'incluida') {
+  html += `<div style="margin-bottom:16px; padding:16px; background:var(--gray-50); border-radius:8px; border-left:3px solid var(--avo-blue);">`;
+  html += `<div style="font-weight:700; font-size:14px; color:var(--avo-blue); margin-bottom:8px;">📞 Telefonía VoIP</div>`;
+  if (voipType === 'none') {
+    html += `<div style="font-size:13px; color:var(--gray-500);">No incluida</div>`;
+  } else if (voipType === 'incluida') {
     const pais = document.getElementById('voip-incl-pais').value;
     const min = document.getElementById('voip-incl-minutos').value;
-    const paisName = voipCatalog.find(v => v.pais_key === pais)?.pais_nombre_es || pais;
-    html += `Incluida — ${min} min hacia ${paisName}`;
-  } else {
-    html += `Planes opcionales — ${selectedVoipCountries.length} país(es)`;
+    const paisName = VOIP_PRICING[pais]?.nombre || voipCatalog.find(v => v.pais_key === pais)?.pais_nombre_es || pais;
+    html += `<div style="font-size:13px;">Incluida — <strong>${min} min</strong> hacia ${paisName}</div>`;
+  } else if (voipType === 'opcional') {
+    if (selectedVoipCountries.length === 0) {
+      html += `<div style="font-size:13px; color:var(--avo-orange);">⚠ Sin países seleccionados</div>`;
+    } else {
+      const sym2 = { USD: '$', EUR: '€', COP: '$', MXN: '$' }[moneda] || '$';
+      html += `<div style="font-size:13px; margin-bottom:8px;">Planes opcionales — ${selectedVoipCountries.length} país(es):</div>`;
+      html += `<ul style="font-size:13px; padding-left:20px; margin:0;">`;
+      selectedVoipCountries.forEach(key => {
+        const voipData = VOIP_PRICING[key];
+        const nombre2 = voipData?.nombre || voipCatalog.find(v => v.pais_key === key)?.pais_nombre_es || key;
+        const selMin = selectedMinutesByCountry[key];
+        if (selMin && voipData) {
+          const plan = voipData.planes.find(p => p.minutos === selMin);
+          if (plan) {
+            html += `<li><strong>${nombre2}:</strong> ${selMin} min — ${sym2}${plan.precio_inicial} (3 meses) / ${sym2}${plan.precio_mensual}/mes</li>`;
+          } else {
+            html += `<li><strong>${nombre2}:</strong> ${selMin} min seleccionado</li>`;
+          }
+        } else {
+          html += `<li style="color:var(--avo-orange);"><strong>${nombre2}:</strong> ⚠ Sin paquete seleccionado</li>`;
+        }
+      });
+      html += `</ul>`;
+    }
   }
-  html += '</div>';
+  html += `</div>`;
 
   document.getElementById('summary-content').innerHTML = html;
 }
@@ -1264,7 +1442,7 @@ async function saveQuotation() {
 
     // 2. Build planes ofrecidos from all selected services
     const planesOfrecidos = [];
-    selectedServices.forEach(svc => {
+    if (!voipOnlyMode) selectedServices.forEach(svc => {
       const matching = plans.filter(p => {
         const nombre = p.nombre.toLowerCase();
         const esBilingue = nombre.includes('bilingü') || nombre.includes('bilingue');
@@ -1276,7 +1454,7 @@ async function saveQuotation() {
 
     // 3. Build cotizacion_data — one entry per selected service
     const servicios = [];
-    selectedServices.forEach(svc => {
+    if (!voipOnlyMode) selectedServices.forEach(svc => {
       const sd = serviceData[svc.clave] || {};
       const svcNameDisplay = isBilingue
         ? (idioma === 'en' ? svc.nombre_bilingue_en : svc.nombre_bilingue_es)
@@ -1358,10 +1536,21 @@ async function saveQuotation() {
       };
     } else if (voipType === 'opcional') {
       telefonia.paises_seleccionados = selectedVoipCountries;
+      telefonia.minutos_por_pais = { ...selectedMinutesByCountry };
       telefonia.planes_por_pais = {};
       selectedVoipCountries.forEach(key => {
-        const country = voipCatalog.find(v => v.pais_key === key);
-        if (country) telefonia.planes_por_pais[key] = country.planes;
+        // Prefer VOIP_PRICING; fall back to voipCatalog
+        const voipData = VOIP_PRICING[key];
+        const catalogEntry = voipCatalog.find(v => v.pais_key === key);
+        const planes = voipData?.planes || catalogEntry?.planes || [];
+        const selMin = selectedMinutesByCountry[key];
+        const selectedPlan = selMin ? planes.find(p => p.minutos === selMin) : null;
+        telefonia.planes_por_pais[key] = {
+          nombre: voipData?.nombre || catalogEntry?.pais_nombre_es || key,
+          minutos_seleccionados: selMin || null,
+          plan_seleccionado: selectedPlan || null,
+          todos_los_planes: planes
+        };
       });
     }
 
@@ -1391,7 +1580,9 @@ async function saveQuotation() {
     }
 
     // Collect all jornadas across services for jornadas_ofrecidas field
-    const todasJornadas = [...new Set(selectedServices.flatMap(svc => serviceData[svc.clave]?.jornadas || []))];
+    const todasJornadas = voipOnlyMode
+      ? []
+      : [...new Set(selectedServices.flatMap(svc => serviceData[svc.clave]?.jornadas || []))];
 
     // 4. Insert quote
     const { data: { user } } = await sb.auth.getUser();
@@ -1400,7 +1591,7 @@ async function saveQuotation() {
       comercial,
       idioma,
       moneda,
-      modo_cotizacion: 'generada',
+      modo_cotizacion: voipOnlyMode ? 'solo_telefonia' : 'generada',
       cotizacion_data: cotizacionData,
       planes_ofrecidos: planesOfrecidos,
       precios_combinaciones: preciosComb,
