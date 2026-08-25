@@ -857,7 +857,10 @@
           Enlace de la cotización
         </div>
         <div class="link-box" id="mq-link"></div>
-        <button class="btn btn-outline btn-sm" id="mq-copy-link">📋 Copiar enlace</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" id="mq-copy-link">📋 Copiar enlace</button>
+          <button class="btn btn-primary btn-sm" id="mq-preview-btn">👁 Ver cotización</button>
+        </div>
       </div>
 
       <div style="margin-top:20px;">
@@ -1639,6 +1642,14 @@ document.getElementById('mq-copy-link').addEventListener('click', () => {
     document.getElementById('mq-copy-link').textContent = '✓ Copiado';
     setTimeout(() => { document.getElementById('mq-copy-link').textContent = '📋 Copiar enlace'; }, 2000);
   });
+});
+
+document.getElementById('mq-preview-btn').addEventListener('click', () => {
+  const link = document.getElementById('mq-link').textContent.trim();
+  if (!link) return;
+  // Agrega ?preview=true para ver la cotización como la vio el cliente, sin bloqueo
+  const previewUrl = link.includes('?') ? link + '&preview=true' : link + '?preview=true';
+  window.open(previewUrl, '_blank');
 });
 
 document.getElementById('mq-save-plans').addEventListener('click', async () => {
