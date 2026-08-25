@@ -386,6 +386,7 @@ function show(screenId) {
 async function init() {
   const params = new URLSearchParams(window.location.search);
   const quoteId = params.get('id');
+  const isPreview = params.get('preview') === 'true'; // modo vista previa del admin
 
   if (!quoteId) { show('screen-error'); return; }
 
@@ -396,25 +397,27 @@ async function init() {
 
     quoteData = data;
 
-    if (data.expired) { show('screen-expired'); return; }
+    if (data.expired && !isPreview) { show('screen-expired'); return; }
 
-    // Registrar apertura (silencioso)
-    const meta = {
-      user_agent: navigator.userAgent,
-      language: navigator.language,
-      timestamp: new Date().toISOString()
-    };
-    const { data: openResult } = await sb.rpc('register_quote_open', {
-      quote_uuid: quoteId,
-      meta
-    });
+    if (!isPreview) {
+      // Registrar apertura (silencioso) — solo en vista real del cliente
+      const meta = {
+        user_agent: navigator.userAgent,
+        language: navigator.language,
+        timestamp: new Date().toISOString()
+      };
+      const { data: openResult } = await sb.rpc('register_quote_open', {
+        quote_uuid: quoteId,
+        meta
+      });
 
-    // Si es la primera apertura, disparar notificación interna
-    if (openResult?.first_open) {
-      notifyInternal('opened', quoteId, data, null).catch(() => {});
+      // Si es la primera apertura, disparar notificación interna
+      if (openResult?.first_open) {
+        notifyInternal('opened', quoteId, data, null).catch(() => {});
+      }
     }
 
-    renderViewer(data, quoteId);
+    renderViewer(data, quoteId, isPreview);
     show('screen-viewer');
 
   } catch(e) {
@@ -496,7 +499,7 @@ function formatPrecio(precio, moneda) {
   return `${simbolo}${formatted} ${nombre}`;
 }
 
-function renderViewer(data, quoteId) {
+function renderViewer(data, quoteId, isPreview) {
   lang = data.idioma || 'es';
   const tx = T[lang];
 
@@ -531,8 +534,8 @@ function renderViewer(data, quoteId) {
   document.getElementById('v-confirm-note').textContent = tx.confirmNote;
   document.getElementById('v-advisor-label').textContent = tx.advisor + ':';
 
-  // Si ya seleccionó previamente
-  if (data.plan_seleccionado) {
+  // Si ya seleccionó previamente — en modo preview del admin mostramos igual la cotización completa
+  if (data.plan_seleccionado && !isPreview) {
     const planNombre = (data.planes_ofrecidos || []).find(p => p.id === data.plan_seleccionado)?.nombre || '';
     const jornadaNombre = data.jornada_seleccionada ? tx.jornadas[data.jornada_seleccionada] || data.jornada_seleccionada : null;
     document.getElementById('v-plans-section').style.display = 'none';
@@ -542,6 +545,21 @@ function renderViewer(data, quoteId) {
     document.getElementById('v-success-next').textContent  = tx.successNext;
     document.getElementById('v-selected-plan-name').textContent = planNombre + (jornadaNombre ? ` · ${jornadaNombre}` : '');
     return;
+  }
+
+  // En modo preview: banner admin + botón de confirmar deshabilitado
+  if (isPreview) {
+    const planSelNombre = (data.planes_ofrecidos || []).find(p => p.id === data.plan_seleccionado)?.nombre || null;
+    const jorNombre = data.jornada_seleccionada ? (tx.jornadas?.[data.jornada_seleccionada] || data.jornada_seleccionada) : null;
+    // Insertar banner admin antes del contenido principal
+    const container = document.getElementById('v-main-container') || document.querySelector('.viewer-content') || document.body;
+    const banner = document.createElement('div');
+    banner.id = 'admin-preview-banner';
+    banner.style.cssText = 'position:sticky;top:0;z-index:999;background:#0F1F3D;color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;gap:12px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+    banner.innerHTML = '<span>🔒 VISTA PREVIA — Panel Administrativo · Solo lectura</span>'
+      + (planSelNombre ? '<span style="background:#C89B3C;color:#0F1F3D;padding:4px 12px;border-radius:20px;font-size:12px;">✅ Cliente eligió: ' + planSelNombre + (jorNombre ? ' · ' + jorNombre : '') + '</span>' : '<span style="background:#F39C12;color:#fff;padding:4px 12px;border-radius:20px;font-size:12px;">⏳ Cliente aún no ha seleccionado</span>')
+      + '<button onclick="window.close()" style="background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;">✕ Cerrar</button>';
+    document.body.insertBefore(banner, document.body.firstChild);
   }
 
   // Renderizar planes — precio se actualiza dinámicamente según jornada seleccionada
@@ -667,7 +685,17 @@ function renderViewer(data, quoteId) {
     `).join('');
   }
 
-  document.getElementById('v-confirm-btn').addEventListener('click', () => confirmPlan(quoteId));
+  if (isPreview) {
+    // En modo preview: botón de confirmar deshabilitado con tooltip explicativo
+    const confirmBtn = document.getElementById('v-confirm-btn');
+    confirmBtn.disabled = true;
+    confirmBtn.style.opacity = '0.4';
+    confirmBtn.style.cursor = 'not-allowed';
+    confirmBtn.title = 'Vista previa — el cliente es quien confirma';
+    confirmBtn.textContent = '🔒 ' + (confirmBtn.textContent || 'Confirmar selección');
+  } else {
+    document.getElementById('v-confirm-btn').addEventListener('click', () => confirmPlan(quoteId));
+  }
 
   // Renderizar cotización generada
   if (data.modo_cotizacion === 'generada') {
