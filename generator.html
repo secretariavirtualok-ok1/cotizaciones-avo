@@ -509,9 +509,10 @@ Monitoreo especializado del agente, con revisión del 5% de las llamadas y entre
     <div class="step-content hidden" id="step-6">
       <div class="card">
         <div class="card-title">Condiciones del servicio</div>
-        <div class="card-subtitle">Las condiciones estándar se incluyen automáticamente. Puedes agregar notas adicionales.</div>
+        <div class="card-subtitle" id="cond-subtitle">Las condiciones se incluyen automáticamente. Puedes agregar notas adicionales.</div>
 
-        <div style="background:var(--gray-50); border-radius:8px; padding:16px; margin-bottom:16px;">
+        <!-- Bloque condiciones estándar (servicio de asistente) -->
+        <div id="cond-estandar" style="background:var(--gray-50); border-radius:8px; padding:16px; margin-bottom:16px;">
           <p style="font-size:13px; font-weight:700; color:var(--gray-600); margin-bottom:8px;">Condiciones estándar (siempre incluidas):</p>
           <ul style="font-size:13px; color:var(--gray-600); padding-left:20px; line-height:1.8;">
             <li>Permanencia mínima de 3 meses</li>
@@ -526,14 +527,22 @@ Monitoreo especializado del agente, con revisión del 5% de las llamadas y entre
           </ul>
         </div>
 
-        <!-- Nota de ajuste de precios: siempre incluida automáticamente (no requiere activación) -->
-        <div style="background:#FFFBEA;border:1px solid #F6E05E;border-radius:8px;padding:12px 14px;font-size:13px;color:#744210;margin-bottom:4px;">
-          <strong>Nota de ajuste de tarifas (incluida automáticamente):</strong><br>
-          Se mostrará el mensaje apropiado según el país:
-          <ul style="margin:6px 0 0 16px;line-height:1.7;">
-            <li><strong>España:</strong> "Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año."</li>
-            <li><strong>Otros países:</strong> "Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio."</li>
-          </ul>
+        <!-- Bloque condiciones Solo Telefonía VoIP (oculto por defecto) -->
+        <div id="cond-voip" style="display:none; background:var(--gray-50); border-radius:8px; padding:16px; margin-bottom:16px;">
+          <p style="font-size:13px; font-weight:700; color:var(--gray-600); margin-bottom:8px;">Condiciones del servicio de telefonía:</p>
+          <ol style="font-size:13px; color:var(--gray-600); padding-left:20px; line-height:1.8;">
+            <li>El paquete de minutos adquirido no es acumulable para el siguiente periodo de facturación.</li>
+            <li>El servicio de telefonía permite solo llamadas a teléfonos móviles y fijos del país contratado.</li>
+            <li>Solo se entregan números fijos.</li>
+            <li>Si se superan los minutos contratados, se aplicarán cargos por excedente: se facturarán paquetes adicionales de 250, 500, 750 o 1.000 minutos según la tarifa vigente en el momento del consumo.</li>
+            <li>El servicio está restringido únicamente a los destinos autorizados. El uso hacia destinos no autorizados podrá derivar en multas o suspensión inmediata de la línea.</li>
+            <li>El número entregado se garantiza limpio y en buen estado. Cualquier reporte o incidencia posterior será responsabilidad exclusiva del cliente.</li>
+          </ol>
+        </div>
+
+        <!-- Nota de ajuste de tarifas — dinámica según país, oculta en Solo Telefonía -->
+        <div id="cond-tariff-note" style="display:none; background:#FFFBEA; border:1px solid #F6E05E; border-radius:8px; padding:12px 14px; font-size:13px; color:#744210; margin-bottom:12px;">
+          <!-- Se rellena dinámicamente al entrar al paso 6 -->
         </div>
 
         <div class="field" style="margin-top:16px;">
@@ -798,6 +807,28 @@ function handleStep5Back() {
   }
 }
 
+function renderCondiciones() {
+  const esVoip = voipOnlyMode;
+  const tieneVoipPaises = (voipType === 'incluida' || voipType === 'opcional') && selectedVoipCountries.length > 0;
+  const esEspana = selectedVoipCountries.includes('es');
+
+  // Mostrar bloque correcto de condiciones
+  document.getElementById('cond-estandar').style.display = esVoip ? 'none' : '';
+  document.getElementById('cond-voip').style.display = esVoip ? '' : 'none';
+
+  // Nota de ajuste de tarifas: solo para cotizaciones NO Solo Telefonía con países VoIP seleccionados
+  const tariffEl = document.getElementById('cond-tariff-note');
+  if (!esVoip && tieneVoipPaises) {
+    const msg = esEspana
+      ? 'Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año.'
+      : 'Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio.';
+    tariffEl.textContent = msg;
+    tariffEl.style.display = '';
+  } else {
+    tariffEl.style.display = 'none';
+  }
+}
+
 function goToStep(n) {
   // Validate current step before advancing
   if (n > currentStep && !validateStep(currentStep)) return;
@@ -805,6 +836,7 @@ function goToStep(n) {
   // Run step-specific logic when entering
   if (n === 3) loadFunctions();
   if (n === 4) renderPriceTabs();
+  if (n === 6) renderCondiciones();
   if (n === 7) buildSummary();
 
   currentStep = n;
