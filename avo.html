@@ -517,14 +517,20 @@
         <div class="fgroup">
             <div class="frow">
                 <div class="field">
-                    <label for="f_company"><span id="l_company">Nombre de la empresa</span><span class="req">*</span></label>
+                    <label for="f_company"><span id="l_company">Nombre legal de la empresa</span><span class="req">*</span></label>
                     <input type="text" id="f_company" placeholder="Ej: Tech Solutions C.A. (nombre registrado)" />
                     <span class="ferr" id="e_company">Este campo es requerido</span>
+                    <span class="sched-note" id="l_company_legal_note">* Indique el nombre legal de tu empresa.</span>
                 </div>
                 <div class="field">
                     <label for="f_rif"><span id="l_rif">RIF</span><span class="opt" id="l_opt1">(opcional)</span></label>
                     <input type="text" id="f_rif" placeholder="NIT, EIN, ITIN, RUC, RUT, RNC, NIE, SSN..." />
                 </div>
+            </div>
+
+            <div class="field">
+                <label for="f_trade_name"><span id="l_trade_name">Nombre comercial</span><span class="opt">(opcional)</span></label>
+                <input type="text" id="f_trade_name" placeholder="Ej: TechSol, Mi Tienda Online..." />
             </div>
 
             <div class="field">
@@ -549,7 +555,7 @@
             <!-- Perfil del asistente -->
             <div class="frow">
                 <div class="field">
-                    <label for="f_gender"><span id="l_gender">Género del asistente</span></label>
+                    <label for="f_gender"><span id="l_gender">Género del colaborador</span></label>
                     <select id="f_gender">
                         <option value="" id="gender_ph">Sin preferencia</option>
                         <option value="femenino" id="gender_f">Femenino</option>
@@ -565,13 +571,13 @@
             </div>
 
             <div class="field">
-                <label for="f_tasks"><span id="l_tasks">¿Qué necesitas que realice la asistente virtual?</span><span class="req">*</span></label>
+                <label for="f_tasks"><span id="l_tasks">¿Qué actividades o funciones realizará tu colaborador?</span><span class="req">*</span></label>
                 <textarea id="f_tasks" style="min-height: 110px;" placeholder="Ej: Atención al cliente, gestión de agenda, respuesta de correos, seguimiento de prospectos, manejo de redes sociales..."></textarea>
                 <span class="ferr" id="e_tasks">Describe las tareas que necesitas</span>
             </div>
 
             <div class="field">
-                <label for="f_requirements"><span id="l_requirements">Requisitos y habilidades del asistente</span></label>
+                <label for="f_requirements"><span id="l_requirements">Requisitos y habilidades del colaborador</span></label>
                 <textarea id="f_requirements" style="min-height:90px;" placeholder="Ej: Nivel de inglés intermedio, conocimiento en contabilidad básica, experiencia en atención al cliente, manejo de redes sociales..."></textarea>
             </div>
 
@@ -612,13 +618,13 @@
                     <div style="margin-top:12px;">
                         <p style="font-size:12px;color:var(--text-light);margin-bottom:8px;" id="l_hours_completa">Horario (de — hasta)</p>
                         <div class="time-row">
-                            <select id="f_time_start_completa"></select>
+                            <select id="f_time_start_completa" onchange="autoEndCompleta()"></select>
                             <span class="time-sep">—</span>
-                            <select id="f_time_end_completa"></select>
+                            <select id="f_time_end_completa" disabled style="opacity:0.7;cursor:default;"></select>
                         </div>
                     </div>
-                    <p class="sched-note" id="l_completa_note1">* El horario puede ajustarse modificando la hora de entrada y salida.</p>
-                    <p class="sched-note" id="l_completa_note2">* El horario incluye 1 hora de descanso.</p>
+                    <p class="sched-note" id="l_completa_note1">* La hora de salida se calcula automáticamente según el país seleccionado.</p>
+                    <p class="sched-note" id="l_completa_note2">* El horario incluye 1 hora de descanso/almuerzo.</p>
                 </div>
 
                 <!-- Panel: Personalizado -->
@@ -664,7 +670,7 @@
 
             <!-- Referido -->
             <div class="toggle-wrap">
-                <div class="toggle-lbl" id="l_referred">¿Llegaste a nosotros referido por algún comercial?</div>
+                <div class="toggle-lbl" id="l_referred">¿Llegaste a nosotros referido por algún Agente comercial o uno de nuestros clientes?</div>
                 <div class="toggle-row">
                     <button type="button" class="tog-btn" id="ref_yes" onclick="setToggle('referred', true)">✓ <span id="l_yes_ref">Sí</span></button>
                     <button type="button" class="tog-btn" id="ref_no"  onclick="setToggle('referred', false)">✗ <span id="l_no_ref">No</span></button>
@@ -691,29 +697,29 @@
                         <label for="f_voip_country"><span id="l_voip_country">¿Para qué país necesitas la línea VoIP?</span></label>
                         <select id="f_voip_country">
                             <option value="" id="voip_country_ph">Selecciona un país...</option>
-                            <option value="Venezuela">🇻🇪 Venezuela</option>
-                            <option value="Colombia">🇨🇴 Colombia</option>
-                            <option value="Ecuador">🇪🇨 Ecuador</option>
-                            <option value="Perú">🇵🇪 Perú</option>
-                            <option value="Bolivia">🇧🇴 Bolivia</option>
-                            <option value="Chile">🇨🇱 Chile</option>
                             <option value="Argentina">🇦🇷 Argentina</option>
-                            <option value="Uruguay">🇺🇾 Uruguay</option>
-                            <option value="Paraguay">🇵🇾 Paraguay</option>
+                            <option value="Bolivia">🇧🇴 Bolivia</option>
                             <option value="Brasil">🇧🇷 Brasil</option>
-                            <option value="México">🇲🇽 México</option>
+                            <option value="Canadá">🇨🇦 Canadá</option>
+                            <option value="Chile">🇨🇱 Chile</option>
+                            <option value="Colombia">🇨🇴 Colombia</option>
+                            <option value="Costa Rica">🇨🇷 Costa Rica</option>
+                            <option value="Cuba">🇨🇺 Cuba</option>
+                            <option value="Ecuador">🇪🇨 Ecuador</option>
+                            <option value="El Salvador">🇸🇻 El Salvador</option>
+                            <option value="España">🇪🇸 España</option>
+                            <option value="Estados Unidos">🇺🇸 Estados Unidos</option>
                             <option value="Guatemala">🇬🇹 Guatemala</option>
                             <option value="Honduras">🇭🇳 Honduras</option>
-                            <option value="El Salvador">🇸🇻 El Salvador</option>
+                            <option value="México">🇲🇽 México</option>
                             <option value="Nicaragua">🇳🇮 Nicaragua</option>
-                            <option value="Costa Rica">🇨🇷 Costa Rica</option>
                             <option value="Panamá">🇵🇦 Panamá</option>
-                            <option value="Cuba">🇨🇺 Cuba</option>
-                            <option value="República Dominicana">🇩🇴 República Dominicana</option>
+                            <option value="Paraguay">🇵🇾 Paraguay</option>
+                            <option value="Perú">🇵🇪 Perú</option>
                             <option value="Puerto Rico">🇵🇷 Puerto Rico</option>
-                            <option value="Estados Unidos">🇺🇸 Estados Unidos</option>
-                            <option value="Canadá">🇨🇦 Canadá</option>
-                            <option value="España">🇪🇸 España</option>
+                            <option value="República Dominicana">🇩🇴 República Dominicana</option>
+                            <option value="Uruguay">🇺🇾 Uruguay</option>
+                            <option value="Venezuela">🇻🇪 Venezuela</option>
                             <option value="Otro" id="voip_country_other">Otro</option>
                         </select>
                     </div>
@@ -813,12 +819,14 @@ es: {
   country_ph:'Selecciona tu país...', tz_ph:'— selecciona el país —',
   s2h:'Datos de la Empresa', s2d:'Esta información nos ayuda a entender mejor el contexto de tu negocio.',
   l_company:'Nombre legal de la empresa', e_company:'Este campo es requerido',
+  l_company_legal_note:'* Indique el nombre legal de tu empresa.',
+  l_trade_name:'Nombre comercial',
   l_rif:'Número de identificación tributaria', l_opt:'(opcional)',
   l_address:'Dirección legal de la empresa',
   l_company_desc:'Descripción de la empresa', e_company_desc:'Por favor describe brevemente tu empresa',
   company_desc_ph:'Describe brevemente a qué se dedica tu empresa, sus principales actividades y el sector en el que opera...',
   s3h:'El Servicio', s3d:'Esta información es clave para diseñar la mejor propuesta y elegir el perfil ideal para tu empresa.',
-  l_tasks:'¿Qué necesitas que realice la asistente virtual?', e_tasks:'Describe las tareas que necesitas',
+  l_tasks:'¿Qué actividades o funciones realizará tu colaborador?', e_tasks:'Describe las actividades que necesitas',
   tasks_ph:'Ej: Atención al cliente, gestión de agenda, respuesta de correos, seguimiento de prospectos...',
   l_schedule_hdr:'Horario de trabajo',
   l_st_media:'Media Jornada', l_st_completa:'Jornada Completa', l_st_custom:'Personalizado',
@@ -830,9 +838,9 @@ es: {
   days:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'],
   l_start_date:'Fecha de inicio deseada', e_start_date:'Selecciona una fecha', start_date_note:'* Fecha tentativa de inicio.',
   l_form_date_lbl:'Fecha del formulario',
-  l_gender:'Género del asistente', gender_ph:'Sin preferencia', gender_f:'Femenino', gender_m:'Masculino',
+  l_gender:'Género del colaborador', gender_ph:'Sin preferencia', gender_f:'Femenino', gender_m:'Masculino',
   l_age_range:'Rango de edad preferido', age_range_ph:'Ej: 20 a 30 años',
-  l_requirements:'Requisitos y habilidades del asistente',
+  l_requirements:'Requisitos y habilidades del colaborador',
   requirements_ph:'Ej: Nivel de inglés intermedio, conocimiento en contabilidad básica, experiencia en atención al cliente...',
   l_tech_resources:'Recursos tecnológicos y programas a utilizar',
   tech_ph:'Ej: Google Workspace, Microsoft Office, Slack, Trello, Canva, Shopify, WhatsApp Business...',
@@ -840,8 +848,8 @@ es: {
   expectation_ph:'Ej: Incrementar mis ventas, mejorar el tiempo de respuesta al cliente, liberar tiempo para enfocarme en el negocio...',
   l_notes:'Notas u observaciones adicionales', notes_opt:'(opcional)', notes_ph:'¿Hay algo más que quieras que sepamos? Cualquier detalle adicional que consideres importante...',
   s4h:'Detalles Adicionales', s4d:'Últimas preguntas para personalizar mejor tu propuesta.',
-  l_referred:'¿Llegaste a nosotros referido por algún comercial?',
-  l_commercial:'Nombre del comercial que te refirió',
+  l_referred:'¿Llegaste a nosotros referido por algún Agente comercial o uno de nuestros clientes?',
+  l_commercial:'Nombre del Agente comercial o cliente que te refirió',
   l_voip:'¿Necesitas servicio de telefonía VoIP adicional?',
   l_voip_country:'¿Para qué país necesitas la línea VoIP?',
   voip_country_ph:'Selecciona un país...',
@@ -874,12 +882,14 @@ en: {
   country_ph:'Select your country...', tz_ph:'— select country first —',
   s2h:'Company Information', s2d:'This helps us better understand the context of your business.',
   l_company:'Legal company name', e_company:'This field is required',
+  l_company_legal_note:'* Please enter your company\'s legal name.',
+  l_trade_name:'Trade / commercial name',
   l_rif:'Tax ID Number', l_opt:'(optional)',
   l_address:'Legal company address',
   l_company_desc:'Company description', e_company_desc:'Please briefly describe your company',
   company_desc_ph:'Briefly describe what your company does, its main activities and the sector it operates in...',
   s3h:'The Service', s3d:'This information is key to designing the best proposal and choosing the ideal profile for your company.',
-  l_tasks:'What do you need the virtual assistant to do?', e_tasks:'Please describe the tasks you need',
+  l_tasks:'What activities or functions will your collaborator perform?', e_tasks:'Please describe the activities you need',
   tasks_ph:'E.g.: Customer service, calendar management, email responses, prospect follow-up...',
   l_schedule_hdr:'Work schedule',
   l_st_media:'Part-time', l_st_completa:'Full-time', l_st_custom:'Custom',
@@ -891,9 +901,9 @@ en: {
   days:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
   l_start_date:'Desired start date', e_start_date:'Please select a date', start_date_note:'* Tentative start date.',
   l_form_date_lbl:'Form date',
-  l_gender:'Assistant gender', gender_ph:'No preference', gender_f:'Female', gender_m:'Male',
+  l_gender:'Collaborator gender', gender_ph:'No preference', gender_f:'Female', gender_m:'Male',
   l_age_range:'Preferred age range', age_range_ph:'E.g.: 20 to 30 years',
-  l_requirements:'Assistant requirements & skills',
+  l_requirements:'Collaborator requirements & skills',
   requirements_ph:'E.g.: Intermediate English, basic accounting knowledge, customer service experience, social media management...',
   l_tech_resources:'Technology resources & programs to use',
   tech_ph:'E.g.: Google Workspace, Microsoft Office, Slack, Trello, Canva, Shopify, WhatsApp Business...',
@@ -901,8 +911,8 @@ en: {
   expectation_ph:'E.g.: Increase my sales, improve response time, free up time to focus on my business...',
   l_notes:'Additional notes or observations', notes_opt:'(optional)', notes_ph:'Is there anything else you would like us to know? Any additional detail you consider important...',
   s4h:'Additional Details', s4d:'Final questions to better personalize your proposal.',
-  l_referred:'Were you referred to us by a sales agent?',
-  l_commercial:'Name of the sales agent who referred you',
+  l_referred:'Were you referred to us by a commercial agent or one of our clients?',
+  l_commercial:'Name of the commercial agent or client who referred you',
   l_voip:'Do you need additional VoIP telephony service?',
   l_voip_country:'Which country do you need the VoIP line for?',
   voip_country_ph:'Select a country...',
@@ -1072,6 +1082,7 @@ function renderSchedulePanels() {
     autoEndMedia(); // sincroniza end = start + 4h al cargar
     renderTimeSelect('f_time_start_completa', '08:00');
     renderTimeSelect('f_time_end_completa',   '18:00');
+    autoEndCompleta(); // inicializar hora de salida según país
 }
 
 function renderDayPanel(gridId, lockWeekend) {
@@ -1135,6 +1146,7 @@ function renderCountries() {
 function onCountryChange() {
     updatePhonePlaceholder();
     updateAddressPlaceholder();
+    autoEndCompleta(); // recalcula hora de salida según país
     const sel      = document.getElementById('f_country');
     const tzSel    = document.getElementById('f_timezone');
     const otroInp  = document.getElementById('f_country_other');
@@ -1209,6 +1221,22 @@ function autoEndMedia() {
     const newM = totalMins % 60;
     // Clamp to 22:00 (última opción disponible)
     const clamped = newH > 22 ? '22:00' : String(newH).padStart(2,'0') + ':' + String(newM).padStart(2,'0');
+    end.value = clamped;
+}
+
+function autoEndCompleta() {
+    const start = document.getElementById('f_time_start_completa').value;
+    const end   = document.getElementById('f_time_end_completa');
+    if (!start || !end) return;
+    const country = document.getElementById('f_country').value;
+    // España: 8h trabajo + 1h almuerzo = 9h totales
+    // Resto:  9h trabajo + 1h descanso = 10h totales (45h/semana)
+    const addMins = country === 'España' ? 540 : 600;
+    const [h, m] = start.split(':').map(Number);
+    const totalMins = h * 60 + m + addMins;
+    const newH = Math.floor(totalMins / 60);
+    const newM = totalMins % 60;
+    const clamped = newH > 23 ? '23:00' : String(newH).padStart(2,'0') + ':' + String(newM).padStart(2,'0');
     end.value = clamped;
 }
 
@@ -1291,6 +1319,8 @@ function applyLang() {
     // Step 2
     setText('s2h',t.s2h); setText('s2d',t.s2d);
     setText('l_company',t.l_company);   setText('e_company',t.e_company);
+    if (t.l_company_legal_note) setText('l_company_legal_note', t.l_company_legal_note);
+    if (t.l_trade_name) setText('l_trade_name', t.l_trade_name);
     setText('l_rif',t.l_rif);
     setText('l_address',t.l_address);
     setText('l_company_desc',t.l_company_desc);
@@ -1528,6 +1558,7 @@ async function submitForm() {
         timezone:    document.getElementById('f_timezone').value,
         // Company
         company_name:        document.getElementById('f_company').value.trim(),
+        trade_name:          document.getElementById('f_trade_name').value.trim() || null,
         rif:                 document.getElementById('f_rif').value.trim() || null,
         address:             document.getElementById('f_address').value.trim() || null,
         company_description: document.getElementById('f_company_desc').value.trim(),
