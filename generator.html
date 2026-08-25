@@ -493,7 +493,7 @@ Monitoreo especializado del agente, con revisión del 5% de las llamadas y entre
           </div>
 
           <div id="voip-plans-detail" class="hidden" style="margin-top:20px;">
-            <div class="card-subtitle">Planes de minutos disponibles para los países seleccionados</div>
+            <div class="card-subtitle">Planes disponibles por país — el cliente elige cuál paquete prefiere al ver la cotización</div>
             <div id="voip-plans-list"></div>
           </div>
         </div>
@@ -657,11 +657,11 @@ const VOIP_PRICING = {
     { minutos: 750,  precio_inicial: 104, precio_mensual: 35  },
     { minutos: 1000, precio_inicial: 120, precio_mensual: 40  },
   ]},
-  'es': { nombre: 'España', flag: '🇪🇸', planes: [
-    { minutos: 250,  precio_inicial: 72,  precio_mensual: 24  },
-    { minutos: 500,  precio_inicial: 98,  precio_mensual: 33  },
-    { minutos: 750,  precio_inicial: 120, precio_mensual: 40  },
-    { minutos: 1000, precio_inicial: 142, precio_mensual: 47  },
+  'es': { nombre: 'España', flag: '🇪🇸', moneda: 'EUR', simbolo: '€', planes: [
+    { minutos: 250,  precio_inicial: 65,  precio_mensual: 22  },
+    { minutos: 500,  precio_inicial: 90,  precio_mensual: 30  },
+    { minutos: 750,  precio_inicial: 110, precio_mensual: 36  },
+    { minutos: 1000, precio_inicial: 130, precio_mensual: 43  },
   ]},
   'mx': { nombre: 'México', flag: '🇲🇽', planes: [
     { minutos: 250,  precio_inicial: 76,  precio_mensual: 25  },
@@ -1249,11 +1249,6 @@ function toggleCountry(key) {
   renderVoipPlans();
 }
 
-function selectVoipMinutes(key, minutos) {
-  selectedMinutesByCountry[key] = parseInt(minutos);
-  renderVoipPlans();
-}
-
 function renderVoipPlans() {
   const detail = document.getElementById('voip-plans-detail');
   const list = document.getElementById('voip-plans-list');
@@ -1269,44 +1264,32 @@ function renderVoipPlans() {
     const catalogEntry = voipCatalog.find(v => v.pais_key === key);
     const nombre = voipData?.nombre || catalogEntry?.pais_nombre_es || key;
     const planes = voipData?.planes || catalogEntry?.planes || [];
-    const selMinutos = selectedMinutesByCountry[key] || null;
-
-    const planCards = planes.map(p => {
-      const isSelected = selMinutos === p.minutos;
-      return `
-        <label style="
-          display:flex; align-items:flex-start; gap:10px; cursor:pointer;
-          padding:12px 14px;
-          background:${isSelected ? 'var(--avo-light)' : 'white'};
-          border:2px solid ${isSelected ? 'var(--avo-accent)' : 'var(--gray-200)'};
-          border-radius:8px; transition:all 0.15s;
-        ">
-          <input type="radio" name="voip-plan-${key}" value="${p.minutos}"
-                 ${isSelected ? 'checked' : ''}
-                 onchange="selectVoipMinutes('${key}', ${p.minutos})"
-                 style="margin-top:3px; accent-color:var(--avo-accent); cursor:pointer;">
-          <div>
-            <div style="font-weight:700; font-size:14px; color:var(--gray-900);">${p.minutos} minutos</div>
-            <div style="font-size:12px; color:var(--gray-500); margin-top:3px;">
-              Primeros 3 meses: <strong style="color:var(--gray-800);">${sym}${p.precio_inicial}</strong>
-            </div>
-            <div style="font-size:12px; color:var(--gray-500);">
-              Desde el 4° mes: <strong style="color:var(--gray-800);">${sym}${p.precio_mensual}/mes</strong>
-            </div>
-          </div>
-        </label>
-      `;
-    }).join('');
+    // España siempre en euros, independientemente de la moneda de la cotización
+    const countrySym = voipData?.simbolo || sym;
+    const countryMoneda = voipData?.moneda || moneda;
 
     return `
-      <div style="margin-bottom:20px; padding:16px; background:var(--gray-50); border-radius:8px; border:1px solid var(--gray-200);">
-        <h4 style="font-size:14px; font-weight:700; margin-bottom:12px; color:var(--avo-blue);">
-          ${voipData?.flag || '🌐'} ${nombre}
-          ${selMinutos ? `<span style="font-size:12px; font-weight:400; color:var(--avo-green); margin-left:8px;">✓ ${selMinutos} min seleccionado</span>` : '<span style="font-size:12px; font-weight:400; color:var(--avo-orange); margin-left:8px;">← Selecciona un paquete</span>'}
+      <div style="margin-bottom:16px;">
+        <h4 style="font-size:13px; font-weight:700; margin-bottom:8px; color:var(--avo-blue);">
+          ${voipData?.flag || '🌐'} ${nombre}${voipData?.moneda ? ` <span style="font-size:11px;font-weight:400;color:var(--gray-500);">(precios en ${voipData.moneda})</span>` : ''}
         </h4>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
-          ${planCards}
-        </div>
+        <table class="price-table">
+          <thead>
+            <tr><th>Paquete</th><th>Primeros 3 meses</th><th>Desde el 4° mes</th></tr>
+          </thead>
+          <tbody>
+            ${planes.map(p => `
+              <tr>
+                <td><strong>${p.minutos} minutos</strong></td>
+                <td>${countrySym}${p.precio_inicial}</td>
+                <td>${countrySym}${p.precio_mensual}/mes</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <p style="font-size:11px; color:var(--gray-500); margin-top:6px; font-style:italic;">
+          El cliente seleccionará el paquete de su preferencia al ver la cotización.
+        </p>
       </div>
     `;
   }).join('');
@@ -1382,25 +1365,15 @@ function buildSummary() {
     if (selectedVoipCountries.length === 0) {
       html += `<div style="font-size:13px; color:var(--avo-orange);">⚠ Sin países seleccionados</div>`;
     } else {
-      const sym2 = { USD: '$', EUR: '€', COP: '$', MXN: '$' }[moneda] || '$';
-      html += `<div style="font-size:13px; margin-bottom:8px;">Planes opcionales — ${selectedVoipCountries.length} país(es):</div>`;
+      html += `<div style="font-size:13px; margin-bottom:8px;">Planes opcionales — ${selectedVoipCountries.length} país(es) disponibles para el cliente:</div>`;
       html += `<ul style="font-size:13px; padding-left:20px; margin:0;">`;
       selectedVoipCountries.forEach(key => {
         const voipData = VOIP_PRICING[key];
         const nombre2 = voipData?.nombre || voipCatalog.find(v => v.pais_key === key)?.pais_nombre_es || key;
-        const selMin = selectedMinutesByCountry[key];
-        if (selMin && voipData) {
-          const plan = voipData.planes.find(p => p.minutos === selMin);
-          if (plan) {
-            html += `<li><strong>${nombre2}:</strong> ${selMin} min — ${sym2}${plan.precio_inicial} (3 meses) / ${sym2}${plan.precio_mensual}/mes</li>`;
-          } else {
-            html += `<li><strong>${nombre2}:</strong> ${selMin} min seleccionado</li>`;
-          }
-        } else {
-          html += `<li style="color:var(--avo-orange);"><strong>${nombre2}:</strong> ⚠ Sin paquete seleccionado</li>`;
-        }
+        html += `<li>${voipData?.flag || '🌐'} <strong>${nombre2}</strong> — 4 paquetes disponibles (250 / 500 / 750 / 1000 min)</li>`;
       });
       html += `</ul>`;
+      html += `<div style="font-size:12px; color:var(--gray-500); margin-top:6px; font-style:italic;">El cliente elegirá el paquete de su preferencia al confirmar la cotización.</div>`;
     }
   }
   html += `</div>`;
@@ -1536,20 +1509,16 @@ async function saveQuotation() {
       };
     } else if (voipType === 'opcional') {
       telefonia.paises_seleccionados = selectedVoipCountries;
-      telefonia.minutos_por_pais = { ...selectedMinutesByCountry };
       telefonia.planes_por_pais = {};
       selectedVoipCountries.forEach(key => {
         // Prefer VOIP_PRICING; fall back to voipCatalog
         const voipData = VOIP_PRICING[key];
         const catalogEntry = voipCatalog.find(v => v.pais_key === key);
         const planes = voipData?.planes || catalogEntry?.planes || [];
-        const selMin = selectedMinutesByCountry[key];
-        const selectedPlan = selMin ? planes.find(p => p.minutos === selMin) : null;
         telefonia.planes_por_pais[key] = {
           nombre: voipData?.nombre || catalogEntry?.pais_nombre_es || key,
-          minutos_seleccionados: selMin || null,
-          plan_seleccionado: selectedPlan || null,
-          todos_los_planes: planes
+          flag: voipData?.flag || '🌐',
+          todos_los_planes: planes  // El cliente elige cuál en el viewer
         };
       });
     }
