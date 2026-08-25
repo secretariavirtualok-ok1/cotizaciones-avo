@@ -328,7 +328,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
         <hr style="border:none; border-top:1px solid var(--gray-100); margin:20px 0;">
 
         <div class="field-row">
-          <div class="field">
+          <div class="field" id="gen-comercial-field">
             <label>Comercial asignado *</label>
             <select id="gen-comercial">
               <option value="">Seleccionar...</option>
@@ -767,6 +767,12 @@ function toggleVoipOnly(enabled) {
   if (nextBtn) {
     nextBtn.textContent = enabled ? 'Siguiente: Telefonía →' : 'Siguiente: Servicio →';
   }
+  // Ocultar campo "Comercial asignado" — no aplica para Solo Telefonía
+  const comField = document.getElementById('gen-comercial-field');
+  if (comField) {
+    comField.style.display = enabled ? 'none' : '';
+    if (!enabled) {} // reset: no hace falta limpiar valor
+  }
   // Auto-select "Planes opcionales" when mode is active
   if (enabled) {
     setVoipType('opcional');
@@ -823,7 +829,7 @@ function validateStep(n) {
     const nombre = document.getElementById('client-nombre').value.trim();
     const comercial = document.getElementById('gen-comercial').value;
     if (!nombre) { alert('Ingresa el nombre del contacto.'); return false; }
-    if (!comercial) { alert('Selecciona el comercial asignado.'); return false; }
+    if (!voipOnlyMode && !comercial) { alert('Selecciona el comercial asignado.'); return false; }
     return true;
   }
   if (n === 2) {
