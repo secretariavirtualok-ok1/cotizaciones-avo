@@ -1498,9 +1498,14 @@ async function loadDashboard() {
 
   // por comercial
   const comerciales = ['Laura Vidal','Amparo Martin','Daihana Gaitan','Iosu Isusi'];
+  // Helper: detectar cotizaciones Solo Telefonía (voip_only guardado en cotizacion_data.telefonia.voip_only)
+  const isVoipOnly = r => {
+    try { return !!(r.cotizacion_data?.telefonia?.voip_only); } catch(e) { return false; }
+  };
+
   const tbodyC = document.querySelector('#dash-comercial-table tbody');
-  tbodyC.innerHTML = comerciales.map(c => {
-    const cr = rows.filter(r => r.comercial === c);
+  const filasComer = comerciales.map(c => {
+    const cr = rows.filter(r => r.comercial === c && !isVoipOnly(r));
     if (cr.length === 0) return `<tr><td>${c}</td><td colspan="5" style="color:var(--gray-300);">Sin cotizaciones</td></tr>`;
     return `<tr>
       <td><strong>${c}</strong></td>
@@ -1510,7 +1515,22 @@ async function loadDashboard() {
       <td>${cr.filter(r=>r.estado==='cerrada').length}</td>
       <td>${cr.filter(r=>r.estado==='descartada').length}</td>
     </tr>`;
-  }).join('');
+  });
+
+  // Fila Solo Telefonía
+  const voipRows = rows.filter(r => isVoipOnly(r));
+  const filaVoip = voipRows.length > 0
+    ? `<tr style="border-top:2px solid var(--avo-accent);background:#EFF9FF;">
+        <td><strong style="color:var(--avo-accent);">📞 Solo Telefonía</strong></td>
+        <td>${voipRows.length}</td>
+        <td>${voipRows.filter(r=>r.fecha_primera_apertura).length}</td>
+        <td>${voipRows.filter(r=>r.plan_seleccionado_nombre).length}</td>
+        <td>${voipRows.filter(r=>r.estado==='cerrada').length}</td>
+        <td>${voipRows.filter(r=>r.estado==='descartada').length}</td>
+      </tr>`
+    : '';
+
+  tbodyC.innerHTML = filasComer.join('') + filaVoip;
 
   // recientes
   const { data: recientes } = await sb.from('quotes_full').select('*')
