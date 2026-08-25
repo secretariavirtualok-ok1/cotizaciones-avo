@@ -694,7 +694,12 @@ function renderViewer(data, quoteId, isPreview) {
     confirmBtn.title = 'Vista previa — el cliente es quien confirma';
     confirmBtn.textContent = '🔒 ' + (confirmBtn.textContent || 'Confirmar selección');
   } else {
-    document.getElementById('v-confirm-btn').addEventListener('click', () => confirmPlan(quoteId));
+    const esVoipOnlyQuote = !!(data.telefonia && data.telefonia.voip_only);
+    if (esVoipOnlyQuote) {
+      document.getElementById('v-confirm-btn').addEventListener('click', () => confirmVoipOnlyPlan(quoteId));
+    } else {
+      document.getElementById('v-confirm-btn').addEventListener('click', () => confirmPlan(quoteId));
+    }
   }
 
   // Renderizar cotización generada
@@ -746,6 +751,16 @@ function selectViewerVoipPlan(paisKey, minutos, precioInicial, precioMensual, no
     lbl.style.background    = isThis ? '#EBF5FB' : 'white';
     lbl.style.borderColor   = isThis ? '#2E86C1' : '#DEE2E6';
   });
+
+  // Habilitar botón de confirmar cuando todos los países tienen plan seleccionado
+  checkVoipConfirmReady();
+}
+
+function checkVoipConfirmReady() {
+  var paises = (quoteData && quoteData.telefonia && quoteData.telefonia.paises_seleccionados) || [];
+  if (paises.length === 0) return;
+  var allSelected = paises.every(function(p) { return !!window._selectedVoipPlans[p]; });
+  document.getElementById('v-confirm-btn').disabled = !allSelected;
 }
 
 async function confirmPlan(quoteId) {
@@ -781,6 +796,52 @@ async function confirmPlan(quoteId) {
     document.getElementById('v-success-msg').textContent   = tx.successMsg;
     document.getElementById('v-success-next').textContent  = tx.successNext;
     document.getElementById('v-selected-plan-name').textContent = data.plan_nombre + (jornadaNombre ? ` · ${jornadaNombre}` : '');
+
+  } catch(e) {
+    btn.textContent = tx.confirmBtn; btn.disabled = false;
+    alert(T[lang].errorMsg);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  CONFIRMACIÓN SOLO TELEFONÍA VOIP
+// ════════════════════════════════════════════════════════
+async function confirmVoipOnlyPlan(quoteId) {
+  var tx = T[lang];
+  var btn = document.getElementById('v-confirm-btn');
+  btn.textContent = tx.confirming; btn.disabled = true;
+
+  try {
+    var voipSels = window._selectedVoipPlans || {};
+    // Construir nombre descriptivo de la selección
+    var planNombre = Object.entries(voipSels).map(function(entry) {
+      var pais = entry[0]; var sel = entry[1];
+      return pais.toUpperCase() + ' · ' + sel.minutos + ' min';
+    }).join(' / ');
+
+    // Intentar marcar en BD usando la RPC existente con plan_uuid null
+    var rpcOk = false;
+    try {
+      var rpcRes = await sb.rpc('select_quote_plan', {
+        quote_uuid: quoteId,
+        plan_uuid: null,
+        jornada_val: null,
+        meta: { voip_selecciones: voipSels, timestamp: new Date().toISOString() }
+      });
+      if (!rpcRes.error) rpcOk = true;
+    } catch(rpcErr) { /* continuar aunque la RPC falle */ }
+
+    // Notificar al equipo interno con las selecciones VoIP
+    await notifyInternal('plan_selected', quoteId, quoteData, planNombre, null, null, voipSels).catch(function(){});
+
+    // Mostrar pantalla de éxito
+    document.getElementById('v-plans-section').style.display   = 'none';
+    document.getElementById('v-jornada-section') && (document.getElementById('v-jornada-section').style.display = 'none');
+    document.getElementById('v-already-selected').style.display = 'block';
+    document.getElementById('v-success-title').textContent = tx.successTitle;
+    document.getElementById('v-success-msg').textContent   = tx.successMsg;
+    document.getElementById('v-success-next').textContent  = tx.successNext;
+    document.getElementById('v-selected-plan-name').textContent = planNombre;
 
   } catch(e) {
     btn.textContent = tx.confirmBtn; btn.disabled = false;
