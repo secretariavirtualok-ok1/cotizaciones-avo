@@ -1008,6 +1008,39 @@ function renderGeneratedQuote(data) {
   }
 
   // ── CONDICIONES ──
+  // Para cotizaciones Solo Telefonía (voip_only) no se muestran las condiciones estándar de servicio
+  var esVoipOnly = !!(data.telefonia && data.telefonia.voip_only);
+  if (esVoipOnly) {
+    // Solo mostrar la nota de ajuste de tarifas (sin condiciones estándar de contratación)
+    var soloTelCard = document.createElement('div');
+    soloTelCard.className = 'card';
+    var esEspanaST = (data.telefonia && data.telefonia.paises_seleccionados || []).includes('es');
+    var ajTxtST = idioma === 'en'
+      ? ('Rates are subject to an annual adjustment. ' + (esEspanaST ? 'This adjustment is applied every February.' : 'This adjustment applies upon completion of each year of service.'))
+      : (esEspanaST ? 'Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año.' : 'Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio.');
+    var voipCondiciones = idioma === 'en' ? [
+      'The contracted minute package does not carry over to the next billing period.',
+      'The telephony service allows calls only to mobile and landline numbers within the contracted country.',
+      'Only landline numbers are provided.'
+    ] : [
+      'El paquete de minutos adquirido no es acumulable para el siguiente periodo de facturación.',
+      'El servicio de telefonía permite solo llamadas a teléfonos móviles y fijos del país contratado.',
+      'Solo se entregan números fijos.'
+    ];
+    var voipCondLabel = idioma === 'en' ? '📝 SERVICE CONDITIONS' : '📝 CONDICIONES DEL SERVICIO';
+    var voipCondHtml = '<div class="card-label">' + voipCondLabel + '</div><ol style="margin:0 0 0 18px;padding:0;">';
+    voipCondiciones.forEach(function(c) {
+      voipCondHtml += '<li style="margin-bottom:10px;font-size:14px;color:var(--gray-700);line-height:1.5;">' + c + '</li>';
+    });
+    voipCondHtml += '</ol>';
+    if (cd.condiciones_extras && cd.condiciones_extras.nota_personalizada) {
+      voipCondHtml += '<div class="gen-nota" style="margin-top:12px;">' + cd.condiciones_extras.nota_personalizada + '</div>';
+    }
+    soloTelCard.innerHTML = voipCondHtml;
+    container.insertBefore(soloTelCard, plansSectionEl);
+    return; // no se agregan condiciones estándar
+  }
+
   var condCard = document.createElement('div');
   condCard.className = 'card';
   var condLabel = idioma === 'en' ? '📝 SERVICE CONDITIONS' : '📝 CONDICIONES DEL SERVICIO';
@@ -1034,16 +1067,20 @@ function renderGeneratedQuote(data) {
   ];
 
   var extrasCondHtml = '';
-  if (cd.condiciones_extras) {
-    if (cd.condiciones_extras.ajuste_precios) {
-      var ajTxt = idioma === 'en'
-        ? 'Prices are set in the agreed currency and are subject to an annual adjustment upon completion of one year of service. Such adjustment may use an approximate six percent (6%) increase as a reference, which is purely indicative and informational.'
-        : 'Los precios están establecidos en la moneda acordada y están sujetos a un ajuste anual al cumplir un año de servicio. Dicho ajuste podrá tener como referencia un incremento aproximado del seis por ciento (6%), el cual es puramente indicativo e informativo.';
-      extrasCondHtml += '<div class="gen-nota" style="margin-top:16px;">' + ajTxt + '</div>';
-    }
-    if (cd.condiciones_extras.nota_personalizada) {
-      extrasCondHtml += '<div class="gen-nota" style="margin-top:12px;">' + cd.condiciones_extras.nota_personalizada + '</div>';
-    }
+  // Nota de ajuste de tarifas: siempre mostrada, con texto diferenciado por país
+  // Detectar España: flag explícito en condiciones_extras, o España entre los países VoIP
+  var esEspana = (cd.condiciones_extras && cd.condiciones_extras.ajuste_es_espana)
+    || ((data.telefonia && data.telefonia.paises_seleccionados || []).includes('es'));
+  if (idioma === 'en') {
+    extrasCondHtml += '<div class="gen-nota" style="margin-top:16px;">Rates are subject to an annual adjustment. ' + (esEspana ? 'This adjustment is applied every February.' : 'This adjustment applies upon completion of each year of service.') + '</div>';
+  } else {
+    var ajTxt = esEspana
+      ? 'Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año.'
+      : 'Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio.';
+    extrasCondHtml += '<div class="gen-nota" style="margin-top:16px;">' + ajTxt + '</div>';
+  }
+  if (cd.condiciones_extras && cd.condiciones_extras.nota_personalizada) {
+    extrasCondHtml += '<div class="gen-nota" style="margin-top:12px;">' + cd.condiciones_extras.nota_personalizada + '</div>';
   }
 
   condCard.innerHTML = '<div class="card-label">' + condLabel + '</div>'
