@@ -1435,7 +1435,7 @@ async function saveQuotation() {
   try {
     const idioma = document.getElementById('gen-idioma').value;
     const moneda = document.getElementById('gen-moneda').value;
-    const comercial = document.getElementById('gen-comercial').value;
+    const comercial = document.getElementById('gen-comercial').value || null;
     const vencDias = document.getElementById('gen-vencimiento').value;
     const vencimiento = vencDias ? new Date(Date.now() + parseInt(vencDias) * 86400000).toISOString() : null;
 
