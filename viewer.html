@@ -1149,8 +1149,10 @@ function renderGeneratedQuote(data) {
   ];
 
   var extrasCondHtml = '';
-  // Nota de ajuste de tarifas: siempre mostrada, con texto diferenciado por país
-  // Detectar España: flag explícito en condiciones_extras, o España entre los países VoIP
+  // Nota de ajuste de tarifas: aparece siempre que la cotización incluye servicios (jornada media/completa).
+  // Esta sección del código solo se ejecuta cuando NO es Solo Telefonía (ver "return" más arriba), así que
+  // aquí siempre hay servicios cotizados y la nota debe mostrarse, tenga o no telefonía adicional.
+  // Detectar España: flag explícito en condiciones_extras, o España entre los países VoIP (si hay telefonía)
   var esEspana = (cd.condiciones_extras && cd.condiciones_extras.ajuste_es_espana)
     || ((cd.telefonia && cd.telefonia.paises_seleccionados || []).includes('es'))
     || (cd.telefonia && cd.telefonia.incluida_info && cd.telefonia.incluida_info.pais_key === 'es');
