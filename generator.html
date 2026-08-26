@@ -810,17 +810,16 @@ function handleStep5Back() {
 function renderCondiciones() {
   const esVoip = voipOnlyMode;
   const paisIncluidaPreview = (voipType === 'incluida') ? document.getElementById('voip-incl-pais').value : null;
-  const tieneVoipPaises = (voipType === 'opcional' && selectedVoipCountries.length > 0)
-    || (voipType === 'incluida' && !!paisIncluidaPreview);
   const esEspana = selectedVoipCountries.includes('es') || paisIncluidaPreview === 'es';
 
   // Mostrar bloque correcto de condiciones
   document.getElementById('cond-estandar').style.display = esVoip ? 'none' : '';
   document.getElementById('cond-voip').style.display = esVoip ? '' : 'none';
 
-  // Nota de ajuste de tarifas: solo para cotizaciones NO Solo Telefonía con países VoIP seleccionados
+  // Nota de ajuste de tarifas: aparece siempre que la cotización incluye servicios (jornada media/completa),
+  // tenga o no telefonía adicional. Se oculta únicamente en cotizaciones Solo Telefonía (sin servicio).
   const tariffEl = document.getElementById('cond-tariff-note');
-  if (!esVoip && tieneVoipPaises) {
+  if (!esVoip) {
     const msg = esEspana
       ? 'Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año.'
       : 'Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio.';
