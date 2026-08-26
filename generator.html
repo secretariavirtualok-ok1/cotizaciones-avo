@@ -809,8 +809,10 @@ function handleStep5Back() {
 
 function renderCondiciones() {
   const esVoip = voipOnlyMode;
-  const tieneVoipPaises = (voipType === 'incluida' || voipType === 'opcional') && selectedVoipCountries.length > 0;
-  const esEspana = selectedVoipCountries.includes('es');
+  const paisIncluidaPreview = (voipType === 'incluida') ? document.getElementById('voip-incl-pais').value : null;
+  const tieneVoipPaises = (voipType === 'opcional' && selectedVoipCountries.length > 0)
+    || (voipType === 'incluida' && !!paisIncluidaPreview);
+  const esEspana = selectedVoipCountries.includes('es') || paisIncluidaPreview === 'es';
 
   // Mostrar bloque correcto de condiciones
   document.getElementById('cond-estandar').style.display = esVoip ? 'none' : '';
@@ -1566,12 +1568,16 @@ async function saveQuotation() {
       });
     }
 
+    // Detectar España tanto en modo "opcional" (selectedVoipCountries) como en modo "incluida" (país único)
+    const paisIncluida = (voipType === 'incluida') ? document.getElementById('voip-incl-pais').value : null;
+    const esEspanaTelefonia = selectedVoipCountries.includes('es') || paisIncluida === 'es';
+
     const cotizacionData = {
       servicios,
       telefonia,
       condiciones_extras: {
         ajuste_precios: true, // siempre incluido automáticamente
-        ajuste_es_espana: selectedVoipCountries.includes('es'), // España → mensaje de febrero
+        ajuste_es_espana: esEspanaTelefonia, // España → mensaje de febrero
         nota_contable: '',
         nota_personalizada: document.getElementById('cond-nota-especial')?.value?.trim() || ''
       }
