@@ -1152,7 +1152,8 @@ function renderGeneratedQuote(data) {
   // Nota de ajuste de tarifas: siempre mostrada, con texto diferenciado por país
   // Detectar España: flag explícito en condiciones_extras, o España entre los países VoIP
   var esEspana = (cd.condiciones_extras && cd.condiciones_extras.ajuste_es_espana)
-    || ((cd.telefonia && cd.telefonia.paises_seleccionados || []).includes('es'));
+    || ((cd.telefonia && cd.telefonia.paises_seleccionados || []).includes('es'))
+    || (cd.telefonia && cd.telefonia.incluida_info && cd.telefonia.incluida_info.pais_key === 'es');
   if (idioma === 'en') {
     extrasCondHtml += '<div class="gen-nota" style="margin-top:16px;">Rates are subject to an annual adjustment. ' + (esEspana ? 'This adjustment is applied every February.' : 'This adjustment applies upon completion of each year of service.') + '</div>';
   } else {
