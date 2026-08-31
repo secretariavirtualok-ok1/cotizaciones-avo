@@ -810,7 +810,8 @@ function handleStep5Back() {
 function renderCondiciones() {
   const esVoip = voipOnlyMode;
   const paisIncluidaPreview = (voipType === 'incluida') ? document.getElementById('voip-incl-pais').value : null;
-  const esEspana = selectedVoipCountries.includes('es') || paisIncluidaPreview === 'es';
+  const monedaSel = document.getElementById('gen-moneda').value;
+  const esEspana = selectedVoipCountries.includes('es') || paisIncluidaPreview === 'es' || monedaSel === 'EUR';
 
   // Mostrar bloque correcto de condiciones
   document.getElementById('cond-estandar').style.display = esVoip ? 'none' : '';
@@ -1567,9 +1568,9 @@ async function saveQuotation() {
       });
     }
 
-    // Detectar España tanto en modo "opcional" (selectedVoipCountries) como en modo "incluida" (país único)
+    // Detectar España: por país VoIP (modo "opcional" o "incluida"), o porque la moneda de la cotización es EUR
     const paisIncluida = (voipType === 'incluida') ? document.getElementById('voip-incl-pais').value : null;
-    const esEspanaTelefonia = selectedVoipCountries.includes('es') || paisIncluida === 'es';
+    const esEspanaTelefonia = selectedVoipCountries.includes('es') || paisIncluida === 'es' || moneda === 'EUR';
 
     const cotizacionData = {
       servicios,
