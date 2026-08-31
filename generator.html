@@ -718,8 +718,9 @@ async function checkSession() {
 async function initApp(user) {
   try {
     if (!user) {
-      const { data } = await sb.auth.getUser();
-      user = data?.user;
+      // Usamos getSession() (local) en vez de getUser() (red) para evitar cuelgues
+      const { data } = await sb.auth.getSession();
+      user = data?.session?.user;
     }
     if (!user || !user.email) {
       // No hay sesión válida, mostrar login
@@ -1444,11 +1445,15 @@ async function saveQuotation() {
   btn.textContent = 'Guardando...';
 
   try {
-    // Verificar que la sesión siga activa antes de continuar
+    // Verificar que la sesión siga activa antes de continuar.
+    // Usamos getSession() (lee de localStorage, no hace round-trip de red) en vez de
+    // getUser() (valida contra el servidor de Auth) porque getUser() puede colgarse
+    // por bloqueadores de anuncios/extensiones que interfieren con esa llamada.
     const { data: sessionData, error: sessionErr } = await withTimeout(sb.auth.getSession(), 15000, 'sesión');
-    if (sessionErr || !sessionData?.session) {
+    if (sessionErr || !sessionData?.session?.user) {
       throw new Error('Tu sesión expiró. Por favor recarga la página e inicia sesión de nuevo.');
     }
+    const currentUser = sessionData.session.user;
 
     const idioma = document.getElementById('gen-idioma').value;
     const moneda = document.getElementById('gen-moneda').value;
@@ -1619,12 +1624,8 @@ async function saveQuotation() {
       ? []
       : [...new Set(selectedServices.flatMap(svc => serviceData[svc.clave]?.jornadas || []))];
 
-    // 4. Insert quote
-    const { data: userData, error: userErr } = await withTimeout(sb.auth.getUser(), 15000, 'verificar usuario');
-    if (userErr || !userData?.user) {
-      throw new Error('No se pudo verificar tu sesión. Por favor recarga la página e inicia sesión de nuevo.');
-    }
-    const user = userData.user;
+    // 4. Insert quote (usamos currentUser obtenido de getSession() más arriba, sin llamar a getUser())
+    const user = currentUser;
     const quoteData = {
       client_id: clientId,
       comercial,
