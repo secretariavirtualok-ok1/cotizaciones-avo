@@ -594,26 +594,37 @@ function renderViewer(data, quoteId, isPreview) {
     var moneda = window._moneda || 'USD';
     var servicios = window._serviciosGenerados || [];
 
+    // Helper: obtiene el precio a mostrar para un servicio según la jornada seleccionada,
+    // incluyendo el caso especial 'media_3meses' (precio_inicio = primeros 3 meses)
+    function precioParaJornada(svc, jornada) {
+      if (!svc || !jornada) return null;
+      if (jornada === 'media_3meses') {
+        if (svc.precio_inicio != null) return svc.precio_inicio;
+        if (svc.precios && svc.precios.media_3meses != null) return svc.precios.media_3meses;
+        return null;
+      }
+      if (svc.precios && svc.precios[jornada] != null) return svc.precios[jornada];
+      if (svc.precio_inicio != null && jornada === 'media') return svc.precio_inicio;
+      if (svc.precio_full != null && jornada === 'completa') return svc.precio_full;
+      return null;
+    }
+
     // Actualizar precio en el selector de planes — precio correcto por servicio y jornada
     window._planesOfrecidos.forEach(function(p, pIdx) {
       var priceEl = document.getElementById('precio-plan-' + p.id);
       if (priceEl) {
         var svc = servicios[pIdx] || null;
-        var precio = null;
-        if (svc && selectedJornada) {
-          if (svc.precios && svc.precios[selectedJornada] != null) {
-            precio = svc.precios[selectedJornada];
-          } else if (svc.precio_inicio && selectedJornada === 'media') {
-            precio = svc.precio_inicio;
-          } else if (svc.precio_full && selectedJornada === 'completa') {
-            precio = svc.precio_full;
-          } else {
-            var clave = p.id + '|' + selectedJornada;
-            var val = (window._preciosCombinaciones || {})[clave];
-            if (val != null) precio = val;
-          }
+        var precio = precioParaJornada(svc, selectedJornada);
+        if (precio == null && selectedJornada) {
+          var clave = p.id + '|' + selectedJornada;
+          var val = (window._preciosCombinaciones || {})[clave];
+          if (val != null) precio = val;
         }
         var precioStr = precio != null ? formatPrecio(precio, moneda) : '';
+        // Para media_3meses, indicar que es el precio de los primeros 3 meses
+        if (precioStr && selectedJornada === 'media_3meses') {
+          precioStr += (window._moneda ? '' : '') + ' (primeros 3 meses)';
+        }
         priceEl.textContent = precioStr;
         priceEl.style.display = precioStr ? 'block' : 'none';
       }
@@ -623,10 +634,7 @@ function renderViewer(data, quoteId, isPreview) {
     servicios.forEach(function(svc, idx) {
       var el = document.getElementById('gen-precio-svc-' + idx);
       if (el && selectedJornada) {
-        var precio = null;
-        if (svc.precios && svc.precios[selectedJornada] != null) {
-          precio = svc.precios[selectedJornada];
-        }
+        var precio = precioParaJornada(svc, selectedJornada);
         el.textContent = precio != null ? formatPrecio(precio, moneda) : '';
       }
     });
@@ -1152,10 +1160,12 @@ function renderGeneratedQuote(data) {
   // Nota de ajuste de tarifas: aparece siempre que la cotización incluye servicios (jornada media/completa).
   // Esta sección del código solo se ejecuta cuando NO es Solo Telefonía (ver "return" más arriba), así que
   // aquí siempre hay servicios cotizados y la nota debe mostrarse, tenga o no telefonía adicional.
-  // Detectar España: flag explícito en condiciones_extras, o España entre los países VoIP (si hay telefonía)
+  // Detectar España: flag explícito en condiciones_extras, España entre los países VoIP (si hay telefonía),
+  // o moneda de la cotización es EUR (cliente de España aunque no tenga telefonía)
   var esEspana = (cd.condiciones_extras && cd.condiciones_extras.ajuste_es_espana)
     || ((cd.telefonia && cd.telefonia.paises_seleccionados || []).includes('es'))
-    || (cd.telefonia && cd.telefonia.incluida_info && cd.telefonia.incluida_info.pais_key === 'es');
+    || (cd.telefonia && cd.telefonia.incluida_info && cd.telefonia.incluida_info.pais_key === 'es')
+    || (data.moneda === 'EUR');
   if (idioma === 'en') {
     extrasCondHtml += '<div class="gen-nota" style="margin-top:16px;">Rates are subject to an annual adjustment. ' + (esEspana ? 'This adjustment is applied every February.' : 'This adjustment applies upon completion of each year of service.') + '</div>';
   } else {
