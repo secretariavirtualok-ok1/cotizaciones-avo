@@ -1429,12 +1429,27 @@ function buildSummary() {
 // ══════════════════════════════════════════════════════════
 //  SAVE QUOTATION
 // ══════════════════════════════════════════════════════════
+// Envuelve una promesa con un límite de tiempo: si no resuelve/rechaza en `ms`,
+// fuerza un error claro en vez de dejar la operación colgada indefinidamente.
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Tiempo de espera agotado' + (label ? ' (' + label + ')' : '') + '. Verifica tu conexión e intenta de nuevo.')), ms))
+  ]);
+}
+
 async function saveQuotation() {
   const btn = document.getElementById('save-btn');
   btn.disabled = true;
   btn.textContent = 'Guardando...';
 
   try {
+    // Verificar que la sesión siga activa antes de continuar
+    const { data: sessionData, error: sessionErr } = await withTimeout(sb.auth.getSession(), 15000, 'sesión');
+    if (sessionErr || !sessionData?.session) {
+      throw new Error('Tu sesión expiró. Por favor recarga la página e inicia sesión de nuevo.');
+    }
+
     const idioma = document.getElementById('gen-idioma').value;
     const moneda = document.getElementById('gen-moneda').value;
     const comercial = document.getElementById('gen-comercial').value || null;
@@ -1451,11 +1466,12 @@ async function saveQuotation() {
 
     let clientId = selectedClientId;
     if (!clientId) {
-      const { data: newClient, error: cErr } = await sb.from('clients').insert(clientData).select().single();
+      const { data: newClient, error: cErr } = await withTimeout(sb.from('clients').insert(clientData).select().single(), 20000, 'guardar cliente');
       if (cErr) throw cErr;
       clientId = newClient.id;
     } else {
-      await sb.from('clients').update(clientData).eq('id', clientId);
+      const { error: cUpdErr } = await withTimeout(sb.from('clients').update(clientData).eq('id', clientId), 20000, 'actualizar cliente');
+      if (cUpdErr) throw cUpdErr;
     }
 
     // 2. Build planes ofrecidos from all selected services
@@ -1604,7 +1620,11 @@ async function saveQuotation() {
       : [...new Set(selectedServices.flatMap(svc => serviceData[svc.clave]?.jornadas || []))];
 
     // 4. Insert quote
-    const { data: { user } } = await sb.auth.getUser();
+    const { data: userData, error: userErr } = await withTimeout(sb.auth.getUser(), 15000, 'verificar usuario');
+    if (userErr || !userData?.user) {
+      throw new Error('No se pudo verificar tu sesión. Por favor recarga la página e inicia sesión de nuevo.');
+    }
+    const user = userData.user;
     const quoteData = {
       client_id: clientId,
       comercial,
@@ -1622,7 +1642,7 @@ async function saveQuotation() {
       created_by: user.id
     };
 
-    const { data: quote, error: qErr } = await sb.from('quotes').insert(quoteData).select().single();
+    const { data: quote, error: qErr } = await withTimeout(sb.from('quotes').insert(quoteData).select().single(), 20000, 'guardar cotización');
     if (qErr) throw qErr;
 
     // 5. If quote was made for a prospect, update lead status to "contacted"
