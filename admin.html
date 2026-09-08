@@ -918,6 +918,7 @@
       </div>
       <button class="btn btn-primary btn-sm" id="mp-save-status" style="margin-top:18px;">Guardar estado</button>
       <div style="flex:1;"></div>
+      <button class="btn btn-danger btn-sm" id="mp-delete-btn" style="margin-top:18px;">🗑 Eliminar prospecto</button>
       <button class="btn btn-outline btn-sm" id="mp-pdf-btn" style="margin-top:18px;" onclick="downloadProspectoPDF()">📄 Descargar PDF</button>
       <button class="btn btn-outline btn-sm" id="mp-edit-btn" style="margin-top:18px;">✎ Editar</button>
       <button class="btn btn-primary btn-sm" id="mp-save-edit-btn" style="margin-top:18px;display:none;">💾 Guardar cambios</button>
@@ -2036,9 +2037,29 @@ async function loadClients() {
       <td>
         <button class="btn btn-sm btn-outline" onclick="editClient('${c.id}','${c.nombre_contacto}','${c.empresa}','${c.email}','${c.telefono||''}')">Editar</button>
         <button class="btn btn-sm btn-gold" onclick="newQuoteForClient('${c.id}','${c.nombre_contacto}','${c.empresa}')">Nueva cotización</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteClient('${c.id}','${String(c.nombre_contacto||'').replace(/'/g,"\\'")}',${(c.quotes||[]).length})">🗑 Eliminar</button>
       </td>
     </tr>
   `).join('');
+}
+
+// Elimina un cliente junto con todas sus cotizaciones. Como el estado de pago
+// (estado_pago, monto_pago, etc.) vive en la misma fila de "quotes", al borrar
+// las cotizaciones del cliente estas desaparecen automáticamente del módulo Pagos.
+async function deleteClient(id, nombre, numCotizaciones) {
+  const aviso = numCotizaciones > 0
+    ? `¿Eliminar al cliente ${nombre}?\n\nTiene ${numCotizaciones} cotización(es) asociada(s) — también se eliminarán, junto con su información de pago en el módulo Pagos.\n\nEsta acción no se puede deshacer.`
+    : `¿Eliminar al cliente ${nombre}?\n\nEsta acción no se puede deshacer.`;
+  if (!confirm(aviso)) return;
+
+  const { error: qErr } = await sb.from('quotes').delete().eq('client_id', id);
+  if (qErr) { alert('Error al eliminar las cotizaciones del cliente: ' + qErr.message); return; }
+
+  const { error } = await sb.from('clients').delete().eq('id', id);
+  if (error) { alert('Error al eliminar el cliente: ' + error.message); return; }
+
+  loadClients();
+  loadDashboard();
 }
 
 function editClient(id, nombre, empresa, email, telefono) {
@@ -2187,6 +2208,7 @@ async function loadProspectos() {
       <td>${badgeProsp(l.status)}</td>
       <td>
         <button class="btn btn-outline btn-sm" onclick="openProspecto('${l.id}')">Ver detalle</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteProspecto('${l.id}','${String(l.full_name||'').replace(/'/g,"\\'")}')">🗑</button>
       </td>
     </tr>`).join('');
 }
@@ -2428,6 +2450,24 @@ function downloadProspectoPDF() {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
 }
+
+// Eliminar prospecto (fila de la tabla)
+async function deleteProspecto(id, nombre) {
+  if (!confirm(`¿Eliminar el prospecto ${nombre || ''}?\n\nEsta acción no se puede deshacer.`)) return;
+  const { error } = await sb.from('leads').delete().eq('id', id);
+  if (error) { alert('Error al eliminar: ' + error.message); return; }
+  loadProspectos();
+}
+
+// Eliminar prospecto (desde el modal de detalle)
+document.getElementById('mp-delete-btn').addEventListener('click', async () => {
+  if (!prospCurrentLead) return;
+  if (!confirm(`¿Eliminar el prospecto ${prospCurrentLead.full_name || ''}?\n\nEsta acción no se puede deshacer.`)) return;
+  const { error } = await sb.from('leads').delete().eq('id', prospCurrentLead.id);
+  if (error) { alert('Error al eliminar: ' + error.message); return; }
+  document.getElementById('modal-prospecto').classList.remove('open');
+  loadProspectos();
+});
 
 // Save status
 document.getElementById('mp-save-status').addEventListener('click', async () => {
