@@ -85,6 +85,8 @@
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--navy); }
   textarea { resize: vertical; min-height: 80px; }
   .field { margin-bottom: 16px; }
+  .field-row { display: flex; gap: 12px; }
+  .field-row .field { flex: 1; }
 
   /* ── BUTTONS ────────────────────────────────────────── */
   .btn {
@@ -101,6 +103,7 @@
   .btn-gold      { background: var(--gold); color: var(--navy); }
   .btn-outline   { background: transparent; color: var(--navy); border: 1.5px solid var(--gray-300); }
   .btn-danger    { background: var(--red-lt); color: var(--red); }
+  .btn-success   { background: var(--green); color: var(--white); }
   .btn-sm        { padding: 5px 12px; font-size: 12px; }
   .btn-full      { width: 100%; justify-content: center; }
   .btn:disabled  { opacity: .45; cursor: not-allowed; }
@@ -206,6 +209,11 @@
   .badge-contacted      { background: var(--amber-lt); color: var(--amber); }
   .badge-converted      { background: var(--green-lt); color: var(--green); }
   .badge-lost           { background: var(--red-lt); color: var(--red); }
+
+  /* ── PAYMENT BADGES ───────────────────────────────────── */
+  .badge-pago-pendiente { background: var(--gray-100); color: var(--gray-700); }
+  .badge-pago-enviado   { background: var(--amber-lt); color: var(--amber); }
+  .badge-pago-pagado    { background: var(--green-lt); color: var(--green); }
 
   /* ── PROSPECT LAYOUT ─────────────────────────────────── */
   .prosp-filters {
@@ -428,6 +436,7 @@
     <div class="nav-tab" data-panel="cotizaciones">📋 Cotizaciones</div>
     <div class="nav-tab" data-panel="clientes">👥 Clientes</div>
     <div class="nav-tab" data-panel="prospectos">👤 Prospectos</div>
+    <div class="nav-tab" data-panel="pagos">💳 Pagos</div>
     <div class="nav-tab" data-panel="planes">⚙️ Servicios</div>
     <a href="https://cotizacionesavo.netlify.app/generator.html" target="_blank"
        style="margin-left:auto;display:flex;align-items:center;gap:6px;padding:8px 14px;
@@ -763,6 +772,83 @@
     </div>
 
 
+    <!-- ── PAGOS ─────────────────────────────────────────── -->
+    <div class="panel" id="panel-pagos">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+        <div>
+          <h2 style="font-size:18px;font-weight:800;">Pagos</h2>
+          <p style="color:var(--gray-500);font-size:13px;">Envía la información de pago a clientes con contrato firmado</p>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="loadPagos()">↻ Actualizar</button>
+      </div>
+
+      <div id="pagos-alert"></div>
+
+      <div class="filters">
+        <div class="field">
+          <label>Estado de pago</label>
+          <select id="pagos-estado-filter">
+            <option value="">Todos</option>
+            <option value="pendiente">Pendiente de envío</option>
+            <option value="enviado">Enviado</option>
+            <option value="pagado">Pagado</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Buscar cliente / empresa</label>
+          <input type="text" id="pagos-search" placeholder="Nombre o empresa..." style="min-width:180px;" />
+        </div>
+        <button class="btn btn-primary btn-sm" id="pagos-filter-btn">Filtrar</button>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:24px;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Empresa</th>
+                <th>Comercial</th>
+                <th>Servicio seleccionado</th>
+                <th>Contrato firmado</th>
+                <th>Estado de pago</th>
+                <th>Monto enviado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="pagos-tbody">
+              <tr><td colspan="8" class="loading">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Gestión de cuentas de pago -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <h3 style="font-size:15px;font-weight:800;">Cuentas de pago</h3>
+        <button class="btn btn-gold btn-sm" onclick="openAccountModal(null)">+ Nueva cuenta</button>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>País</th>
+                <th>Moneda</th>
+                <th>Método</th>
+                <th>Titular</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="accounts-tbody">
+              <tr><td colspan="6" class="loading">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- ── PROSPECTOS ─────────────────────────────────────── -->
     <div class="panel" id="panel-prospectos">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
@@ -890,6 +976,7 @@
           </div>
           <button class="btn btn-primary btn-sm" id="mq-save-estado">Guardar estado</button>
         </div>
+        <div id="mq-pago-action" style="margin-top:12px;"></div>
       </div>
 
       <div style="margin-top:20px;">
@@ -912,6 +999,184 @@
         <p style="font-size:12px;color:var(--gray-500);margin-bottom:10px;">Esta acción es irreversible. Se eliminará la cotización y todos sus eventos asociados.</p>
         <button class="btn btn-danger" id="mq-delete-btn">🗑 Eliminar esta cotización</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL ENVIAR INFORMACIÓN DE PAGO ═══════════════════ -->
+<div class="modal-overlay" id="modal-payment">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="mpay-title">Enviar información de pago</h2>
+      <button class="modal-close" id="mpay-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="mpay-alert"></div>
+
+      <div class="detail-grid" style="margin-bottom:18px;">
+        <div class="detail-item"><label>Cliente</label><div class="val" id="mpay-cliente-nombre">—</div></div>
+        <div class="detail-item"><label>Empresa</label><div class="val" id="mpay-cliente-empresa">—</div></div>
+        <div class="detail-item"><label>Servicio seleccionado</label><div class="val" id="mpay-plan-nombre">—</div></div>
+        <div class="detail-item"><label>Moneda de la cotización</label><div class="val" id="mpay-moneda">—</div></div>
+      </div>
+
+      <div class="field">
+        <label>Correo del cliente *</label>
+        <input type="email" id="mpay-email" placeholder="correo@cliente.com" />
+      </div>
+
+      <div class="field">
+        <label>Monto a cobrar *</label>
+        <input type="number" id="mpay-monto" placeholder="0" step="0.01" />
+      </div>
+
+      <div class="field">
+        <label>Opciones de pago a incluir en el correo *</label>
+        <p style="font-size:12px;color:var(--gray-500);margin:0 0 6px;">Puedes marcar varias — se listan todas en el mismo correo, tal como se envían hoy (ej. Zelle + Transferencia bancaria). Para clientes de Europa, marca solo la transferencia en EUR.</p>
+        <div id="mpay-cuentas-list" style="border:1px solid var(--gray-100);border-radius:8px;padding:10px 12px;max-height:220px;overflow-y:auto;"></div>
+      </div>
+
+      <div class="field">
+        <label>Link de pago personalizado (opcional)</label>
+        <input type="text" id="mpay-link-pago" placeholder="https://... (se genera manualmente para este cliente; no aplica a Europa)" />
+      </div>
+
+      <div class="field">
+        <label>Idioma del correo</label>
+        <select id="mpay-idioma">
+          <option value="es">Español</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Nota adicional (opcional)</label>
+        <textarea id="mpay-nota" rows="2" placeholder="Ej: Recuerda incluir tu nombre en el concepto del pago..."></textarea>
+      </div>
+
+      <div id="mpay-preview" style="background:var(--gray-50);border-radius:8px;padding:14px 16px;font-size:13px;color:var(--gray-700);margin-top:6px;margin-bottom:16px;"></div>
+
+      <button class="btn btn-success btn-full" id="mpay-send-btn">✉️ Enviar información de pago</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL CUENTA DE PAGO ════════════════════════════════ -->
+<div class="modal-overlay" id="modal-account">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="ma-title">Nueva cuenta de pago</h2>
+      <button class="modal-close" id="ma-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="ma-alert"></div>
+
+      <div class="field-row">
+        <div class="field" style="flex:1;">
+          <label>País *</label>
+          <input type="text" id="ma-pais" placeholder="España" />
+        </div>
+        <div class="field" style="flex:0 0 90px;">
+          <label>Bandera</label>
+          <input type="text" id="ma-bandera" placeholder="🇪🇸" />
+        </div>
+        <div class="field" style="flex:1;">
+          <label>Moneda *</label>
+          <select id="ma-moneda">
+            <option value="EUR">EUR</option>
+            <option value="USD">USD</option>
+            <option value="COP">COP</option>
+            <option value="MXN">MXN</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Método de pago *</label>
+        <input type="text" id="ma-metodo" placeholder="Transferencia bancaria / Zelle / PayPal / Nequi..." />
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Titular</label>
+          <input type="text" id="ma-titular" />
+        </div>
+        <div class="field">
+          <label>Banco</label>
+          <input type="text" id="ma-banco" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Número de cuenta</label>
+          <input type="text" id="ma-numero" />
+        </div>
+        <div class="field">
+          <label>Tipo de cuenta</label>
+          <input type="text" id="ma-tipo" placeholder="Ahorros / Corriente" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Identificación (RIF/NIF/DNI/EIN...)</label>
+          <input type="text" id="ma-identificacion" />
+        </div>
+        <div class="field">
+          <label>IBAN</label>
+          <input type="text" id="ma-iban" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>SWIFT/BIC</label>
+          <input type="text" id="ma-swift" />
+        </div>
+        <div class="field">
+          <label>SWIFT alterno</label>
+          <input type="text" id="ma-swift-alt" placeholder="Ej: CHASUS33XXX" />
+        </div>
+        <div class="field">
+          <label>Número de ruta ABA</label>
+          <input type="text" id="ma-aba" placeholder="Solo bancos de EE. UU." />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Dirección del beneficiario</label>
+          <input type="text" id="ma-direccion-beneficiario" />
+        </div>
+        <div class="field">
+          <label>Dirección del banco</label>
+          <input type="text" id="ma-direccion-banco" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Email de pago (Zelle/PayPal)</label>
+          <input type="text" id="ma-email-pago" />
+        </div>
+        <div class="field">
+          <label>Teléfono de pago (Nequi/Yape)</label>
+          <input type="text" id="ma-telefono-pago" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Instrucciones adicionales</label>
+        <textarea id="ma-instrucciones" rows="2" placeholder="Ej: Incluir el nombre del cliente en el concepto..."></textarea>
+      </div>
+
+      <div class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="ma-activo" style="width:auto;" checked />
+        <label style="margin:0;">Cuenta activa (disponible para seleccionar al enviar pagos)</label>
+      </div>
+
+      <button class="btn btn-primary btn-full" id="ma-save-btn" style="margin-top:10px;">Guardar cuenta</button>
     </div>
   </div>
 </div>
@@ -967,6 +1232,7 @@ const CLOUDINARY_CLOUD = 'ny7ucpsj';
 const CLOUDINARY_PRESET= 'avo_videos';
 // URL base del visor público (a actualizar cuando esté deployado en Netlify)
 const VIEWER_BASE_URL  = 'https://cotizacionesavo.netlify.app/viewer';
+const PAYMENT_FUNCTION_URL = '/.netlify/functions/send-payment-info';
 
 // ════════════════════════════════════════════════════════════
 //  INICIALIZACIÓN
@@ -977,6 +1243,9 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 let currentUser   = null;
 let allPlans      = [];
 let editingQuote  = null;
+let allPaymentAccounts = [];
+let editingPaymentQuote = null;  // { id, cliente_nombre, cliente_empresa, ... } de la cotización que se está pagando
+let editingAccountId   = null;
 let editingClient = null;
 let selectedClientId = null;
 
@@ -1033,6 +1302,7 @@ document.querySelectorAll('.nav-tab').forEach(t => {
     if (t.dataset.panel === 'clientes')     loadClients();
     if (t.dataset.panel === 'planes')       loadPlanesPanel();
     if (t.dataset.panel === 'prospectos')   loadProspectos();
+    if (t.dataset.panel === 'pagos')        { loadPagos(); loadPaymentAccounts(); }
   });
 });
 
@@ -1605,8 +1875,14 @@ async function openQuoteModal(quoteId) {
   document.getElementById('modal-quote').classList.add('open');
   document.getElementById('mq-detail').innerHTML = '<div class="loading">Cargando...</div>';
 
-  const { data: q } = await sb.from('quotes_full').select('*').eq('id', quoteId).single();
-  const { data: events } = await sb.from('quote_events').select('*').eq('quote_id', quoteId).order('created_at', { ascending: false });
+  // "quotes_full" da los campos amigables; "quotes" (tabla base) garantiza los campos
+  // nuevos de pago/contrato aunque la vista aún no se haya redefinido con ellos.
+  const [{ data: qFull }, { data: qRaw }, { data: events }] = await Promise.all([
+    sb.from('quotes_full').select('*').eq('id', quoteId).single(),
+    sb.from('quotes').select('estado, contrato_firmado_at, contrato_firmado_por').eq('id', quoteId).single(),
+    sb.from('quote_events').select('*').eq('quote_id', quoteId).order('created_at', { ascending: false })
+  ]);
+  const q = { ...(qFull || {}), ...(qRaw || {}) };
 
   document.getElementById('mq-title').textContent = `${q.cliente_nombre} · ${q.cliente_empresa}`;
 
@@ -1635,6 +1911,17 @@ async function openQuoteModal(quoteId) {
 
   // estado
   document.getElementById('mq-estado-sel').value = q.estado;
+
+  // acción de pago — solo disponible una vez que el estado es "Contrato firmado" en adelante
+  const pagoAction = document.getElementById('mq-pago-action');
+  if (['en_gestion', 'en_negociacion', 'cerrada'].includes(q.estado)) {
+    pagoAction.innerHTML = `
+      <button class="btn btn-success btn-sm" onclick="openPaymentModal('${quoteId}')">💳 Enviar información de pago</button>
+      ${q.contrato_firmado_at ? `<span style="font-size:12px;color:var(--gray-500);margin-left:8px;">Contrato firmado el ${fmtDt(q.contrato_firmado_at)}${q.contrato_firmado_por ? ' por ' + q.contrato_firmado_por : ''}</span>` : ''}
+    `;
+  } else {
+    pagoAction.innerHTML = `<p style="font-size:12px;color:var(--gray-500);margin:0;">La opción de enviar información de pago aparece aquí una vez que el estado se cambie a "Contrato firmado".</p>`;
+  }
 
   // notas
   document.getElementById('mq-notas').value = q.notas_internas || '';
@@ -1681,10 +1968,29 @@ document.getElementById('mq-save-plans').addEventListener('click', async () => {
 
 document.getElementById('mq-save-estado').addEventListener('click', async () => {
   const estado = document.getElementById('mq-estado-sel').value;
-  const { error } = await sb.from('quotes').update({ estado }).eq('id', editingQuote);
+  const payload = { estado };
+
+  // "en_gestion" = Contrato firmado. Es el Dpto. Administrativo quien lo marca aquí
+  // (el cliente no confirma nada) — al quedar registrado, la cotización pasa a la
+  // pestaña Pagos para que se le envíe la información de pago.
+  let contratoReciénFirmado = false;
+  if (estado === 'en_gestion') {
+    const { data: cur } = await sb.from('quotes').select('contrato_firmado_at').eq('id', editingQuote).single();
+    if (!cur || !cur.contrato_firmado_at) {
+      payload.contrato_firmado_at = new Date().toISOString();
+      payload.contrato_firmado_por = currentUser?.email || null;
+      contratoReciénFirmado = true;
+    }
+  }
+
+  const { error } = await sb.from('quotes').update(payload).eq('id', editingQuote);
   if (!error) {
     await sb.from('quote_events').insert({ quote_id: editingQuote, tipo: 'status_changed', metadata: { estado } });
+    if (contratoReciénFirmado) {
+      await sb.from('quote_events').insert({ quote_id: editingQuote, tipo: 'contract_signed', metadata: { por: payload.contrato_firmado_por } });
+    }
     loadQuotes();
+    openQuoteModal(editingQuote); // refresca el bloque de "enviar información de pago"
   }
   showAlert('mq-alert', error ? 'Error: ' + error.message : 'Estado actualizado.', error ? 'error' : 'success');
 });
@@ -2312,6 +2618,416 @@ document.getElementById('modal-prospecto').addEventListener('click', e => {
   if (e.target === document.getElementById('modal-prospecto')) {
     document.getElementById('modal-prospecto').classList.remove('open');
     prospCurrentLead = null;
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+//  PAGOS
+// ════════════════════════════════════════════════════════════
+function pagoBadgeHtml(estadoPago) {
+  const val = estadoPago || 'pendiente';
+  const labels = { pendiente: 'Pendiente de envío', enviado: 'Enviado', pagado: 'Pagado' };
+  return `<span class="badge badge-pago-${val}">${labels[val] || val}</span>`;
+}
+
+async function loadPagos() {
+  const estadoFilter = document.getElementById('pagos-estado-filter').value;
+  const search = document.getElementById('pagos-search').value.trim();
+  const tbody = document.getElementById('pagos-tbody');
+
+  // Población base: cotizaciones con contrato firmado en adelante.
+  // Filtramos solo por "estado" (siempre presente en quotes_full); el resto se combina abajo.
+  let q = sb.from('quotes_full').select('*').in('estado', ['en_gestion', 'en_negociacion', 'cerrada']).order('created_at', { ascending: false });
+  if (search) q = q.or(`cliente_nombre.ilike.%${search}%,cliente_empresa.ilike.%${search}%`);
+
+  const { data, error } = await q.limit(150);
+  if (error) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Error: ${error.message}</td></tr>`; return; }
+
+  let rows = data || [];
+
+  // Los campos de pago (estado_pago, monto_pago...) se agregaron a "quotes" directamente:
+  // los traemos aparte por si la vista "quotes_full" aún no fue refrescada con las columnas nuevas.
+  if (rows.length > 0) {
+    const ids = rows.map(r => r.id);
+    const { data: pagoData } = await sb.from('quotes')
+      .select('id, estado_pago, monto_pago, moneda_pago, metodos_pago_ids, metodos_pago_nombres, link_pago, fecha_envio_pago, fecha_pago_confirmado, nota_pago, contrato_firmado_at, contrato_firmado_por')
+      .in('id', ids);
+    const pagoMap = {};
+    (pagoData || []).forEach(p => { pagoMap[p.id] = p; });
+    rows = rows.map(r => ({ ...r, ...(pagoMap[r.id] || {}) }));
+  }
+
+  if (estadoFilter) {
+    rows = rows.filter(r => (r.estado_pago || 'pendiente') === estadoFilter);
+  }
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="empty-icon">💳</div><h3>No hay cotizaciones</h3><p>Aún no hay contratos firmados listos para enviar el pago</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const simbolos = { USD:'$', EUR:'€', COP:'$', MXN:'$' };
+    const montoStr = r.monto_pago != null
+      ? `${simbolos[r.moneda_pago] || ''}${Number(r.monto_pago).toLocaleString('es-VE')} ${r.moneda_pago || ''}`
+      : '—';
+    const estadoPago = r.estado_pago || 'pendiente';
+    return `
+    <tr>
+      <td><strong>${r.cliente_nombre}</strong></td>
+      <td>${r.cliente_empresa}</td>
+      <td>${r.comercial || '—'}</td>
+      <td>${r.plan_seleccionado_nombre || '<span style="color:var(--gray-300)">—</span>'}</td>
+      <td>${r.contrato_firmado_at ? fmtDt(r.contrato_firmado_at) : '<span style="color:var(--gray-300)">—</span>'}</td>
+      <td>${pagoBadgeHtml(estadoPago)}</td>
+      <td>${montoStr}</td>
+      <td>
+        <button class="btn btn-sm btn-primary" onclick="openPaymentModal('${r.id}')">💳 ${estadoPago === 'pendiente' ? 'Enviar pago' : 'Reenviar'}</button>
+        ${estadoPago === 'enviado' ? `<button class="btn btn-sm btn-outline" onclick="markAsPaid('${r.id}')">✓ Marcar pagado</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('pagos-filter-btn').addEventListener('click', loadPagos);
+
+async function markAsPaid(quoteId) {
+  if (!confirm('¿Confirmar que este cliente ya realizó el pago?')) return;
+  const { error } = await sb.from('quotes').update({
+    estado_pago: 'pagado',
+    fecha_pago_confirmado: new Date().toISOString()
+  }).eq('id', quoteId);
+  if (error) { alert('Error: ' + error.message); return; }
+  await sb.from('quote_events').insert({ quote_id: quoteId, tipo: 'payment_confirmed', metadata: {} });
+  loadPagos();
+}
+
+// ── Cuentas de pago ──────────────────────────────────────────
+async function loadPaymentAccounts() {
+  const { data, error } = await sb.from('payment_accounts').select('*').order('orden', { ascending: true });
+  const tbody = document.getElementById('accounts-tbody');
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${error.message}</td></tr>`;
+    return;
+  }
+  allPaymentAccounts = data || [];
+
+  if (allPaymentAccounts.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><div class="empty-icon">🏦</div><h3>Sin cuentas registradas</h3><p>Agrega la primera cuenta de pago</p></div></td></tr>`;
+    populateCuentaSelect();
+    return;
+  }
+
+  tbody.innerHTML = allPaymentAccounts.map(a => `
+    <tr>
+      <td>${a.pais_bandera || ''} ${a.pais_nombre}</td>
+      <td>${a.moneda}</td>
+      <td>${a.metodo}</td>
+      <td>${a.titular || '—'}</td>
+      <td>${a.activo ? '<span class="badge badge-pago-pagado">Activa</span>' : '<span class="badge badge-descartada">Inactiva</span>'}</td>
+      <td>
+        <button class="btn btn-sm btn-outline" onclick="openAccountModal('${a.id}')">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteAccount('${a.id}')">Eliminar</button>
+      </td>
+    </tr>
+  `).join('');
+
+  populateCuentaSelect();
+}
+
+// Pinta la lista de checkboxes de cuentas de pago disponibles para el envío.
+// Por defecto se pre-marcan las cuentas cuya moneda coincide con la de la cotización
+// (ej. si la cotización es en EUR, se pre-marca solo la cuenta de Europa — sin Zelle
+// ni link de pago, igual que en la plantilla actual del correo).
+function populateCuentaSelect(monedaSugerida, preselectIds) {
+  const list = document.getElementById('mpay-cuentas-list');
+  if (!list) return;
+  const activas = allPaymentAccounts.filter(a => a.activo);
+  if (activas.length === 0) {
+    list.innerHTML = `<p style="font-size:13px;color:var(--gray-500);margin:0;">No hay cuentas activas — créalas abajo en "Cuentas de pago".</p>`;
+    return;
+  }
+  const ordenadas = [...activas].sort((a, b) => (a.orden || 0) - (b.orden || 0));
+  const hasPreselect = Array.isArray(preselectIds) && preselectIds.length > 0;
+  list.innerHTML = ordenadas.map(a => {
+    const checked = hasPreselect ? preselectIds.includes(a.id) : (monedaSugerida ? a.moneda === monedaSugerida : false);
+    return `
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;">
+      <input type="checkbox" class="mpay-cuenta-check" value="${a.id}" style="width:auto;" ${checked ? 'checked' : ''} />
+      <span>${a.pais_bandera || ''} ${a.pais_nombre} — ${a.metodo} (${a.moneda})</span>
+    </label>`;
+  }).join('');
+  list.querySelectorAll('.mpay-cuenta-check').forEach(cb => cb.addEventListener('change', updatePaymentPreview));
+}
+
+function getSelectedCuentas() {
+  const ids = Array.from(document.querySelectorAll('.mpay-cuenta-check:checked')).map(cb => cb.value);
+  return allPaymentAccounts.filter(a => ids.includes(a.id));
+}
+
+document.getElementById('ma-close').addEventListener('click', () => document.getElementById('modal-account').classList.remove('open'));
+document.getElementById('modal-account').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-account')) document.getElementById('modal-account').classList.remove('open');
+});
+
+function openAccountModal(id) {
+  editingAccountId = id;
+  document.getElementById('ma-alert').innerHTML = '';
+  const fields = ['pais','bandera','moneda','metodo','titular','banco','numero','tipo','identificacion','iban','swift','swift-alt','aba','direccion-beneficiario','direccion-banco','email-pago','telefono-pago','instrucciones'];
+
+  if (!id) {
+    document.getElementById('ma-title').textContent = 'Nueva cuenta de pago';
+    fields.forEach(f => { const el = document.getElementById('ma-' + f); if (el) el.value = ''; });
+    document.getElementById('ma-moneda').value = 'EUR';
+    document.getElementById('ma-activo').checked = true;
+  } else {
+    const a = allPaymentAccounts.find(x => x.id === id);
+    if (!a) return;
+    document.getElementById('ma-title').textContent = 'Editar cuenta de pago';
+    document.getElementById('ma-pais').value = a.pais_nombre || '';
+    document.getElementById('ma-bandera').value = a.pais_bandera || '';
+    document.getElementById('ma-moneda').value = a.moneda || 'EUR';
+    document.getElementById('ma-metodo').value = a.metodo || '';
+    document.getElementById('ma-titular').value = a.titular || '';
+    document.getElementById('ma-banco').value = a.banco || '';
+    document.getElementById('ma-numero').value = a.numero_cuenta || '';
+    document.getElementById('ma-tipo').value = a.tipo_cuenta || '';
+    document.getElementById('ma-identificacion').value = a.identificacion || '';
+    document.getElementById('ma-iban').value = a.iban || '';
+    document.getElementById('ma-swift').value = a.swift || '';
+    document.getElementById('ma-swift-alt').value = a.swift_alt || '';
+    document.getElementById('ma-aba').value = a.numero_aba || '';
+    document.getElementById('ma-direccion-beneficiario').value = a.direccion_beneficiario || '';
+    document.getElementById('ma-direccion-banco').value = a.direccion_banco || '';
+    document.getElementById('ma-email-pago').value = a.email_pago || '';
+    document.getElementById('ma-telefono-pago').value = a.telefono_pago || '';
+    document.getElementById('ma-instrucciones').value = a.instrucciones || '';
+    document.getElementById('ma-activo').checked = a.activo !== false;
+  }
+
+  document.getElementById('modal-account').classList.add('open');
+}
+
+document.getElementById('ma-save-btn').addEventListener('click', async () => {
+  const pais = document.getElementById('ma-pais').value.trim();
+  const moneda = document.getElementById('ma-moneda').value;
+  const metodo = document.getElementById('ma-metodo').value.trim();
+
+  if (!pais || !metodo) {
+    showAlert('ma-alert', 'País y método de pago son obligatorios.', 'error');
+    return;
+  }
+
+  const payload = {
+    pais_nombre: pais,
+    pais_bandera: document.getElementById('ma-bandera').value.trim() || '🌐',
+    moneda,
+    metodo,
+    titular: document.getElementById('ma-titular').value.trim() || null,
+    banco: document.getElementById('ma-banco').value.trim() || null,
+    numero_cuenta: document.getElementById('ma-numero').value.trim() || null,
+    tipo_cuenta: document.getElementById('ma-tipo').value.trim() || null,
+    identificacion: document.getElementById('ma-identificacion').value.trim() || null,
+    iban: document.getElementById('ma-iban').value.trim() || null,
+    swift: document.getElementById('ma-swift').value.trim() || null,
+    swift_alt: document.getElementById('ma-swift-alt').value.trim() || null,
+    numero_aba: document.getElementById('ma-aba').value.trim() || null,
+    direccion_beneficiario: document.getElementById('ma-direccion-beneficiario').value.trim() || null,
+    direccion_banco: document.getElementById('ma-direccion-banco').value.trim() || null,
+    email_pago: document.getElementById('ma-email-pago').value.trim() || null,
+    telefono_pago: document.getElementById('ma-telefono-pago').value.trim() || null,
+    instrucciones: document.getElementById('ma-instrucciones').value.trim() || null,
+    activo: document.getElementById('ma-activo').checked
+  };
+
+  const btn = document.getElementById('ma-save-btn');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  let error;
+  if (editingAccountId) {
+    ({ error } = await sb.from('payment_accounts').update(payload).eq('id', editingAccountId));
+  } else {
+    ({ error } = await sb.from('payment_accounts').insert(payload));
+  }
+
+  btn.disabled = false; btn.textContent = 'Guardar cuenta';
+
+  if (error) {
+    showAlert('ma-alert', 'Error: ' + error.message, 'error');
+    return;
+  }
+
+  document.getElementById('modal-account').classList.remove('open');
+  loadPaymentAccounts();
+});
+
+async function deleteAccount(id) {
+  if (!confirm('¿Eliminar esta cuenta de pago? No se podrá usar en nuevos envíos.')) return;
+  const { error } = await sb.from('payment_accounts').delete().eq('id', id);
+  if (error) { alert('Error al eliminar: ' + error.message); return; }
+  loadPaymentAccounts();
+}
+
+// ── Modal enviar información de pago ─────────────────────────
+document.getElementById('mpay-close').addEventListener('click', () => document.getElementById('modal-payment').classList.remove('open'));
+document.getElementById('modal-payment').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-payment')) document.getElementById('modal-payment').classList.remove('open');
+});
+
+async function openPaymentModal(quoteId) {
+  document.getElementById('mpay-alert').innerHTML = '';
+  document.getElementById('modal-payment').classList.add('open');
+  document.getElementById('mpay-cliente-nombre').textContent = 'Cargando...';
+
+  // "quotes_full" da los campos amigables (cliente_nombre, plan_seleccionado_nombre...);
+  // "quotes" (tabla base) garantiza los campos nuevos de pago aunque la vista no se haya refrescado.
+  const [{ data: qFull }, { data: qRaw }] = await Promise.all([
+    sb.from('quotes_full').select('*').eq('id', quoteId).single(),
+    sb.from('quotes').select('*').eq('id', quoteId).single()
+  ]);
+  if (!qFull && !qRaw) { showAlert('mpay-alert', 'No se pudo cargar la cotización.', 'error'); return; }
+  const q = { ...(qFull || {}), ...(qRaw || {}) };
+
+  editingPaymentQuote = q;
+
+  document.getElementById('mpay-cliente-nombre').textContent = q.cliente_nombre || '—';
+  document.getElementById('mpay-cliente-empresa').textContent = q.cliente_empresa || '—';
+  document.getElementById('mpay-plan-nombre').textContent = q.plan_seleccionado_nombre || '—';
+  document.getElementById('mpay-moneda').textContent = q.moneda || 'USD';
+
+  // Correo del cliente: usar el de la vista si existe; si no, buscarlo en "clients"
+  let email = q.cliente_email || '';
+  if (!email && q.client_id) {
+    const { data: c } = await sb.from('clients').select('email').eq('id', q.client_id).single();
+    email = c?.email || '';
+  }
+  document.getElementById('mpay-email').value = email;
+
+  // Monto automático: si ya se envió antes, usar ese; si no, calcular desde precios_combinaciones
+  let monto = q.monto_pago;
+  if (monto == null) {
+    const clave = q.jornada_seleccionada ? (q.plan_seleccionado + '|' + q.jornada_seleccionada) : q.plan_seleccionado;
+    const preciosComb = q.precios_combinaciones || {};
+    if (clave && preciosComb[clave] != null) {
+      monto = preciosComb[clave];
+    } else if (q.plan_seleccionado_nombre && q.cotizacion_data?.servicios) {
+      // Fallback: buscar en cotizacion_data.servicios (cubre casos como media_3meses)
+      const svc = (q.cotizacion_data.servicios || []).find(s => s.nombre_display === q.plan_seleccionado_nombre);
+      if (svc) monto = svc.precio_inicio != null ? svc.precio_inicio : svc.precio;
+    }
+  }
+  document.getElementById('mpay-monto').value = monto != null ? monto : '';
+
+  document.getElementById('mpay-idioma').value = q.idioma || 'es';
+  document.getElementById('mpay-nota').value = q.nota_pago || '';
+  document.getElementById('mpay-link-pago').value = q.link_pago || '';
+
+  const preselectIds = Array.isArray(q.metodos_pago_ids) ? q.metodos_pago_ids : (q.metodo_pago_id ? [q.metodo_pago_id] : null);
+  populateCuentaSelect(q.moneda_pago || q.moneda, preselectIds);
+
+  updatePaymentPreview();
+}
+
+function updatePaymentPreview() {
+  const cuentas = getSelectedCuentas();
+  const link = document.getElementById('mpay-link-pago').value.trim();
+  const preview = document.getElementById('mpay-preview');
+  if (cuentas.length === 0 && !link) { preview.innerHTML = '<span style="color:var(--gray-500);">Marca al menos una opción de pago para ver la vista previa.</span>'; return; }
+
+  const bloques = cuentas.map(cuenta => {
+    const partes = [];
+    if (cuenta.titular) partes.push(`<strong>Beneficiario:</strong> ${cuenta.titular}`);
+    if (cuenta.banco) partes.push(`<strong>Banco:</strong> ${cuenta.banco}`);
+    if (cuenta.numero_cuenta) partes.push(`<strong>Cuenta:</strong> ${cuenta.numero_cuenta}`);
+    if (cuenta.tipo_cuenta) partes.push(`<strong>Tipo:</strong> ${cuenta.tipo_cuenta}`);
+    if (cuenta.direccion_beneficiario) partes.push(`<strong>Dirección beneficiario:</strong> ${cuenta.direccion_beneficiario}`);
+    if (cuenta.numero_aba) partes.push(`<strong>ABA:</strong> ${cuenta.numero_aba}`);
+    if (cuenta.iban) partes.push(`<strong>IBAN:</strong> ${cuenta.iban}`);
+    if (cuenta.swift) partes.push(`<strong>SWIFT:</strong> ${cuenta.swift}${cuenta.swift_alt ? ' / ' + cuenta.swift_alt : ''}`);
+    if (cuenta.direccion_banco) partes.push(`<strong>Dirección banco:</strong> ${cuenta.direccion_banco}`);
+    if (cuenta.email_pago) partes.push(`<strong>Email:</strong> ${cuenta.email_pago}`);
+    if (cuenta.telefono_pago) partes.push(`<strong>Teléfono:</strong> ${cuenta.telefono_pago}`);
+    return `<div style="margin-bottom:10px;"><strong>${cuenta.metodo}</strong><br>${partes.join('<br>') || '<span style="color:var(--gray-500);">Sin datos adicionales.</span>'}</div>`;
+  });
+
+  if (link) bloques.push(`<div><strong>Link de pago</strong><br>${link}</div>`);
+
+  preview.innerHTML = bloques.join('');
+}
+document.getElementById('mpay-link-pago').addEventListener('input', updatePaymentPreview);
+
+document.getElementById('mpay-send-btn').addEventListener('click', async () => {
+  if (!editingPaymentQuote) return;
+  const email = document.getElementById('mpay-email').value.trim();
+  const cuentas = getSelectedCuentas();
+  const linkPago = document.getElementById('mpay-link-pago').value.trim();
+  const monto = parseFloat(document.getElementById('mpay-monto').value);
+  const idioma = document.getElementById('mpay-idioma').value;
+  const nota = document.getElementById('mpay-nota').value.trim();
+  const moneda = document.getElementById('mpay-moneda').textContent.trim() || 'USD';
+
+  if (!email) { showAlert('mpay-alert', 'Ingresa el correo del cliente.', 'error'); return; }
+  if (cuentas.length === 0 && !linkPago) { showAlert('mpay-alert', 'Marca al menos una opción de pago o ingresa un link de pago.', 'error'); return; }
+  if (!monto || monto <= 0) { showAlert('mpay-alert', 'Ingresa un monto válido.', 'error'); return; }
+
+  const btn = document.getElementById('mpay-send-btn');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+
+  try {
+    const resp = await fetch(PAYMENT_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quote_id: editingPaymentQuote.id,
+        cliente_nombre: editingPaymentQuote.cliente_nombre,
+        cliente_empresa: editingPaymentQuote.cliente_empresa,
+        cliente_email: email,
+        monto,
+        moneda,
+        cuentas,
+        link_pago: linkPago || null,
+        nota,
+        idioma
+      })
+    });
+
+    if (!resp.ok) {
+      const errBody = await resp.text();
+      throw new Error(errBody || 'Error al enviar el correo');
+    }
+
+    const nombresMetodos = cuentas.map(c => c.metodo).join(', ') + (linkPago ? (cuentas.length ? ', Link de pago' : 'Link de pago') : '');
+
+    const { error: updErr } = await sb.from('quotes').update({
+      estado_pago: 'enviado',
+      monto_pago: monto,
+      moneda_pago: moneda,
+      metodos_pago_ids: cuentas.map(c => c.id),
+      metodos_pago_nombres: nombresMetodos,
+      link_pago: linkPago || null,
+      fecha_envio_pago: new Date().toISOString(),
+      nota_pago: nota || null
+    }).eq('id', editingPaymentQuote.id);
+
+    if (updErr) throw updErr;
+
+    await sb.from('quote_events').insert({
+      quote_id: editingPaymentQuote.id,
+      tipo: 'payment_sent',
+      metadata: { monto, moneda, metodos: nombresMetodos }
+    });
+
+    showAlert('mpay-alert', '✓ Información de pago enviada correctamente.', 'success');
+    setTimeout(() => {
+      document.getElementById('modal-payment').classList.remove('open');
+      loadPagos();
+    }, 900);
+
+  } catch (err) {
+    showAlert('mpay-alert', 'Error al enviar: ' + (err.message || 'desconocido'), 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '✉️ Enviar información de pago';
   }
 });
 
