@@ -565,7 +565,7 @@ function renderViewer(data, quoteId, isPreview) {
 
   // En modo preview: banner admin + botón de confirmar deshabilitado
   // (se omite en modo exportación a PDF, para que la captura se vea idéntica a lo que ve el cliente)
-  if (isPreview && !isPdfExport) {
+  if (isPreview && !window._isPdfExport) {
     const planSelNombre = (data.planes_ofrecidos || []).find(p => p.id === data.plan_seleccionado)?.nombre || null;
     const jorNombre = data.jornada_seleccionada ? (tx.jornadas?.[data.jornada_seleccionada] || data.jornada_seleccionada) : null;
     // Insertar banner admin antes del contenido principal
@@ -710,7 +710,7 @@ function renderViewer(data, quoteId, isPreview) {
     `).join('');
   }
 
-  if (isPreview && !isPdfExport) {
+  if (isPreview && !window._isPdfExport) {
     // En modo preview: botón de confirmar deshabilitado con tooltip explicativo
     const confirmBtn = document.getElementById('v-confirm-btn');
     confirmBtn.disabled = true;
