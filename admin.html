@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AVO · Panel de Cotizaciones</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 <style>
   /* ── TOKENS ─────────────────────────────────────────── */
   :root {
@@ -459,7 +460,7 @@
       </div>
 
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
-        <div class="prosp-chip" data-dash-preset="mes">Este mes</div>
+        <div class="prosp-chip active" data-dash-preset="mes">Este mes</div>
         <div class="prosp-chip" data-dash-preset="3m">Últimos 3 meses</div>
         <div class="prosp-chip" data-dash-preset="6m">Últimos 6 meses</div>
         <div class="prosp-chip" data-dash-preset="anio">Este año</div>
@@ -468,6 +469,7 @@
         <select id="dash-desde" class="btn btn-outline btn-sm" style="padding:7px 12px;"></select>
         <label style="font-size:12px;color:var(--gray-500);font-weight:600;">Hasta</label>
         <select id="dash-hasta" class="btn btn-outline btn-sm" style="padding:7px 12px;"></select>
+        <span style="font-size:11px;color:var(--gray-400);font-style:italic;">(rango máximo: 1 año)</span>
       </div>
 
       <div class="stats-grid" id="dash-stats">
@@ -956,6 +958,7 @@
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
           <button class="btn btn-outline btn-sm" id="mq-copy-link">📋 Copiar enlace</button>
           <button class="btn btn-primary btn-sm" id="mq-preview-btn">👁 Ver cotización</button>
+          <button class="btn btn-outline btn-sm" id="mq-download-pdf">📄 Descargar PDF</button>
         </div>
       </div>
 
@@ -1253,6 +1256,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 let currentUser   = null;
 let allPlans      = [];
 let editingQuote  = null;
+let currentQuoteFull = null; // datos completos (quotes_full + columnas base) de la cotización abierta en el modal — usados para exportar el PDF
 let allPaymentAccounts = [];
 let editingPaymentQuote = null;  // { id, cliente_nombre, cliente_empresa, ... } de la cotización que se está pagando
 let editingAccountId   = null;
@@ -1395,15 +1399,42 @@ function getRangeBetween(desdeVal, hastaVal) {
   return { start, end };
 }
 
+// Límite: el rango Desde–Hasta no puede superar 1 año (12 meses). Si se excede,
+// se recorta automáticamente el extremo "Desde" para que quede a 11 meses de "Hasta".
+const DASH_MAX_MESES = 12;
+function clampDashRange(desdeVal, hastaVal) {
+  let [y1, m1] = desdeVal.split('-').map(Number);
+  let [y2, m2] = hastaVal.split('-').map(Number);
+  let desdeIdx = y1 * 12 + (m1 - 1);
+  let hastaIdx = y2 * 12 + (m2 - 1);
+  // Si "Desde" quedó después de "Hasta", se intercambian
+  if (desdeIdx > hastaIdx) { [desdeIdx, hastaIdx] = [hastaIdx, desdeIdx]; }
+  if (hastaIdx - desdeIdx > DASH_MAX_MESES - 1) {
+    desdeIdx = hastaIdx - (DASH_MAX_MESES - 1);
+  }
+  const toVal = idx => {
+    const y = Math.floor(idx / 12);
+    const m = idx - y * 12 + 1;
+    return `${y}-${String(m).padStart(2, '0')}`;
+  };
+  return { desdeVal: toVal(desdeIdx), hastaVal: toVal(hastaIdx) };
+}
+
 function setDashRange(desdeVal, hastaVal) {
-  document.getElementById('dash-desde').value = desdeVal;
-  document.getElementById('dash-hasta').value = hastaVal;
+  const clamped = clampDashRange(desdeVal, hastaVal);
+  document.getElementById('dash-desde').value = clamped.desdeVal;
+  document.getElementById('dash-hasta').value = clamped.hastaVal;
   loadDashboard();
 }
 
 ['dash-desde','dash-hasta'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => {
     document.querySelectorAll('[data-dash-preset]').forEach(c => c.classList.remove('active'));
+    const desdeVal = document.getElementById('dash-desde').value;
+    const hastaVal = document.getElementById('dash-hasta').value;
+    const clamped = clampDashRange(desdeVal, hastaVal);
+    document.getElementById('dash-desde').value = clamped.desdeVal;
+    document.getElementById('dash-hasta').value = clamped.hastaVal;
     loadDashboard();
   });
 });
@@ -1965,6 +1996,7 @@ async function openQuoteModal(quoteId) {
     sb.from('quote_events').select('*').eq('quote_id', quoteId).order('created_at', { ascending: false })
   ]);
   const q = { ...(qFull || {}), ...(qRaw || {}) };
+  currentQuoteFull = q; // usado por downloadQuotePDF()
 
   document.getElementById('mq-title').textContent = `${q.cliente_nombre} · ${q.cliente_empresa}`;
 
@@ -2040,6 +2072,163 @@ document.getElementById('mq-preview-btn').addEventListener('click', () => {
   const previewUrl = link.includes('?') ? link + '&preview=true' : link + '?preview=true';
   window.open(previewUrl, '_blank');
 });
+
+// ════════════════════════════════════════════════════════════
+//  DESCARGAR COTIZACIÓN EN PDF (desde el detalle de la cotización)
+//  Genera un PDF en el propio navegador (sin backend) a partir de
+//  cotizacion_data, con el mismo contenido que ve el cliente en el
+//  viewer (servicios, telefonía y condiciones), en una versión
+//  imprimible sin los controles interactivos de selección.
+// ════════════════════════════════════════════════════════════
+function escHtmlPdf(str) {
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+
+function formatPrecioPdf(valor, moneda) {
+  const sym = ({ USD:'$', EUR:'€', COP:'$', MXN:'$' })[moneda] || '$';
+  const num = Number(valor) || 0;
+  return `${sym}${num.toLocaleString('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function buildQuotePrintableHtml(q) {
+  const cd = q.cotizacion_data || {};
+  const idioma = q.idioma || 'es';
+  const en = idioma === 'en';
+  const moneda = q.moneda || 'USD';
+  const jNombres = {
+    media: en ? 'Part-time' : 'Media Jornada',
+    completa: en ? 'Full-time' : 'Jornada Completa',
+    media_3meses: en ? 'Part-time (first 3 months)' : 'Media Jornada (primeros 3 meses)'
+  };
+
+  const telVinculado = (cd.telefonia && cd.telefonia.vinculado_a_servicio) || null;
+
+  function telCardHtml() {
+    if (!cd.telefonia || cd.telefonia.tipo === 'none') return '';
+    let inner = '';
+    if (cd.telefonia.tipo === 'incluida' && cd.telefonia.incluida_info) {
+      const info = cd.telefonia.incluida_info;
+      inner = `<div style="font-weight:700;margin-bottom:6px;">📞 ${en ? 'VoIP Telephony (Included)' : 'Telefonía VoIP (Incluida en el plan)'}</div>`
+        + `<ul style="margin:0 0 0 18px;padding:0;font-size:12px;color:#333;"><li>${en ? `Outbound call package of ${info.minutos} monthly minutes.` : `Paquete de llamadas salientes de ${info.minutos} minutos mensuales.`}</li>`
+        + (info.extras || []).map(e => `<li>${escHtmlPdf(e)}</li>`).join('') + `</ul>`;
+    } else if (cd.telefonia.tipo === 'opcional') {
+      const paises = cd.telefonia.paises_seleccionados || [];
+      inner = `<div style="font-weight:700;margin-bottom:6px;">📞 ${en ? 'VoIP Telephony Plans (Optional)' : 'Planes de Telefonía VoIP (Opcionales)'}</div>`
+        + `<div style="font-size:12px;color:#555;margin-bottom:6px;">${paises.length} ${en ? 'country/countries with plans available' : 'país(es) con planes disponibles'}: ${paises.map(k => (cd.telefonia.planes_por_pais||{})[k]?.nombre || k).join(', ')}</div>`
+        + ((cd.telefonia.extras || []).length ? `<ul style="margin:0 0 0 18px;padding:0;font-size:12px;color:#333;">${cd.telefonia.extras.map(e => `<li>${escHtmlPdf(e)}</li>`).join('')}</ul>` : '');
+    }
+    return `<div style="margin:0 0 14px;padding:12px 14px;background:#F4F7FB;border-left:3px solid #1B3A5C;border-radius:6px;">${inner}</div>`;
+  }
+
+  let serviciosHtml = '';
+  (cd.servicios || []).forEach(svc => {
+    const jornadas = svc.jornadas || [];
+    const horarios = svc.horarios || {};
+    const precios = svc.precios || {};
+    let filasHtml = '';
+    if (jornadas.includes('media_3meses')) {
+      const horIni = (svc.horario && svc.horario.texto_inicio) || '';
+      const horFull = (svc.horario && svc.horario.texto_full) || '';
+      if (horIni || svc.precio_inicio) filasHtml += `<tr><td>${en?'First 3 months':'Primeros 3 meses'}</td><td>${escHtmlPdf(horIni)}</td><td>${svc.precio_inicio ? formatPrecioPdf(svc.precio_inicio, moneda) : ''}</td></tr>`;
+      if (horFull || svc.precio_full) filasHtml += `<tr><td>${en?'From 4th month':'Desde el 4to mes'}</td><td>${escHtmlPdf(horFull)}</td><td>${svc.precio_full ? formatPrecioPdf(svc.precio_full, moneda) : ''}</td></tr>`;
+    } else {
+      jornadas.forEach(j => {
+        if (horarios[j]) filasHtml += `<tr><td>${jNombres[j]||j}</td><td>${escHtmlPdf(horarios[j])}</td><td>${precios[j] ? formatPrecioPdf(precios[j], moneda) : ''}</td></tr>`;
+      });
+    }
+    const funcsHtml = (svc.funciones || []).map(f => `<li>${escHtmlPdf(f)}</li>`).join('');
+
+    serviciosHtml += `
+      <div style="margin:0 0 16px;padding:14px 16px;border:1px solid #E5E5E0;border-radius:8px;page-break-inside:avoid;">
+        <div style="font-weight:800;font-size:14px;color:#0F1F3D;margin-bottom:8px;">${escHtmlPdf(svc.nombre_display || '')}</div>
+        ${filasHtml ? `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;">
+          <thead><tr style="text-align:left;color:#888;"><th style="padding:4px 6px;">${en?'Schedule':'Jornada'}</th><th style="padding:4px 6px;">${en?'Hours':'Horario'}</th><th style="padding:4px 6px;">${en?'Price':'Precio'}</th></tr></thead>
+          <tbody>${filasHtml}</tbody>
+        </table>` : ''}
+        <div style="font-size:12px;font-weight:700;color:#333;margin-bottom:4px;">${en?'Duties and Scope':'Funciones y alcance'}</div>
+        <ul style="margin:0 0 0 18px;padding:0;font-size:12px;color:#333;">${funcsHtml}</ul>
+        ${telVinculado === svc.imagen_key ? telCardHtml() : ''}
+      </div>`;
+  });
+
+  // Telefonía global (sin vincular a un servicio específico, o cotización Solo Telefonía)
+  const telGlobalHtml = (!telVinculado || (cd.servicios||[]).every(s => s.imagen_key !== telVinculado)) ? telCardHtml() : '';
+
+  const condicionesHtml = cd.condiciones_extras?.nota_personalizada
+    ? `<div style="margin-top:14px;padding:12px 14px;background:#FFF8E6;border-left:3px solid #F39C12;border-radius:6px;font-size:12px;color:#333;">${escHtmlPdf(cd.condiciones_extras.nota_personalizada)}</div>`
+    : '';
+
+  return `
+    <div style="font-family:Segoe UI,Arial,sans-serif;color:#222;padding:6px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid #0F1F3D;">
+        <img src="https://res.cloudinary.com/ny7ucpsj/image/upload/v1786393386/SVO_vcculy.jpg" style="width:38px;height:38px;border-radius:8px;object-fit:cover;" />
+        <div>
+          <div style="font-size:15px;font-weight:800;color:#0F1F3D;">AsistenteVirtualOk.com</div>
+          <div style="font-size:11px;color:#888;">${en?'Service Quote':'Cotización de Servicios'}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;font-size:12px;">
+        <div><strong>${en?'Client':'Cliente'}:</strong> ${escHtmlPdf(q.cliente_nombre)}${q.cliente_empresa ? ' — ' + escHtmlPdf(q.cliente_empresa) : ''}</div>
+        <div><strong>${en?'Sales rep':'Comercial'}:</strong> ${escHtmlPdf(q.comercial || '')}</div>
+        <div><strong>${en?'Date':'Fecha'}:</strong> ${fmt(q.fecha_envio)}</div>
+        <div><strong>${en?'Currency':'Moneda'}:</strong> ${moneda}</div>
+        <div><strong>${en?'Valid until':'Vigencia'}:</strong> ${q.vencimiento ? fmt(q.vencimiento) : (en?'No expiration':'Sin vencimiento')}</div>
+      </div>
+      ${serviciosHtml}
+      ${telGlobalHtml}
+      ${condicionesHtml}
+      <div style="margin-top:20px;padding-top:10px;border-top:1px solid #E5E5E0;font-size:10px;color:#999;">
+        AsistenteVirtualOk.com · Sistema de Cotizaciones · ID: ${q.id || ''}
+      </div>
+    </div>
+  `;
+}
+
+function downloadQuotePDF() {
+  if (!currentQuoteFull) { alert('No hay una cotización cargada.'); return; }
+  if (!currentQuoteFull.cotizacion_data) {
+    alert('Esta cotización no tiene datos de servicios generados para exportar (fue creada con el flujo anterior de Word). Usa el enlace "Archivo Word" del detalle en su lugar.');
+    return;
+  }
+  if (typeof html2pdf === 'undefined') {
+    alert('No se pudo cargar el generador de PDF (revisa tu conexión a internet e intenta de nuevo).');
+    return;
+  }
+  const btn = document.getElementById('mq-download-pdf');
+  const originalTxt = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Generando PDF...';
+
+  const container = document.createElement('div');
+  container.style.width = '760px';
+  container.innerHTML = buildQuotePrintableHtml(currentQuoteFull);
+  document.body.appendChild(container);
+
+  const nombreArchivo = `Cotizacion-${(currentQuoteFull.cliente_empresa || currentQuoteFull.cliente_nombre || 'AVO').replace(/[^a-zA-Z0-9]+/g,'-')}-${currentQuoteFull.id ? currentQuoteFull.id.slice(0,8) : ''}.pdf`;
+
+  html2pdf().set({
+    margin: 10,
+    filename: nombreArchivo,
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+    pagebreak: { mode: ['css', 'legacy'] }
+  }).from(container).save().then(() => {
+    document.body.removeChild(container);
+    btn.disabled = false;
+    btn.textContent = originalTxt;
+  }).catch((err) => {
+    console.error('Error generando PDF:', err);
+    document.body.removeChild(container);
+    btn.disabled = false;
+    btn.textContent = originalTxt;
+    alert('Ocurrió un error generando el PDF. Intenta de nuevo.');
+  });
+}
+
+document.getElementById('mq-download-pdf').addEventListener('click', downloadQuotePDF);
 
 document.getElementById('mq-save-plans').addEventListener('click', async () => {
   const planes = getSelectedPlans('mq-plans-edit');
