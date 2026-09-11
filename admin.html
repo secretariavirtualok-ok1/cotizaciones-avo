@@ -451,14 +451,23 @@
 
     <!-- ── DASHBOARD ────────────────────────────────────── -->
     <div class="panel active" id="panel-dashboard">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
         <div>
-          <h2 style="font-size:18px;font-weight:800;">Resumen del mes</h2>
+          <h2 style="font-size:18px;font-weight:800;">Resumen del período</h2>
           <p style="color:var(--gray-500);font-size:13px;" id="dash-periodo">Cargando...</p>
         </div>
-        <select id="dash-mes" class="btn btn-outline btn-sm" style="padding:7px 12px;">
-          <!-- populated by JS -->
-        </select>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+        <div class="prosp-chip" data-dash-preset="mes">Este mes</div>
+        <div class="prosp-chip" data-dash-preset="3m">Últimos 3 meses</div>
+        <div class="prosp-chip" data-dash-preset="6m">Últimos 6 meses</div>
+        <div class="prosp-chip" data-dash-preset="anio">Este año</div>
+        <div style="width:1px;height:20px;background:var(--gray-200);margin:0 4px;"></div>
+        <label style="font-size:12px;color:var(--gray-500);font-weight:600;">Desde</label>
+        <select id="dash-desde" class="btn btn-outline btn-sm" style="padding:7px 12px;"></select>
+        <label style="font-size:12px;color:var(--gray-500);font-weight:600;">Hasta</label>
+        <select id="dash-hasta" class="btn btn-outline btn-sm" style="padding:7px 12px;"></select>
       </div>
 
       <div class="stats-grid" id="dash-stats">
@@ -466,7 +475,7 @@
       </div>
 
       <div class="card">
-        <div class="card-title">Rendimiento por comercial — mes actual</div>
+        <div class="card-title" id="dash-comercial-title">Rendimiento por comercial</div>
         <div class="table-wrap">
           <table id="dash-comercial-table">
             <thead>
@@ -1272,8 +1281,9 @@ async function showApp(user) {
   document.getElementById('app').style.display = 'flex';
   document.getElementById('topbar-email').textContent = user.email;
   await loadPlans();
-  loadDashboard();
   initMesSelectors();
+  initDashRangeSelectors();
+  loadDashboard();
 }
 
 document.getElementById('login-btn').addEventListener('click', async () => {
@@ -1346,11 +1356,74 @@ function initMesSelectors() {
     const label = d.toLocaleDateString('es-VE', { month:'long', year:'numeric' });
     opts.push(`<option value="${val}">${label.charAt(0).toUpperCase()+label.slice(1)}</option>`);
   }
-  ['dash-mes','list-mes'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = opts.join('');
-  });
+  const el = document.getElementById('list-mes');
+  if (el) el.innerHTML = opts.join('');
 }
+
+// ── Dashboard: rango de fechas personalizado (Desde / Hasta) ──────────
+function mesLabel(d) {
+  const label = d.toLocaleDateString('es-VE', { month:'long', year:'numeric' });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+function mesVal(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+
+function initDashRangeSelectors() {
+  const now = new Date();
+  const opts = [];
+  // 36 meses hacia atrás — suficiente para comparar años completos
+  for (let i = 0; i < 36; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    opts.push(`<option value="${mesVal(d)}">${mesLabel(d)}</option>`);
+  }
+  const desdeEl = document.getElementById('dash-desde');
+  const hastaEl = document.getElementById('dash-hasta');
+  if (desdeEl) desdeEl.innerHTML = opts.join('');
+  if (hastaEl) hastaEl.innerHTML = opts.join('');
+  // Por defecto: mes actual en ambos extremos
+  const actual = mesVal(now);
+  if (desdeEl) desdeEl.value = actual;
+  if (hastaEl) hastaEl.value = actual;
+}
+
+function getRangeBetween(desdeVal, hastaVal) {
+  let [y1, m1] = desdeVal.split('-').map(Number);
+  let [y2, m2] = hastaVal.split('-').map(Number);
+  // Si "Desde" quedó después de "Hasta", se intercambian para no devolver un rango vacío
+  if (y1 > y2 || (y1 === y2 && m1 > m2)) { [y1, m1, y2, m2] = [y2, m2, y1, m1]; }
+  const start = new Date(y1, m1 - 1, 1).toISOString();
+  const end   = new Date(y2, m2, 1).toISOString(); // primer día del mes siguiente a "Hasta"
+  return { start, end };
+}
+
+function setDashRange(desdeVal, hastaVal) {
+  document.getElementById('dash-desde').value = desdeVal;
+  document.getElementById('dash-hasta').value = hastaVal;
+  loadDashboard();
+}
+
+['dash-desde','dash-hasta'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    document.querySelectorAll('[data-dash-preset]').forEach(c => c.classList.remove('active'));
+    loadDashboard();
+  });
+});
+document.querySelectorAll('[data-dash-preset]').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('[data-dash-preset]').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    const now = new Date();
+    const preset = chip.dataset.dashPreset;
+    if (preset === 'mes') {
+      setDashRange(mesVal(now), mesVal(now));
+    } else if (preset === '3m') {
+      setDashRange(mesVal(new Date(now.getFullYear(), now.getMonth() - 2, 1)), mesVal(now));
+    } else if (preset === '6m') {
+      setDashRange(mesVal(new Date(now.getFullYear(), now.getMonth() - 5, 1)), mesVal(now));
+    } else if (preset === 'anio') {
+      setDashRange(`${now.getFullYear()}-01`, mesVal(now));
+    }
+  });
+});
 
 // ════════════════════════════════════════════════════════════
 //  PLANES
@@ -1738,12 +1811,20 @@ document.getElementById('ml-copy').addEventListener('click', () => {
 // ════════════════════════════════════════════════════════════
 //  DASHBOARD
 // ════════════════════════════════════════════════════════════
-document.getElementById('dash-mes').addEventListener('change', loadDashboard);
-
 async function loadDashboard() {
-  const mesVal = document.getElementById('dash-mes').value;
-  if (!mesVal) return;
-  const { start, end } = getMesRange(mesVal);
+  const desdeVal = document.getElementById('dash-desde').value;
+  const hastaVal = document.getElementById('dash-hasta').value;
+  if (!desdeVal || !hastaVal) return;
+  const { start, end } = getRangeBetween(desdeVal, hastaVal);
+
+  // Texto del período visible arriba del dashboard (ej. "Junio 2026 – Agosto 2026")
+  const [dy, dm] = desdeVal.split('-').map(Number);
+  const [hy, hm] = hastaVal.split('-').map(Number);
+  const desdeLbl = mesLabel(new Date(dy, dm - 1, 1));
+  const hastaLbl = mesLabel(new Date(hy, hm - 1, 1));
+  document.getElementById('dash-periodo').textContent = desdeVal === hastaVal ? desdeLbl : `${desdeLbl} – ${hastaLbl}`;
+  const comercialTitleEl = document.getElementById('dash-comercial-title');
+  if (comercialTitleEl) comercialTitleEl.textContent = `Rendimiento por comercial — ${desdeVal === hastaVal ? desdeLbl.toLowerCase() : 'período seleccionado'}`;
 
   const { data: quotes } = await sb.from('quotes_full').select('*')
     .gte('created_at', start).lt('created_at', end);
