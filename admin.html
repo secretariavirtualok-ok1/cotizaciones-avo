@@ -2088,7 +2088,8 @@ async function downloadQuotePDF() {
     const src = `${VIEWER_BASE_URL}.html?id=${currentQuoteFull.id}&preview=true&pdf=true`;
     iframe = document.createElement('iframe');
     // Fuera de pantalla pero renderizado de verdad (no display:none, que no pinta el layout)
-    iframe.style.cssText = 'position:fixed;top:0;left:-10000px;width:900px;height:1200px;border:0;background:#fff;';
+    // Ancho 700px para que el contenido (max-width:680px) rellene sin huecos laterales
+    iframe.style.cssText = 'position:fixed;top:0;left:-10000px;width:700px;height:3000px;border:0;background:#fff;';
     document.body.appendChild(iframe);
 
     await new Promise((resolve, reject) => {
@@ -2124,14 +2125,15 @@ async function downloadQuotePDF() {
       setTimeout(resolve, 6000); // respaldo por si alguna imagen nunca dispara el evento
     });
 
-    const target = iframeDoc.querySelector('.container') || iframeDoc.body;
+    // Capturar todo el screen-viewer (incluye header con logo y datos del cliente)
+    const target = iframeDoc.getElementById('screen-viewer') || iframeDoc.body;
     const nombreArchivo = `Cotizacion-${(currentQuoteFull.cliente_empresa || currentQuoteFull.cliente_nombre || 'AVO').replace(/[^a-zA-Z0-9]+/g,'-')}-${currentQuoteFull.id ? currentQuoteFull.id.slice(0,8) : ''}.pdf`;
 
     await html2pdf().set({
-      margin: 8,
+      margin: [6, 0, 6, 0],
       filename: nombreArchivo,
       image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2, useCORS: true, windowWidth: 900 },
+      html2canvas: { scale: 2, useCORS: true, windowWidth: 700 },
       jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'] }
     }).from(target).save();
