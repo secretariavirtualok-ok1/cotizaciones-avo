@@ -237,6 +237,19 @@
   .gen-voip-table { width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px; }
   .gen-voip-table th { text-align:left;padding:8px 12px;background:var(--cream);font-size:11px;font-weight:700;text-transform:uppercase;color:var(--gray-500);border-bottom:2px solid var(--gray-100); }
   .gen-voip-table td { padding:8px 12px;border-bottom:1px solid var(--gray-100);color:var(--gray-700); }
+
+  /* ── PDF EXPORT MODE ─────────────────────────────────── */
+  body.pdf-export { min-height: auto; }
+  body.pdf-export .container { max-width: none; width: 100%; padding: 24px 20px 40px; }
+  body.pdf-export .header { padding: 24px 20px 28px; }
+  body.pdf-export #screen-loading,
+  body.pdf-export #screen-error,
+  body.pdf-export #screen-expired { display: none !important; }
+  body.pdf-export #screen-viewer { display: block !important; }
+  body.pdf-export .plan-option { break-inside: avoid; }
+  body.pdf-export .card { break-inside: avoid; }
+  body.pdf-export .gen-svc-img { max-width: 100%; height: auto; }
+  body.pdf-export .footer { break-inside: avoid; }
 </style>
 </head>
 <body>
@@ -389,6 +402,9 @@ async function init() {
   const isPreview = params.get('preview') === 'true'; // modo vista previa del admin
   const isPdfExport = params.get('pdf') === 'true'; // captura para exportar a PDF desde el admin — sin banner ni botón deshabilitado, para que se vea idéntico a lo que ve el cliente
   window._isPdfExport = isPdfExport;
+
+  // En modo PDF export: agregar clase al body para activar estilos especiales de layout
+  if (isPdfExport) { document.body.classList.add('pdf-export'); }
 
   if (!quoteId) { show('screen-error'); return; }
 
