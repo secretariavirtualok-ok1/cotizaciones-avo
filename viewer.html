@@ -387,6 +387,8 @@ async function init() {
   const params = new URLSearchParams(window.location.search);
   const quoteId = params.get('id');
   const isPreview = params.get('preview') === 'true'; // modo vista previa del admin
+  const isPdfExport = params.get('pdf') === 'true'; // captura para exportar a PDF desde el admin — sin banner ni botón deshabilitado, para que se vea idéntico a lo que ve el cliente
+  window._isPdfExport = isPdfExport;
 
   if (!quoteId) { show('screen-error'); return; }
 
@@ -562,7 +564,8 @@ function renderViewer(data, quoteId, isPreview) {
   }
 
   // En modo preview: banner admin + botón de confirmar deshabilitado
-  if (isPreview) {
+  // (se omite en modo exportación a PDF, para que la captura se vea idéntica a lo que ve el cliente)
+  if (isPreview && !isPdfExport) {
     const planSelNombre = (data.planes_ofrecidos || []).find(p => p.id === data.plan_seleccionado)?.nombre || null;
     const jorNombre = data.jornada_seleccionada ? (tx.jornadas?.[data.jornada_seleccionada] || data.jornada_seleccionada) : null;
     // Insertar banner admin antes del contenido principal
@@ -707,7 +710,7 @@ function renderViewer(data, quoteId, isPreview) {
     `).join('');
   }
 
-  if (isPreview) {
+  if (isPreview && !isPdfExport) {
     // En modo preview: botón de confirmar deshabilitado con tooltip explicativo
     const confirmBtn = document.getElementById('v-confirm-btn');
     confirmBtn.disabled = true;
@@ -728,6 +731,10 @@ function renderViewer(data, quoteId, isPreview) {
   if (data.modo_cotizacion === 'generada') {
     renderGeneratedQuote(data);
   }
+
+  // Señal para quien esté esperando a que termine de renderizar (ej. la exportación a PDF
+  // desde admin.html, que carga esta página en un iframe oculto y espera este flag).
+  window._viewerRenderComplete = true;
 }
 
 function selectPlan(planId, el) {
@@ -779,8 +786,22 @@ function selectViewerVoipPlan(paisKey, minutos, precioInicial, precioMensual, no
 }
 
 function checkVoipConfirmReady() {
-  var paises = (quoteData && quoteData.cotizacion_data && quoteData.cotizacion_data.telefonia
-    && quoteData.cotizacion_data.telefonia.paises_seleccionados) || [];
+  var cd = quoteData && quoteData.cotizacion_data;
+  var paises = [];
+  if (cd) {
+    // Formato antiguo, global
+    if (cd.telefonia && cd.telefonia.tipo === 'opcional') {
+      paises = paises.concat(cd.telefonia.paises_seleccionados || []);
+    }
+    // Formato nuevo: telefonía independiente por servicio — puede haber más de un
+    // servicio con planes opcionales, hay que esperar a que TODOS tengan selección
+    if (cd.telefonia_por_servicio) {
+      Object.keys(cd.telefonia_por_servicio).forEach(function(k) {
+        var t = cd.telefonia_por_servicio[k];
+        if (t && t.tipo === 'opcional') paises = paises.concat(t.paises_seleccionados || []);
+      });
+    }
+  }
   if (paises.length === 0) return;
   var allSelected = paises.every(function(p) { return !!window._selectedVoipPlans[p]; });
   document.getElementById('v-confirm-btn').disabled = !allSelected;
@@ -913,6 +934,92 @@ function renderGeneratedQuote(data) {
     media_3meses: idioma === 'en' ? 'Part-time (first 3 months)' : 'Media Jornada (primeros 3 meses)'
   };
 
+  // Si la telefonía quedó vinculada a un servicio específico (formato antiguo, cotizaciones
+  // ya guardadas), su tarjeta se inserta justo después de la tarjeta de ese servicio (dentro
+  // del forEach) en vez de al final como bloque genérico aplicable a "todos" los servicios.
+  var telVinculado = (cd.telefonia && cd.telefonia.vinculado_a_servicio) || null;
+  var telCardRendered = false;
+
+  // buildTelCardContent recibe el objeto de telefonía a renderizar — puede ser el formato
+  // antiguo global (cd.telefonia) o una entrada del nuevo formato por-servicio
+  // (cd.telefonia_por_servicio[clave]), ambos con la misma forma interna.
+  function buildTelCardContent(tel) {
+    var sym = ({USD:'$',EUR:'€',COP:'$',MXN:'$'})[moneda] || '$';
+    var telContent = '';
+    if (!tel) return telContent;
+
+    if (tel.tipo === 'incluida' && tel.incluida_info) {
+      var info = tel.incluida_info;
+      var titleTxt = idioma === 'en' ? 'VoIP Telephony (Included)' : 'Telefonía VoIP (Incluida en el plan)';
+      var minTxt = idioma === 'en'
+        ? 'Outbound call package of ' + info.minutos + ' monthly minutes.'
+        : 'Paquete de llamadas salientes de ' + info.minutos + ' minutos mensuales.';
+      telContent = '<div class="card-label">📞 ' + titleTxt + '</div>'
+        + '<ul class="gen-func-list"><li>' + minTxt + '</li>'
+        + (info.extras || []).map(function(e){ return '<li>' + e + '</li>'; }).join('')
+        + '</ul>';
+    } else if (tel.tipo === 'opcional') {
+      var titleTxt2 = idioma === 'en' ? '📞 VoIP Telephony Plans (Optional)' : '📞 Planes de Telefonía VoIP (Opcionales)';
+      var introTxt = idioma === 'en'
+        ? 'Select the minutes package that best fits your needs for each country. This service is optional.'
+        : 'Selecciona el paquete de minutos que mejor se adapte a tus necesidades por cada país. Este servicio es opcional.';
+      var vt = {
+        mo3:  idioma === 'en' ? 'First 3 months' : 'Primeros 3 meses',
+        mo4:  idioma === 'en' ? 'From 4th month' : 'Desde el 4° mes',
+        min:  idioma === 'en' ? 'minutes' : 'minutos',
+        per:  idioma === 'en' ? '/mo' : '/mes',
+        hint: idioma === 'en' ? '← Choose a package' : '← Selecciona un paquete',
+        sel:  idioma === 'en' ? '✓ selected' : '✓ seleccionado'
+      };
+      // Helper: extract planes array from either old (array) or new (object with todos_los_planes) format
+      function getVoipPlanes(d) {
+        if (!d) return [];
+        if (Array.isArray(d)) return d;
+        if (Array.isArray(d.todos_los_planes)) return d.todos_los_planes;
+        return [];
+      }
+      var defaultPaisNames = {us:'Estados Unidos',pr:'Puerto Rico',es:'España',mx:'México',cl:'Chile','do':'República Dominicana',uy:'Uruguay',colombia:'Colombia',pe:'Perú'};
+      var voipCardsHtml = '';
+      (tel.paises_seleccionados || []).forEach(function(paisKey) {
+        var paisData = (tel.planes_por_pais || {})[paisKey];
+        var planes = getVoipPlanes(paisData);
+        var pName = (typeof paisData === 'object' && !Array.isArray(paisData) && paisData && paisData.nombre) ? paisData.nombre : (defaultPaisNames[paisKey] || paisKey);
+        var pFlag = (typeof paisData === 'object' && !Array.isArray(paisData) && paisData && paisData.flag) ? paisData.flag : '';
+        // España siempre muestra precios en euros independientemente de la moneda de la cotización
+        var countrySym = paisKey === 'es' ? '€' : sym;
+        var planCards = planes.map(function(p) {
+          return '<label id="voip-lbl-' + paisKey + '-' + p.minutos + '" style="display:flex;align-items:flex-start;gap:9px;cursor:pointer;padding:11px 12px;background:white;border:2px solid #DEE2E6;border-radius:8px;transition:all .15s;">'
+            + '<input type="radio" name="voip-plan-' + paisKey + '" value="' + p.minutos + '"'
+            + ' onchange="selectViewerVoipPlan(\'' + paisKey + '\',' + p.minutos + ',' + p.precio_inicial + ',' + p.precio_mensual + ',\'' + pName.replace(/'/g,"\\'") + '\')"'
+            + ' style="margin-top:3px;accent-color:#2E86C1;cursor:pointer;">'
+            + '<div>'
+            + '<div style="font-weight:700;font-size:14px;color:#212529;">' + p.minutos + ' ' + vt.min + '</div>'
+            + '<div style="font-size:12px;color:#868E96;margin-top:2px;">' + vt.mo3 + ': <strong style="color:#343A40;">' + countrySym + p.precio_inicial + '</strong></div>'
+            + '<div style="font-size:12px;color:#868E96;">' + vt.mo4 + ': <strong style="color:#343A40;">' + countrySym + p.precio_mensual + vt.per + '</strong></div>'
+            + '</div></label>';
+        }).join('');
+        voipCardsHtml += '<div id="voip-sec-' + paisKey + '" style="margin-bottom:20px;padding:14px 16px;background:#F8F9FA;border-radius:8px;border:1px solid #E9ECEF;">'
+          + '<div style="font-size:13px;font-weight:700;color:#1B3A5C;margin-bottom:10px;">'
+          + (pFlag ? pFlag + ' ' : '') + pName
+          + ' <span id="voip-stat-' + paisKey + '" style="font-size:11px;font-weight:400;color:#F39C12;margin-left:6px;">' + vt.hint + '</span></div>'
+          + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;">' + planCards + '</div>'
+          + '</div>';
+      });
+      var extrasHtml2 = (tel.extras || []).length
+        ? '<ul class="gen-func-list" style="margin-top:14px;">' + tel.extras.map(function(e){ return '<li>' + e + '</li>'; }).join('') + '</ul>'
+        : '';
+      telContent = '<div class="card-label">' + titleTxt2 + '</div>'
+        + '<p style="font-size:13px;color:var(--gray-700);margin-bottom:16px;">' + introTxt + '</p>'
+        + '<div id="voip-cards-container">' + voipCardsHtml + '</div>'
+        + extrasHtml2;
+      // Store voip state for confirmation (acumulativo: puede haber más de una tarjeta VoIP
+      // opcional cuando cada servicio tiene su propia telefonía)
+      window._voipPaisesSeleccionados = (window._voipPaisesSeleccionados || []).concat(tel.paises_seleccionados || []);
+    }
+
+    return telContent;
+  }
+
   (cd.servicios || []).forEach(function(svc, svcIdx) {
 
     // ── CARD 1: Título + [imagen izq | horarios der] ──
@@ -1002,6 +1109,27 @@ function renderGeneratedQuote(data) {
       + '<p class="gen-svc-subtitle">' + scopeLabel + '</p>'
       + '<ul class="gen-func-list">' + funcsHtml + '</ul>' + notaHtml;
     container.insertBefore(card2, plansSectionEl);
+
+    // Si la telefonía está vinculada a ESTE servicio en particular (formato antiguo,
+    // cotizaciones ya guardadas), su tarjeta va justo aquí
+    if (cd.telefonia && cd.telefonia.tipo !== 'none' && telVinculado && telVinculado === svc.imagen_key) {
+      var telCardLinked = document.createElement('div');
+      telCardLinked.className = 'card';
+      telCardLinked.innerHTML = buildTelCardContent(cd.telefonia);
+      container.insertBefore(telCardLinked, plansSectionEl);
+      telCardRendered = true;
+    }
+
+    // Formato nuevo: telefonía configurada de forma independiente para ESTE servicio
+    if (cd.telefonia_por_servicio && cd.telefonia_por_servicio[svc.imagen_key]) {
+      var telSvc = cd.telefonia_por_servicio[svc.imagen_key];
+      if (telSvc && telSvc.tipo && telSvc.tipo !== 'none') {
+        var telCardSvc = document.createElement('div');
+        telCardSvc.className = 'card';
+        telCardSvc.innerHTML = buildTelCardContent(telSvc);
+        container.insertBefore(telCardSvc, plansSectionEl);
+      }
+    }
   });
 
   // ── Helper: fila de horario ──
@@ -1016,78 +1144,13 @@ function renderGeneratedQuote(data) {
       + '</div>';
   }
 
-  // ── TELEFONÍA ──
-  if (cd.telefonia && cd.telefonia.tipo !== 'none') {
+  // ── TELEFONÍA (formato antiguo, global — sin vincular a un servicio específico, o vínculo
+  // no encontrado). Las cotizaciones con telefonia_por_servicio (formato nuevo) nunca traen
+  // cd.telefonia, así que este bloque no las afecta. ──
+  if (cd.telefonia && cd.telefonia.tipo !== 'none' && !telCardRendered) {
     var telCard = document.createElement('div');
     telCard.className = 'card';
-    var telContent = '';
-    var sym = ({USD:'$',EUR:'€',COP:'$',MXN:'$'})[moneda] || '$';
-
-    if (cd.telefonia.tipo === 'incluida' && cd.telefonia.incluida_info) {
-      var info = cd.telefonia.incluida_info;
-      var titleTxt = idioma === 'en' ? 'VoIP Telephony (Included)' : 'Telefonía VoIP (Incluida en el plan)';
-      var minTxt = idioma === 'en'
-        ? 'Outbound call package of ' + info.minutos + ' monthly minutes.'
-        : 'Paquete de llamadas salientes de ' + info.minutos + ' minutos mensuales.';
-      telContent = '<div class="card-label">📞 ' + titleTxt + '</div>'
-        + '<ul class="gen-func-list"><li>' + minTxt + '</li>'
-        + (info.extras || []).map(function(e){ return '<li>' + e + '</li>'; }).join('')
-        + '</ul>';
-    } else if (cd.telefonia.tipo === 'opcional') {
-      var titleTxt2 = idioma === 'en' ? '📞 VoIP Telephony Plans (Optional)' : '📞 Planes de Telefonía VoIP (Opcionales)';
-      var introTxt = idioma === 'en'
-        ? 'Select the minutes package that best fits your needs for each country. This service is optional.'
-        : 'Selecciona el paquete de minutos que mejor se adapte a tus necesidades por cada país. Este servicio es opcional.';
-      var vt = {
-        mo3:  idioma === 'en' ? 'First 3 months' : 'Primeros 3 meses',
-        mo4:  idioma === 'en' ? 'From 4th month' : 'Desde el 4° mes',
-        min:  idioma === 'en' ? 'minutes' : 'minutos',
-        per:  idioma === 'en' ? '/mo' : '/mes',
-        hint: idioma === 'en' ? '← Choose a package' : '← Selecciona un paquete',
-        sel:  idioma === 'en' ? '✓ selected' : '✓ seleccionado'
-      };
-      // Helper: extract planes array from either old (array) or new (object with todos_los_planes) format
-      function getVoipPlanes(d) {
-        if (!d) return [];
-        if (Array.isArray(d)) return d;
-        if (Array.isArray(d.todos_los_planes)) return d.todos_los_planes;
-        return [];
-      }
-      var defaultPaisNames = {us:'Estados Unidos',pr:'Puerto Rico',es:'España',mx:'México',cl:'Chile','do':'República Dominicana',uy:'Uruguay',colombia:'Colombia',pe:'Perú'};
-      var voipCardsHtml = '';
-      (cd.telefonia.paises_seleccionados || []).forEach(function(paisKey) {
-        var paisData = (cd.telefonia.planes_por_pais || {})[paisKey];
-        var planes = getVoipPlanes(paisData);
-        var pName = (typeof paisData === 'object' && !Array.isArray(paisData) && paisData && paisData.nombre) ? paisData.nombre : (defaultPaisNames[paisKey] || paisKey);
-        var pFlag = (typeof paisData === 'object' && !Array.isArray(paisData) && paisData && paisData.flag) ? paisData.flag : '';
-        // España siempre muestra precios en euros independientemente de la moneda de la cotización
-        var countrySym = paisKey === 'es' ? '€' : sym;
-        var planCards = planes.map(function(p) {
-          return '<label id="voip-lbl-' + paisKey + '-' + p.minutos + '" style="display:flex;align-items:flex-start;gap:9px;cursor:pointer;padding:11px 12px;background:white;border:2px solid #DEE2E6;border-radius:8px;transition:all .15s;">'
-            + '<input type="radio" name="voip-plan-' + paisKey + '" value="' + p.minutos + '"'
-            + ' onchange="selectViewerVoipPlan(\'' + paisKey + '\',' + p.minutos + ',' + p.precio_inicial + ',' + p.precio_mensual + ',\'' + pName.replace(/'/g,"\\'") + '\')"'
-            + ' style="margin-top:3px;accent-color:#2E86C1;cursor:pointer;">'
-            + '<div>'
-            + '<div style="font-weight:700;font-size:14px;color:#212529;">' + p.minutos + ' ' + vt.min + '</div>'
-            + '<div style="font-size:12px;color:#868E96;margin-top:2px;">' + vt.mo3 + ': <strong style="color:#343A40;">' + countrySym + p.precio_inicial + '</strong></div>'
-            + '<div style="font-size:12px;color:#868E96;">' + vt.mo4 + ': <strong style="color:#343A40;">' + countrySym + p.precio_mensual + vt.per + '</strong></div>'
-            + '</div></label>';
-        }).join('');
-        voipCardsHtml += '<div id="voip-sec-' + paisKey + '" style="margin-bottom:20px;padding:14px 16px;background:#F8F9FA;border-radius:8px;border:1px solid #E9ECEF;">'
-          + '<div style="font-size:13px;font-weight:700;color:#1B3A5C;margin-bottom:10px;">'
-          + (pFlag ? pFlag + ' ' : '') + pName
-          + ' <span id="voip-stat-' + paisKey + '" style="font-size:11px;font-weight:400;color:#F39C12;margin-left:6px;">' + vt.hint + '</span></div>'
-          + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;">' + planCards + '</div>'
-          + '</div>';
-      });
-      telContent = '<div class="card-label">' + titleTxt2 + '</div>'
-        + '<p style="font-size:13px;color:var(--gray-700);margin-bottom:16px;">' + introTxt + '</p>'
-        + '<div id="voip-cards-container">' + voipCardsHtml + '</div>';
-      // Store voip state for confirmation
-      window._voipPaisesSeleccionados = cd.telefonia.paises_seleccionados || [];
-    }
-
-    telCard.innerHTML = telContent;
+    telCard.innerHTML = buildTelCardContent(cd.telefonia);
     container.insertBefore(telCard, plansSectionEl);
   }
 
@@ -1162,9 +1225,17 @@ function renderGeneratedQuote(data) {
   // aquí siempre hay servicios cotizados y la nota debe mostrarse, tenga o no telefonía adicional.
   // Detectar España: flag explícito en condiciones_extras, España entre los países VoIP (si hay telefonía),
   // o moneda de la cotización es EUR (cliente de España aunque no tenga telefonía)
+  var esEspanaPorServicio = !!(cd.telefonia_por_servicio && Object.keys(cd.telefonia_por_servicio).some(function(k) {
+    var t = cd.telefonia_por_servicio[k];
+    if (!t) return false;
+    if (t.tipo === 'incluida') return t.incluida_info && t.incluida_info.pais_key === 'es';
+    if (t.tipo === 'opcional') return (t.paises_seleccionados || []).includes('es');
+    return false;
+  }));
   var esEspana = (cd.condiciones_extras && cd.condiciones_extras.ajuste_es_espana)
     || ((cd.telefonia && cd.telefonia.paises_seleccionados || []).includes('es'))
     || (cd.telefonia && cd.telefonia.incluida_info && cd.telefonia.incluida_info.pais_key === 'es')
+    || esEspanaPorServicio
     || (data.moneda === 'EUR');
   if (idioma === 'en') {
     extrasCondHtml += '<div class="gen-nota" style="margin-top:16px;">Rates are subject to an annual adjustment. ' + (esEspana ? 'This adjustment is applied every February.' : 'This adjustment applies upon completion of each year of service.') + '</div>';
