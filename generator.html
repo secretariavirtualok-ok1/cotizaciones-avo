@@ -449,72 +449,72 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
     <div class="step-content hidden" id="step-5">
       <div class="card">
         <div class="card-title">Telefonía VoIP</div>
-        <div class="card-subtitle">Configura si la cotización incluye servicio de telefonía</div>
+        <div class="card-subtitle" id="voip-step5-subtitle">Configura si la cotización incluye servicio de telefonía</div>
 
-        <div class="voip-type-selector">
-          <div class="voip-type-btn active" data-voip="none" onclick="setVoipType('none')">
-            🚫 Sin telefonía
-          </div>
-          <div class="voip-type-btn" data-voip="incluida" onclick="setVoipType('incluida')">
-            📞 Incluida en el plan
-          </div>
-          <div class="voip-type-btn" data-voip="opcional" onclick="setVoipType('opcional')">
-            📋 Planes opcionales
-          </div>
-        </div>
-
-        <!-- Vincular la telefonía a un servicio específico (solo aplica si hay 2+ servicios cotizados) -->
-        <div class="field hidden" id="voip-link-service-wrap" style="margin-top:14px;">
-          <label>Vincular esta telefonía a un servicio específico (opcional)</label>
-          <select id="voip-link-service">
-            <option value="">Todos los servicios (se muestra al final de la cotización)</option>
-          </select>
-          <div style="font-size:12px;color:var(--gray-500);margin-top:4px;">
-            Si la vinculas a un servicio, el cliente verá la telefonía junto a ese servicio en particular, en vez de como una sección genérica al final.
-          </div>
-        </div>
-
-        <!-- Telefonía incluida -->
-        <div id="voip-incluida" class="hidden">
-          <div class="card-subtitle" style="margin-top:16px;">La telefonía viene incluida en el servicio principal</div>
-          <div class="field-row">
-            <div class="field">
-              <label>País de destino</label>
-              <select id="voip-incl-pais"></select>
+        <!-- Modo Solo Telefonía: un único selector global (sin servicios cotizados, nada que vincular) -->
+        <div id="voip-onlymode-ui" class="hidden">
+          <div class="voip-type-selector">
+            <div class="voip-type-btn active" data-voip="none" onclick="setVoipType('none')">
+              🚫 Sin telefonía
             </div>
-            <div class="field">
-              <label>Minutos mensuales incluidos</label>
-              <input type="number" id="voip-incl-minutos" placeholder="1500" />
+            <div class="voip-type-btn" data-voip="incluida" onclick="setVoipType('incluida')">
+              📞 Incluida en el plan
+            </div>
+            <div class="voip-type-btn" data-voip="opcional" onclick="setVoipType('opcional')">
+              📋 Planes opcionales
             </div>
           </div>
-          <div class="field">
-            <label>Características adicionales (una por línea)</label>
-            <textarea id="voip-incl-extras" rows="4">Llamadas entrantes ilimitadas.
+
+          <!-- Telefonía incluida -->
+          <div id="voip-incluida" class="hidden">
+            <div class="card-subtitle" style="margin-top:16px;">La telefonía viene incluida en el servicio principal</div>
+            <div class="field-row">
+              <div class="field">
+                <label>País de destino</label>
+                <select id="voip-incl-pais"></select>
+              </div>
+              <div class="field">
+                <label>Minutos mensuales incluidos</label>
+                <input type="number" id="voip-incl-minutos" placeholder="1500" />
+              </div>
+            </div>
+            <div class="field">
+              <label>Características adicionales (una por línea)</label>
+              <textarea id="voip-incl-extras" rows="4">Llamadas entrantes ilimitadas.
 Acceso a panel de control para visualizar y gestionar la actividad telefónica.
 Grabación de llamadas para respaldo y control de calidad.
 Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales.</textarea>
-          </div>
-        </div>
-
-        <!-- Telefonía opcional -->
-        <div id="voip-opcional" class="hidden">
-          <div class="card-subtitle" style="margin-top:16px;">Selecciona los países y planes VoIP disponibles</div>
-          <div class="country-grid" id="country-grid">
-            <!-- Se llena dinámicamente -->
+            </div>
           </div>
 
-          <div id="voip-plans-detail" class="hidden" style="margin-top:20px;">
-            <div class="card-subtitle">Planes disponibles por país — el cliente elige cuál paquete prefiere al ver la cotización</div>
-            <div id="voip-plans-list"></div>
-          </div>
+          <!-- Telefonía opcional -->
+          <div id="voip-opcional" class="hidden">
+            <div class="card-subtitle" style="margin-top:16px;">Selecciona los países y planes VoIP disponibles</div>
+            <div class="country-grid" id="country-grid">
+              <!-- Se llena dinámicamente -->
+            </div>
 
-          <div class="field" style="margin-top:16px;">
-            <label>Características adicionales (una por línea)</label>
-            <textarea id="voip-opt-extras" rows="4">Llamadas entrantes ilimitadas.
+            <div id="voip-plans-detail" class="hidden" style="margin-top:20px;">
+              <div class="card-subtitle">Planes disponibles por país — el cliente elige cuál paquete prefiere al ver la cotización</div>
+              <div id="voip-plans-list"></div>
+            </div>
+
+            <div class="field" style="margin-top:16px;">
+              <label>Características adicionales (una por línea)</label>
+              <textarea id="voip-opt-extras" rows="4">Llamadas entrantes ilimitadas.
 Acceso a panel de control para visualizar y gestionar la actividad telefónica.
 Grabación de llamadas para respaldo y control de calidad.
 Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales.</textarea>
+            </div>
           </div>
+        </div>
+
+        <!-- Cotizaciones con servicios: cada servicio cotizado tiene su propia configuración de telefonía,
+             independiente de los demás (sin telefonía / incluida / planes opcionales). -->
+        <div id="voip-permode-ui" class="hidden">
+          <div class="card-subtitle" style="margin-bottom:10px;">Configura la telefonía de cada servicio por separado — por ejemplo, un servicio puede llevar telefonía incluida mientras otro lleva planes opcionales, o ninguna.</div>
+          <div class="svc-tab-bar" id="voip-tab-bar"></div>
+          <div id="voip-tab-contents"></div>
         </div>
       </div>
 
@@ -676,6 +676,13 @@ let voipOnlyMode = false;
 let plans = [];
 let activeFuncTab = 0;
 let activePriceTab = 0;
+let activeVoipTab = 0;
+// Texto por defecto de "características adicionales" para telefonía — compartido entre el
+// modo Solo Telefonía (global) y el modo por-servicio (uno independiente por cada servicio).
+const DEFAULT_VOIP_EXTRAS_TEXT = `Llamadas entrantes ilimitadas.
+Acceso a panel de control para visualizar y gestionar la actividad telefónica.
+Grabación de llamadas para respaldo y control de calidad.
+Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales.`;
 // Por servicio: funciones, jornadas, precios, horarios
 let serviceData = {}; // { clave: { funciones:[], jornadas:[], precios:{}, horarios:{}, precio_inicio, precio_full, horario_inicio, horario_full } }
 
@@ -858,9 +865,24 @@ function handleStep5Back() {
 
 function renderCondiciones() {
   const esVoip = voipOnlyMode;
-  const paisIncluidaPreview = (voipType === 'incluida') ? document.getElementById('voip-incl-pais').value : null;
   const monedaSel = document.getElementById('gen-moneda').value;
-  const esEspana = selectedVoipCountries.includes('es') || paisIncluidaPreview === 'es' || monedaSel === 'EUR';
+  let esEspana = monedaSel === 'EUR';
+  if (esVoip) {
+    // Solo Telefonía usa el selector global de siempre.
+    const paisIncluidaPreview = (voipType === 'incluida') ? document.getElementById('voip-incl-pais').value : null;
+    const paisesOpcionalPreview = (voipType === 'opcional') ? selectedVoipCountries : [];
+    esEspana = esEspana || paisesOpcionalPreview.includes('es') || paisIncluidaPreview === 'es';
+  } else {
+    // Cotización con servicios: España si CUALQUIER servicio tiene telefonía hacia España
+    // (incluida o entre los planes opcionales), independientemente de los demás servicios.
+    esEspana = esEspana || selectedServices.some(svc => {
+      const tel = serviceData[svc.clave]?.telefonia;
+      if (!tel || tel.tipo === 'none') return false;
+      if (tel.tipo === 'incluida') return tel.inclPais === 'es';
+      if (tel.tipo === 'opcional') return (tel.paisesSeleccionados || []).includes('es');
+      return false;
+    });
+  }
 
   // Mostrar bloque correcto de condiciones
   document.getElementById('cond-estandar').style.display = esVoip ? 'none' : '';
@@ -887,7 +909,7 @@ function goToStep(n) {
   // Run step-specific logic when entering
   if (n === 3) loadFunctions();
   if (n === 4) renderPriceTabs();
-  if (n === 5) renderVoipServiceLink();
+  if (n === 5) renderVoipStep5();
   if (n === 6) renderCondiciones();
   if (n === 7) buildSummary();
 
@@ -1313,42 +1335,39 @@ function setVoipType(type) {
   document.getElementById('voip-opcional').classList.toggle('hidden', type !== 'opcional');
 }
 
-// Muestra el selector "Vincular a un servicio" solo cuando hay 2+ servicios cotizados
-// (con 0 o 1 servicio no hay ambigüedad de a cuál se le está incluyendo la telefonía).
-function renderVoipServiceLink() {
-  const wrap = document.getElementById('voip-link-service-wrap');
-  const sel = document.getElementById('voip-link-service');
-  if (!wrap || !sel) return;
-  if (voipOnlyMode || selectedServices.length < 2) {
-    wrap.classList.add('hidden');
-    sel.value = '';
-    return;
+// Muestra la UI correcta del Paso 5 según el modo de cotización: Solo Telefonía usa el
+// selector global de siempre; una cotización con servicios usa la telefonía por-servicio.
+function renderVoipStep5() {
+  const onlyUi = document.getElementById('voip-onlymode-ui');
+  const perUi = document.getElementById('voip-permode-ui');
+  const subtitle = document.getElementById('voip-step5-subtitle');
+  if (!onlyUi || !perUi) return;
+  if (voipOnlyMode) {
+    onlyUi.classList.remove('hidden');
+    perUi.classList.add('hidden');
+    if (subtitle) subtitle.textContent = 'Configura si la cotización incluye servicio de telefonía';
+  } else {
+    onlyUi.classList.add('hidden');
+    perUi.classList.remove('hidden');
+    if (subtitle) subtitle.textContent = 'Configura la telefonía de cada servicio cotizado';
+    renderVoipTabs();
   }
-  const prevValue = sel.value;
-  const idioma = document.getElementById('gen-idioma').value;
-  sel.innerHTML = '<option value="">Todos los servicios (se muestra al final de la cotización)</option>'
-    + selectedServices.map(svc => {
-        const nombre = isBilingue
-          ? (idioma === 'en' ? svc.nombre_bilingue_en : svc.nombre_bilingue_es)
-          : (idioma === 'en' ? svc.nombre_en : svc.nombre_es);
-        return `<option value="${svc.clave}">${escHtml(nombre)}</option>`;
-      }).join('');
-  // Conserva la selección previa si el servicio sigue entre los elegidos
-  if (selectedServices.some(svc => svc.clave === prevValue)) sel.value = prevValue;
-  wrap.classList.remove('hidden');
+}
+
+// Lista combinada de países VoIP disponibles: VOIP_PRICING (fuente principal, con tabla de
+// precios) más cualquier país adicional del catálogo de Supabase que no esté ya en VOIP_PRICING.
+function getAllVoipCountries() {
+  const priceKeys = Object.keys(VOIP_PRICING);
+  const extraCatalog = voipCatalog.filter(v => !priceKeys.includes(v.pais_key));
+  return [
+    ...priceKeys.map(k => ({ pais_key: k, pais_nombre_es: VOIP_PRICING[k].nombre, flag: VOIP_PRICING[k].flag })),
+    ...extraCatalog.map(v => ({ pais_key: v.pais_key, pais_nombre_es: v.pais_nombre_es, flag: '🌐' }))
+  ];
 }
 
 function renderCountries() {
   const grid = document.getElementById('country-grid');
-  // Use VOIP_PRICING as source of truth for optional plans
-  // Also include any voipCatalog entries not in VOIP_PRICING
-  const priceKeys = Object.keys(VOIP_PRICING);
-  const extraCatalog = voipCatalog.filter(v => !priceKeys.includes(v.pais_key));
-  const allCountries = [
-    ...priceKeys.map(k => ({ pais_key: k, pais_nombre_es: VOIP_PRICING[k].nombre, flag: VOIP_PRICING[k].flag })),
-    ...extraCatalog.map(v => ({ pais_key: v.pais_key, pais_nombre_es: v.pais_nombre_es, flag: '🌐' }))
-  ];
-  grid.innerHTML = allCountries.map(v => `
+  grid.innerHTML = getAllVoipCountries().map(v => `
     <div class="country-option ${selectedVoipCountries.includes(v.pais_key) ? 'selected' : ''}"
          onclick="toggleCountry('${v.pais_key}')">
       <div style="font-size:32px;">${v.flag}</div>
@@ -1416,8 +1435,199 @@ function renderVoipPlans() {
 }
 
 // ══════════════════════════════════════════════════════════
+//  STEP 5 (cont.): TELEFONÍA POR SERVICIO
+//  Cada servicio cotizado tiene su propia configuración independiente de telefonía
+//  (sin telefonía / incluida / planes opcionales), en vez de un único selector global.
+// ══════════════════════════════════════════════════════════
+function ensureTelefoniaSvc(clave) {
+  if (!serviceData[clave]) serviceData[clave] = { funciones: [], jornadas: [], precios: {}, horarios: {} };
+  if (!serviceData[clave].telefonia) {
+    serviceData[clave].telefonia = {
+      tipo: 'none',
+      inclPais: '',
+      inclMinutos: '',
+      inclExtras: DEFAULT_VOIP_EXTRAS_TEXT,
+      paisesSeleccionados: [],
+      optExtras: DEFAULT_VOIP_EXTRAS_TEXT
+    };
+  }
+  return serviceData[clave].telefonia;
+}
+
+function voipCountryOptionsHtml(selectedKey) {
+  return '<option value="">Seleccionar país...</option>' + getAllVoipCountries().map(v =>
+    `<option value="${v.pais_key}" ${v.pais_key === selectedKey ? 'selected' : ''}>${v.flag} ${v.pais_nombre_es}</option>`
+  ).join('');
+}
+
+function voipCountryGridHtml(clave, selectedArr) {
+  return getAllVoipCountries().map(v => `
+    <div class="country-option ${(selectedArr || []).includes(v.pais_key) ? 'selected' : ''}"
+         onclick="toggleCountrySvc('${clave}','${v.pais_key}')">
+      <div style="font-size:32px;">${v.flag}</div>
+      <div class="country-name">${v.pais_nombre_es}</div>
+    </div>
+  `).join('');
+}
+
+function voipPlansListHtml(selectedArr) {
+  if (!selectedArr || selectedArr.length === 0) return '';
+  const moneda = document.getElementById('gen-moneda').value;
+  const sym = { USD: '$', EUR: '€', COP: '$', MXN: '$' }[moneda] || '$';
+  return selectedArr.map(key => {
+    const voipData = VOIP_PRICING[key];
+    const catalogEntry = voipCatalog.find(v => v.pais_key === key);
+    const nombre = voipData?.nombre || catalogEntry?.pais_nombre_es || key;
+    const planes = voipData?.planes || catalogEntry?.planes || [];
+    const countrySym = voipData?.simbolo || sym;
+    return `
+      <div style="margin-bottom:16px;">
+        <h4 style="font-size:13px; font-weight:700; margin-bottom:8px; color:var(--avo-blue);">
+          ${voipData?.flag || '🌐'} ${nombre}${voipData?.moneda ? ` <span style="font-size:11px;font-weight:400;color:var(--gray-500);">(precios en ${voipData.moneda})</span>` : ''}
+        </h4>
+        <table class="price-table">
+          <thead>
+            <tr><th>Paquete</th><th>Primeros 3 meses</th><th>Desde el 4° mes</th></tr>
+          </thead>
+          <tbody>
+            ${planes.map(p => `
+              <tr>
+                <td><strong>${p.minutos} minutos</strong></td>
+                <td>${countrySym}${p.precio_inicial}</td>
+                <td>${countrySym}${p.precio_mensual}/mes</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <p style="font-size:11px; color:var(--gray-500); margin-top:6px; font-style:italic;">
+          El cliente seleccionará el paquete de su preferencia al ver la cotización.
+        </p>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderVoipServicePanel(svc) {
+  const tel = ensureTelefoniaSvc(svc.clave);
+  const clave = svc.clave;
+
+  const typeLabels = { none: '🚫 Sin telefonía', incluida: '📞 Incluida en el plan', opcional: '📋 Planes opcionales' };
+  const typeBtns = ['none', 'incluida', 'opcional'].map(t =>
+    `<div class="voip-type-btn ${tel.tipo === t ? 'active' : ''}" onclick="setVoipTypeForService('${clave}','${t}')">${typeLabels[t]}</div>`
+  ).join('');
+
+  let body = '';
+  if (tel.tipo === 'incluida') {
+    body = `
+      <div class="card-subtitle" style="margin-top:16px;">La telefonía viene incluida en el servicio principal</div>
+      <div class="field-row">
+        <div class="field">
+          <label>País de destino</label>
+          <select onchange="updateTelSvc('${clave}','inclPais',this.value)">${voipCountryOptionsHtml(tel.inclPais)}</select>
+        </div>
+        <div class="field">
+          <label>Minutos mensuales incluidos</label>
+          <input type="number" value="${tel.inclMinutos || ''}" placeholder="1500" onchange="updateTelSvc('${clave}','inclMinutos',this.value)" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Características adicionales (una por línea)</label>
+        <textarea rows="4" onchange="updateTelSvc('${clave}','inclExtras',this.value)">${escHtml(tel.inclExtras)}</textarea>
+      </div>`;
+  } else if (tel.tipo === 'opcional') {
+    const hasCountries = (tel.paisesSeleccionados || []).length > 0;
+    body = `
+      <div class="card-subtitle" style="margin-top:16px;">Selecciona los países y planes VoIP disponibles</div>
+      <div class="country-grid">${voipCountryGridHtml(clave, tel.paisesSeleccionados)}</div>
+      ${hasCountries ? `
+      <div style="margin-top:20px;">
+        <div class="card-subtitle">Planes disponibles por país — el cliente elige cuál paquete prefiere al ver la cotización</div>
+        <div>${voipPlansListHtml(tel.paisesSeleccionados)}</div>
+      </div>` : ''}
+      <div class="field" style="margin-top:16px;">
+        <label>Características adicionales (una por línea)</label>
+        <textarea rows="4" onchange="updateTelSvc('${clave}','optExtras',this.value)">${escHtml(tel.optExtras)}</textarea>
+      </div>`;
+  }
+
+  return `<div class="voip-type-selector">${typeBtns}</div>${body}`;
+}
+
+function renderVoipTabs() {
+  const tabBar = document.getElementById('voip-tab-bar');
+  const tabContents = document.getElementById('voip-tab-contents');
+  if (!tabBar || !tabContents) return;
+  if (activeVoipTab >= selectedServices.length) activeVoipTab = 0;
+
+  tabBar.innerHTML = selectedServices.map((svc, i) => {
+    const name = isBilingue ? (svc.nombre_bilingue_es || svc.nombre_es) : svc.nombre_es;
+    const tel = ensureTelefoniaSvc(svc.clave);
+    const badge = tel.tipo === 'incluida' ? ' 📞' : (tel.tipo === 'opcional' ? ' 📋' : '');
+    return `<div class="svc-tab ${i === activeVoipTab ? 'active' : ''}" onclick="switchVoipTab(${i})">${escHtml(name)}${badge}</div>`;
+  }).join('');
+
+  tabContents.innerHTML = selectedServices.map((svc, i) => `
+    <div class="svc-tab-content ${i === activeVoipTab ? 'active' : ''}" id="voip-content-${i}">
+      ${renderVoipServicePanel(svc)}
+    </div>
+  `).join('');
+}
+
+function switchVoipTab(idx) { activeVoipTab = idx; renderVoipTabs(); }
+
+function setVoipTypeForService(clave, type) {
+  const tel = ensureTelefoniaSvc(clave);
+  tel.tipo = type;
+  renderVoipTabs();
+}
+
+function updateTelSvc(clave, field, value) {
+  const tel = ensureTelefoniaSvc(clave);
+  tel[field] = value;
+}
+
+function toggleCountrySvc(clave, key) {
+  const tel = ensureTelefoniaSvc(clave);
+  if (!tel.paisesSeleccionados) tel.paisesSeleccionados = [];
+  const idx = tel.paisesSeleccionados.indexOf(key);
+  if (idx >= 0) tel.paisesSeleccionados.splice(idx, 1);
+  else tel.paisesSeleccionados.push(key);
+  renderVoipTabs();
+}
+
+// ══════════════════════════════════════════════════════════
 //  STEP 7: SUMMARY
 // ══════════════════════════════════════════════════════════
+// Resumen de la telefonía de UN servicio (modo por-servicio), para mostrar dentro de su
+// propia tarjeta en el Paso 7.
+function voipSummaryHtmlForService(tel) {
+  if (!tel || tel.tipo === 'none') {
+    return `<div style="margin-top:8px; font-size:12px; color:var(--gray-500);">📞 Telefonía: sin telefonía</div>`;
+  }
+  if (tel.tipo === 'incluida') {
+    const pais = tel.inclPais;
+    const paisName = VOIP_PRICING[pais]?.nombre || voipCatalog.find(v => v.pais_key === pais)?.pais_nombre_es || pais || '—';
+    const extras = (tel.inclExtras || '').split('\n').filter(l => l.trim());
+    let h = `<div style="margin-top:8px; font-size:12px; color:var(--avo-blue); font-weight:700;">📞 Telefonía incluida — ${tel.inclMinutos || 0} min hacia ${escHtml(paisName)}</div>`;
+    if (extras.length) h += `<ul style="font-size:12px; padding-left:20px; margin:4px 0 0; color:var(--gray-600);">${extras.map(e => `<li>${escHtml(e)}</li>`).join('')}</ul>`;
+    return h;
+  }
+  if (tel.tipo === 'opcional') {
+    const paises = tel.paisesSeleccionados || [];
+    if (paises.length === 0) return `<div style="margin-top:8px; font-size:12px; color:var(--avo-orange);">📋 Telefonía opcional — ⚠ sin países seleccionados</div>`;
+    let h = `<div style="margin-top:8px; font-size:12px; color:var(--avo-blue); font-weight:700;">📋 Telefonía opcional (planes adicionales):</div>`;
+    h += `<ul style="font-size:12px; padding-left:20px; margin:4px 0 0; color:var(--gray-600);">`;
+    paises.forEach(key => {
+      const voipData = VOIP_PRICING[key];
+      const nombre2 = voipData?.nombre || voipCatalog.find(v => v.pais_key === key)?.pais_nombre_es || key;
+      h += `<li>${voipData?.flag || '🌐'} <strong>${escHtml(nombre2)}</strong> — 4 paquetes disponibles (250/500/750/1000 min)</li>`;
+    });
+    h += `</ul>`;
+    return h;
+  }
+  return '';
+}
+
 function buildSummary() {
   const idioma = document.getElementById('gen-idioma').value;
   const moneda = document.getElementById('gen-moneda').value;
@@ -1436,10 +1646,6 @@ function buildSummary() {
       ${voipOnlyMode ? `<div style="grid-column:1/-1;"><span style="background:#EFF9FF;color:var(--avo-accent);padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;">📞 COTIZACIÓN SOLO TELEFONÍA</span></div>` : ''}
     </div>
   `;
-
-  // Servicio(s) al que la telefonía quedó vinculada (para mostrar la nota junto a él más abajo)
-  const linkSelEl = document.getElementById('voip-link-service');
-  const voipVinculadoClave = (!voipOnlyMode && voipType !== 'none' && linkSelEl && linkSelEl.value) ? linkSelEl.value : null;
 
   if (!voipOnlyMode) selectedServices.forEach((svc, i) => {
     const sd = serviceData[svc.clave] || {};
@@ -1461,9 +1667,7 @@ function buildSummary() {
       ? `<ul style="padding-left:20px; margin:4px 0;">${funcs.map(f => `<li>${escHtml(f)}</li>`).join('')}</ul>`
       : `<div style="color:var(--avo-orange); margin-top:2px;">⚠ Sin funciones configuradas</div>`;
 
-    const voipBadge = voipVinculadoClave === svc.clave
-      ? `<div style="margin-top:8px; font-size:12px; color:var(--avo-blue); font-weight:700;">📞 Incluye telefonía VoIP vinculada a este servicio</div>`
-      : '';
+    const voipHtml = voipSummaryHtmlForService(serviceData[svc.clave]?.telefonia, sym);
 
     html += `
       <div style="margin-bottom:20px; padding:16px; background:var(--gray-50); border-radius:8px; border-left:3px solid var(--avo-accent);">
@@ -1479,51 +1683,44 @@ function buildSummary() {
         <div style="font-size:13px;">
           <strong>Funciones (${funcs.length}):</strong> ${funcsHtml}
         </div>
-        ${voipBadge}
+        ${voipHtml}
       </div>
     `;
   });
 
-  // Telefonía
-  html += `<div style="margin-bottom:16px; padding:16px; background:var(--gray-50); border-radius:8px; border-left:3px solid var(--avo-blue);">`;
-  html += `<div style="font-weight:700; font-size:14px; color:var(--avo-blue); margin-bottom:8px;">📞 Telefonía VoIP</div>`;
-  if (voipType === 'none') {
-    html += `<div style="font-size:13px; color:var(--gray-500);">No incluida</div>`;
-  } else if (voipType === 'incluida') {
-    const pais = document.getElementById('voip-incl-pais').value;
-    const min = document.getElementById('voip-incl-minutos').value;
-    const paisName = VOIP_PRICING[pais]?.nombre || voipCatalog.find(v => v.pais_key === pais)?.pais_nombre_es || pais;
-    const extrasIncl = (document.getElementById('voip-incl-extras').value || '').split('\n').filter(l => l.trim());
-    html += `<div style="font-size:13px;">Incluida — <strong>${min} min</strong> hacia ${paisName}</div>`;
-    if (extrasIncl.length) html += `<ul style="font-size:13px; padding-left:20px; margin:6px 0 0;">${extrasIncl.map(e => `<li>${escHtml(e)}</li>`).join('')}</ul>`;
-    if (!voipOnlyMode) {
-      html += voipVinculadoClave
-        ? `<div style="font-size:12px; color:var(--avo-blue); margin-top:6px;">Vinculada a: <strong>${escHtml((selectedServices.find(s => s.clave === voipVinculadoClave) || {}).nombre_es || '')}</strong></div>`
-        : `<div style="font-size:12px; color:var(--gray-500); margin-top:6px; font-style:italic;">Aplica a todos los servicios (se mostrará al final de la cotización)</div>`;
+  // Telefonía — Solo Telefonía sigue mostrando el bloque global de siempre; una cotización
+  // con servicios ya muestra la telefonía de cada servicio en su propia tarjeta (arriba).
+  if (voipOnlyMode) {
+    html += `<div style="margin-bottom:16px; padding:16px; background:var(--gray-50); border-radius:8px; border-left:3px solid var(--avo-blue);">`;
+    html += `<div style="font-weight:700; font-size:14px; color:var(--avo-blue); margin-bottom:8px;">📞 Telefonía VoIP</div>`;
+    if (voipType === 'none') {
+      html += `<div style="font-size:13px; color:var(--gray-500);">No incluida</div>`;
+    } else if (voipType === 'incluida') {
+      const pais = document.getElementById('voip-incl-pais').value;
+      const min = document.getElementById('voip-incl-minutos').value;
+      const paisName = VOIP_PRICING[pais]?.nombre || voipCatalog.find(v => v.pais_key === pais)?.pais_nombre_es || pais;
+      const extrasIncl = (document.getElementById('voip-incl-extras').value || '').split('\n').filter(l => l.trim());
+      html += `<div style="font-size:13px;">Incluida — <strong>${min} min</strong> hacia ${paisName}</div>`;
+      if (extrasIncl.length) html += `<ul style="font-size:13px; padding-left:20px; margin:6px 0 0;">${extrasIncl.map(e => `<li>${escHtml(e)}</li>`).join('')}</ul>`;
+    } else if (voipType === 'opcional') {
+      if (selectedVoipCountries.length === 0) {
+        html += `<div style="font-size:13px; color:var(--avo-orange);">⚠ Sin países seleccionados</div>`;
+      } else {
+        html += `<div style="font-size:13px; margin-bottom:8px;">Planes opcionales — ${selectedVoipCountries.length} país(es) disponibles para el cliente:</div>`;
+        html += `<ul style="font-size:13px; padding-left:20px; margin:0;">`;
+        selectedVoipCountries.forEach(key => {
+          const voipData = VOIP_PRICING[key];
+          const nombre2 = voipData?.nombre || voipCatalog.find(v => v.pais_key === key)?.pais_nombre_es || key;
+          html += `<li>${voipData?.flag || '🌐'} <strong>${nombre2}</strong> — 4 paquetes disponibles (250 / 500 / 750 / 1000 min)</li>`;
+        });
+        html += `</ul>`;
+        html += `<div style="font-size:12px; color:var(--gray-500); margin-top:6px; font-style:italic;">El cliente elegirá el paquete de su preferencia al confirmar la cotización.</div>`;
+        const extrasOpt = (document.getElementById('voip-opt-extras').value || '').split('\n').filter(l => l.trim());
+        if (extrasOpt.length) html += `<ul style="font-size:13px; padding-left:20px; margin:10px 0 0;">${extrasOpt.map(e => `<li>${escHtml(e)}</li>`).join('')}</ul>`;
+      }
     }
-  } else if (voipType === 'opcional') {
-    if (selectedVoipCountries.length === 0) {
-      html += `<div style="font-size:13px; color:var(--avo-orange);">⚠ Sin países seleccionados</div>`;
-    } else {
-      html += `<div style="font-size:13px; margin-bottom:8px;">Planes opcionales — ${selectedVoipCountries.length} país(es) disponibles para el cliente:</div>`;
-      html += `<ul style="font-size:13px; padding-left:20px; margin:0;">`;
-      selectedVoipCountries.forEach(key => {
-        const voipData = VOIP_PRICING[key];
-        const nombre2 = voipData?.nombre || voipCatalog.find(v => v.pais_key === key)?.pais_nombre_es || key;
-        html += `<li>${voipData?.flag || '🌐'} <strong>${nombre2}</strong> — 4 paquetes disponibles (250 / 500 / 750 / 1000 min)</li>`;
-      });
-      html += `</ul>`;
-      html += `<div style="font-size:12px; color:var(--gray-500); margin-top:6px; font-style:italic;">El cliente elegirá el paquete de su preferencia al confirmar la cotización.</div>`;
-      const extrasOpt = (document.getElementById('voip-opt-extras').value || '').split('\n').filter(l => l.trim());
-      if (extrasOpt.length) html += `<ul style="font-size:13px; padding-left:20px; margin:10px 0 0;">${extrasOpt.map(e => `<li>${escHtml(e)}</li>`).join('')}</ul>`;
-    }
-    if (!voipOnlyMode) {
-      html += voipVinculadoClave
-        ? `<div style="font-size:12px; color:var(--avo-blue); margin-top:6px;">Vinculada a: <strong>${escHtml((selectedServices.find(s => s.clave === voipVinculadoClave) || {}).nombre_es || '')}</strong></div>`
-        : `<div style="font-size:12px; color:var(--gray-500); margin-top:6px; font-style:italic;">Aplica a todos los servicios (se mostrará al final de la cotización)</div>`;
-    }
+    html += `</div>`;
   }
-  html += `</div>`;
 
   document.getElementById('summary-content').innerHTML = html;
 
@@ -1806,42 +2003,80 @@ async function saveQuotation() {
       }
     });
 
-    // Telephony
-    let telefonia = { tipo: voipType, voip_only: voipOnlyMode || false };
-    if (!voipOnlyMode && voipType !== 'none') {
-      const linkSel = document.getElementById('voip-link-service');
-      telefonia.vinculado_a_servicio = (linkSel && linkSel.value) ? linkSel.value : null;
-    }
-    if (voipType === 'incluida') {
-      telefonia.incluida_info = {
-        pais_key: document.getElementById('voip-incl-pais').value,
-        minutos: parseInt(document.getElementById('voip-incl-minutos').value) || 0,
-        extras: (document.getElementById('voip-incl-extras').value || '').split('\n').filter(l => l.trim())
-      };
-    } else if (voipType === 'opcional') {
-      telefonia.paises_seleccionados = selectedVoipCountries;
-      telefonia.planes_por_pais = {};
-      selectedVoipCountries.forEach(key => {
-        // Prefer VOIP_PRICING; fall back to voipCatalog
-        const voipData = VOIP_PRICING[key];
-        const catalogEntry = voipCatalog.find(v => v.pais_key === key);
-        const planes = voipData?.planes || catalogEntry?.planes || [];
-        telefonia.planes_por_pais[key] = {
-          nombre: voipData?.nombre || catalogEntry?.pais_nombre_es || key,
-          flag: voipData?.flag || '🌐',
-          todos_los_planes: planes  // El cliente elige cuál en el viewer
-        };
-      });
-      telefonia.extras = (document.getElementById('voip-opt-extras').value || '').split('\n').filter(l => l.trim());
-    }
+    // Telephony — Solo Telefonía usa el modelo global plano de siempre (telefonia); una
+    // cotización con servicios ahora usa telefonia_por_servicio, con una configuración
+    // independiente de telefonía por cada servicio cotizado.
+    let telefonia = null;
+    let telefoniaPorServicio = null;
+    let esEspanaTelefonia = (moneda === 'EUR');
 
-    // Detectar España: por país VoIP (modo "opcional" o "incluida"), o porque la moneda de la cotización es EUR
-    const paisIncluida = (voipType === 'incluida') ? document.getElementById('voip-incl-pais').value : null;
-    const esEspanaTelefonia = selectedVoipCountries.includes('es') || paisIncluida === 'es' || moneda === 'EUR';
+    if (voipOnlyMode) {
+      telefonia = { tipo: voipType, voip_only: true };
+      if (voipType === 'incluida') {
+        telefonia.incluida_info = {
+          pais_key: document.getElementById('voip-incl-pais').value,
+          minutos: parseInt(document.getElementById('voip-incl-minutos').value) || 0,
+          extras: (document.getElementById('voip-incl-extras').value || '').split('\n').filter(l => l.trim())
+        };
+      } else if (voipType === 'opcional') {
+        telefonia.paises_seleccionados = selectedVoipCountries;
+        telefonia.planes_por_pais = {};
+        selectedVoipCountries.forEach(key => {
+          // Prefer VOIP_PRICING; fall back to voipCatalog
+          const voipData = VOIP_PRICING[key];
+          const catalogEntry = voipCatalog.find(v => v.pais_key === key);
+          const planes = voipData?.planes || catalogEntry?.planes || [];
+          telefonia.planes_por_pais[key] = {
+            nombre: voipData?.nombre || catalogEntry?.pais_nombre_es || key,
+            flag: voipData?.flag || '🌐',
+            todos_los_planes: planes  // El cliente elige cuál en el viewer
+          };
+        });
+        telefonia.extras = (document.getElementById('voip-opt-extras').value || '').split('\n').filter(l => l.trim());
+      }
+      // Detectar España: solo se consulta `selectedVoipCountries` cuando el modo actual es
+      // "opcional" — si no, puede traer selecciones "fantasma" de cuando el comercial estuvo
+      // probando ese modo antes de cambiar a otro, y disparaba por error el mensaje de ajuste
+      // "en febrero" (propio de España) en cotizaciones de otros países.
+      const paisIncluida = (voipType === 'incluida') ? document.getElementById('voip-incl-pais').value : null;
+      const paisesOpcional = (voipType === 'opcional') ? selectedVoipCountries : [];
+      esEspanaTelefonia = esEspanaTelefonia || paisesOpcional.includes('es') || paisIncluida === 'es';
+    } else {
+      telefoniaPorServicio = {};
+      selectedServices.forEach(svc => {
+        const tel = ensureTelefoniaSvc(svc.clave);
+        if (tel.tipo === 'none') return;
+        const entry = { tipo: tel.tipo };
+        if (tel.tipo === 'incluida') {
+          entry.incluida_info = {
+            pais_key: tel.inclPais || '',
+            minutos: parseInt(tel.inclMinutos) || 0,
+            extras: (tel.inclExtras || '').split('\n').filter(l => l.trim())
+          };
+          if (entry.incluida_info.pais_key === 'es') esEspanaTelefonia = true;
+        } else if (tel.tipo === 'opcional') {
+          entry.paises_seleccionados = tel.paisesSeleccionados || [];
+          entry.planes_por_pais = {};
+          (tel.paisesSeleccionados || []).forEach(key => {
+            const voipData = VOIP_PRICING[key];
+            const catalogEntry = voipCatalog.find(v => v.pais_key === key);
+            const planes = voipData?.planes || catalogEntry?.planes || [];
+            entry.planes_por_pais[key] = {
+              nombre: voipData?.nombre || catalogEntry?.pais_nombre_es || key,
+              flag: voipData?.flag || '🌐',
+              todos_los_planes: planes
+            };
+          });
+          entry.extras = (tel.optExtras || '').split('\n').filter(l => l.trim());
+          if ((tel.paisesSeleccionados || []).includes('es')) esEspanaTelefonia = true;
+        }
+        telefoniaPorServicio[svc.clave] = entry;
+      });
+    }
 
     const cotizacionData = {
       servicios,
-      telefonia,
+      ...(voipOnlyMode ? { telefonia } : { telefonia_por_servicio: telefoniaPorServicio }),
       condiciones_extras: {
         ajuste_precios: true, // siempre incluido automáticamente
         ajuste_es_espana: esEspanaTelefonia, // España → mensaje de febrero
