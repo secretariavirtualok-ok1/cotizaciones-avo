@@ -463,6 +463,17 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
           </div>
         </div>
 
+        <!-- Vincular la telefonía a un servicio específico (solo aplica si hay 2+ servicios cotizados) -->
+        <div class="field hidden" id="voip-link-service-wrap" style="margin-top:14px;">
+          <label>Vincular esta telefonía a un servicio específico (opcional)</label>
+          <select id="voip-link-service">
+            <option value="">Todos los servicios (se muestra al final de la cotización)</option>
+          </select>
+          <div style="font-size:12px;color:var(--gray-500);margin-top:4px;">
+            Si la vinculas a un servicio, el cliente verá la telefonía junto a ese servicio en particular, en vez de como una sección genérica al final.
+          </div>
+        </div>
+
         <!-- Telefonía incluida -->
         <div id="voip-incluida" class="hidden">
           <div class="card-subtitle" style="margin-top:16px;">La telefonía viene incluida en el servicio principal</div>
@@ -478,10 +489,10 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
           </div>
           <div class="field">
             <label>Características adicionales (una por línea)</label>
-            <textarea id="voip-incl-extras" rows="4" placeholder="Llamadas entrantes ilimitadas.
+            <textarea id="voip-incl-extras" rows="4">Llamadas entrantes ilimitadas.
 Acceso a panel de control para visualizar y gestionar la actividad telefónica.
 Grabación de llamadas para respaldo y control de calidad.
-Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales."></textarea>
+Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales.</textarea>
           </div>
         </div>
 
@@ -495,6 +506,14 @@ Monitoreo especializado del agente, con revisión del 5% de las llamadas y entre
           <div id="voip-plans-detail" class="hidden" style="margin-top:20px;">
             <div class="card-subtitle">Planes disponibles por país — el cliente elige cuál paquete prefiere al ver la cotización</div>
             <div id="voip-plans-list"></div>
+          </div>
+
+          <div class="field" style="margin-top:16px;">
+            <label>Características adicionales (una por línea)</label>
+            <textarea id="voip-opt-extras" rows="4">Llamadas entrantes ilimitadas.
+Acceso a panel de control para visualizar y gestionar la actividad telefónica.
+Grabación de llamadas para respaldo y control de calidad.
+Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales.</textarea>
           </div>
         </div>
       </div>
@@ -570,6 +589,33 @@ Monitoreo especializado del agente, con revisión del 5% de las llamadas y entre
         <div class="card-subtitle">Revisa la información antes de generar el enlace</div>
 
         <div id="summary-content" style="font-size:14px; line-height:1.8;">
+          <!-- Se llena dinámicamente -->
+        </div>
+      </div>
+
+      <!-- Vista previa y edición del correo automático al cliente -->
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title">📧 Correo automático al cliente</div>
+        <div class="card-subtitle">Esto es lo que recibirá el cliente por correo apenas generes la cotización (además de compartirle el enlace por WhatsApp manualmente). Puedes editar el texto libremente antes de enviar.</div>
+
+        <div class="field">
+          <label>Correo adicional (opcional — también recibirá este correo)</label>
+          <input type="email" id="email-segundo-correo" placeholder="ej. supervisor@empresa.com" oninput="renderEmailPreview()" />
+        </div>
+
+        <div class="field">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <label style="margin-bottom:0;">Cuerpo del correo (editable)</label>
+            <button type="button" class="btn btn-outline btn-sm" style="padding:4px 10px; font-size:12px;" onclick="resetEmailBody()">↺ Restaurar texto original</button>
+          </div>
+          <textarea id="email-cuerpo" rows="14" style="font-family:inherit; font-size:13px; line-height:1.6;" oninput="onEmailBodyInput()"></textarea>
+          <div style="font-size:12px; color:var(--gray-500); margin-top:4px;">
+            No elimines la línea con corchetes (ej. <code>[ENLACE DE LA COTIZACIÓN]</code>) — ahí se inserta el botón con el enlace real. Si la borras por error, el enlace se agrega igual al final del correo.
+          </div>
+        </div>
+
+        <div style="font-size:12px; color:var(--gray-500); margin-top:10px;">Vista previa de cómo se verá el correo:</div>
+        <div id="email-preview-box" style="margin-top:6px; border:1px dashed var(--gray-200); border-radius:8px; padding:16px; background:var(--gray-50);">
           <!-- Se llena dinámicamente -->
         </div>
       </div>
@@ -841,6 +887,7 @@ function goToStep(n) {
   // Run step-specific logic when entering
   if (n === 3) loadFunctions();
   if (n === 4) renderPriceTabs();
+  if (n === 5) renderVoipServiceLink();
   if (n === 6) renderCondiciones();
   if (n === 7) buildSummary();
 
@@ -1266,6 +1313,31 @@ function setVoipType(type) {
   document.getElementById('voip-opcional').classList.toggle('hidden', type !== 'opcional');
 }
 
+// Muestra el selector "Vincular a un servicio" solo cuando hay 2+ servicios cotizados
+// (con 0 o 1 servicio no hay ambigüedad de a cuál se le está incluyendo la telefonía).
+function renderVoipServiceLink() {
+  const wrap = document.getElementById('voip-link-service-wrap');
+  const sel = document.getElementById('voip-link-service');
+  if (!wrap || !sel) return;
+  if (voipOnlyMode || selectedServices.length < 2) {
+    wrap.classList.add('hidden');
+    sel.value = '';
+    return;
+  }
+  const prevValue = sel.value;
+  const idioma = document.getElementById('gen-idioma').value;
+  sel.innerHTML = '<option value="">Todos los servicios (se muestra al final de la cotización)</option>'
+    + selectedServices.map(svc => {
+        const nombre = isBilingue
+          ? (idioma === 'en' ? svc.nombre_bilingue_en : svc.nombre_bilingue_es)
+          : (idioma === 'en' ? svc.nombre_en : svc.nombre_es);
+        return `<option value="${svc.clave}">${escHtml(nombre)}</option>`;
+      }).join('');
+  // Conserva la selección previa si el servicio sigue entre los elegidos
+  if (selectedServices.some(svc => svc.clave === prevValue)) sel.value = prevValue;
+  wrap.classList.remove('hidden');
+}
+
 function renderCountries() {
   const grid = document.getElementById('country-grid');
   // Use VOIP_PRICING as source of truth for optional plans
@@ -1365,6 +1437,10 @@ function buildSummary() {
     </div>
   `;
 
+  // Servicio(s) al que la telefonía quedó vinculada (para mostrar la nota junto a él más abajo)
+  const linkSelEl = document.getElementById('voip-link-service');
+  const voipVinculadoClave = (!voipOnlyMode && voipType !== 'none' && linkSelEl && linkSelEl.value) ? linkSelEl.value : null;
+
   if (!voipOnlyMode) selectedServices.forEach((svc, i) => {
     const sd = serviceData[svc.clave] || {};
     const svcName = isBilingue ? (svc.nombre_bilingue_es || svc.nombre_es) : svc.nombre_es;
@@ -1381,6 +1457,14 @@ function buildSummary() {
       });
     }
 
+    const funcsHtml = funcs.length
+      ? `<ul style="padding-left:20px; margin:4px 0;">${funcs.map(f => `<li>${escHtml(f)}</li>`).join('')}</ul>`
+      : `<div style="color:var(--avo-orange); margin-top:2px;">⚠ Sin funciones configuradas</div>`;
+
+    const voipBadge = voipVinculadoClave === svc.clave
+      ? `<div style="margin-top:8px; font-size:12px; color:var(--avo-blue); font-weight:700;">📞 Incluye telefonía VoIP vinculada a este servicio</div>`
+      : '';
+
     html += `
       <div style="margin-bottom:20px; padding:16px; background:var(--gray-50); border-radius:8px; border-left:3px solid var(--avo-accent);">
         <div style="font-weight:800; font-size:15px; color:var(--avo-blue); margin-bottom:8px;">
@@ -1393,8 +1477,9 @@ function buildSummary() {
           <strong>Precios:</strong> <ul style="padding-left:20px; margin:4px 0;">${preciosHtml}</ul>
         </div>
         <div style="font-size:13px;">
-          <strong>Funciones:</strong> ${funcs.length} configuradas
+          <strong>Funciones (${funcs.length}):</strong> ${funcsHtml}
         </div>
+        ${voipBadge}
       </div>
     `;
   });
@@ -1408,7 +1493,14 @@ function buildSummary() {
     const pais = document.getElementById('voip-incl-pais').value;
     const min = document.getElementById('voip-incl-minutos').value;
     const paisName = VOIP_PRICING[pais]?.nombre || voipCatalog.find(v => v.pais_key === pais)?.pais_nombre_es || pais;
+    const extrasIncl = (document.getElementById('voip-incl-extras').value || '').split('\n').filter(l => l.trim());
     html += `<div style="font-size:13px;">Incluida — <strong>${min} min</strong> hacia ${paisName}</div>`;
+    if (extrasIncl.length) html += `<ul style="font-size:13px; padding-left:20px; margin:6px 0 0;">${extrasIncl.map(e => `<li>${escHtml(e)}</li>`).join('')}</ul>`;
+    if (!voipOnlyMode) {
+      html += voipVinculadoClave
+        ? `<div style="font-size:12px; color:var(--avo-blue); margin-top:6px;">Vinculada a: <strong>${escHtml((selectedServices.find(s => s.clave === voipVinculadoClave) || {}).nombre_es || '')}</strong></div>`
+        : `<div style="font-size:12px; color:var(--gray-500); margin-top:6px; font-style:italic;">Aplica a todos los servicios (se mostrará al final de la cotización)</div>`;
+    }
   } else if (voipType === 'opcional') {
     if (selectedVoipCountries.length === 0) {
       html += `<div style="font-size:13px; color:var(--avo-orange);">⚠ Sin países seleccionados</div>`;
@@ -1422,11 +1514,158 @@ function buildSummary() {
       });
       html += `</ul>`;
       html += `<div style="font-size:12px; color:var(--gray-500); margin-top:6px; font-style:italic;">El cliente elegirá el paquete de su preferencia al confirmar la cotización.</div>`;
+      const extrasOpt = (document.getElementById('voip-opt-extras').value || '').split('\n').filter(l => l.trim());
+      if (extrasOpt.length) html += `<ul style="font-size:13px; padding-left:20px; margin:10px 0 0;">${extrasOpt.map(e => `<li>${escHtml(e)}</li>`).join('')}</ul>`;
+    }
+    if (!voipOnlyMode) {
+      html += voipVinculadoClave
+        ? `<div style="font-size:12px; color:var(--avo-blue); margin-top:6px;">Vinculada a: <strong>${escHtml((selectedServices.find(s => s.clave === voipVinculadoClave) || {}).nombre_es || '')}</strong></div>`
+        : `<div style="font-size:12px; color:var(--gray-500); margin-top:6px; font-style:italic;">Aplica a todos los servicios (se mostrará al final de la cotización)</div>`;
     }
   }
   html += `</div>`;
 
   document.getElementById('summary-content').innerHTML = html;
+
+  renderEmailPreview();
+}
+
+// ══════════════════════════════════════════════════════════
+//  CORREO AUTOMÁTICO AL CLIENTE — VISTA PREVIA Y EDICIÓN (Paso 7)
+//  El cuerpo del correo se genera como texto plano editable (mismo
+//  contenido que arma send-quote-link.js) para que el comercial pueda
+//  revisarlo y modificarlo antes de generar la cotización. El enlace real
+//  todavía no existe en este punto, así que el texto trae un marcador
+//  entre corchetes donde el servidor insertará el botón con el enlace.
+// ══════════════════════════════════════════════════════════
+const EMAIL_LINK_MARKER = { es: '[ENLACE DE LA COTIZACIÓN]', en: '[QUOTE LINK]' };
+let emailBodyEdited = false; // true en cuanto el comercial toca el textarea a mano
+
+function buildDefaultEmailBodyText(idioma) {
+  const en = idioma === 'en';
+  const nombre = document.getElementById('client-nombre').value.trim();
+  const vencDias = document.getElementById('gen-vencimiento').value;
+
+  const serviciosNombres = voipOnlyMode
+    ? [en ? 'VoIP telephony service' : 'Servicio de telefonía VoIP adicional']
+    : selectedServices.map(svc => isBilingue
+        ? (en ? svc.nombre_bilingue_en : svc.nombre_bilingue_es)
+        : (en ? svc.nombre_en : svc.nombre_es));
+  let serviciosTexto;
+  if (serviciosNombres.length === 0) {
+    serviciosTexto = en ? 'our services' : 'nuestros servicios';
+  } else if (serviciosNombres.length === 1) {
+    serviciosTexto = serviciosNombres[0];
+  } else {
+    const ultimo = serviciosNombres[serviciosNombres.length - 1];
+    const resto = serviciosNombres.slice(0, -1).join(', ');
+    serviciosTexto = en ? `${resto} and ${ultimo}` : `${resto} y ${ultimo}`;
+  }
+
+  let vigenciaTexto = '';
+  const dias = vencDias ? parseInt(vencDias, 10) : null;
+  if (dias) {
+    vigenciaTexto = en
+      ? `This quote is valid for ${dias} day${dias === 1 ? '' : 's'}. If the service is not contracted within this period, a new quote will need to be requested, as rates and terms may be subject to change.`
+      : `La cotización tiene una vigencia de ${dias} día${dias === 1 ? '' : 's'}. Si el servicio no se contrata dentro de este período, será necesario solicitar una nueva cotización, ya que las tarifas y condiciones pueden estar sujetas a actualización.`;
+  }
+
+  const saludo = en ? `Hi ${nombre || ''},` : `Hola ${nombre || ''},`;
+  const parrafo1 = en ? `It's a pleasure to greet you.` : `Un placer saludarle.`;
+  const parrafo2 = en
+    ? `Following your request, we are sharing the quote for our ${serviciosTexto} service${serviciosNombres.length === 1 ? '' : 's'}. We have prepared a detailed proposal that reflects our commitment to excellence, and we hope it meets your needs and expectations.`
+    : `De acuerdo a su solicitud, le compartimos la cotización de nuestros servicios de ${serviciosTexto}. Hemos preparado una propuesta detallada, que refleja nuestro compromiso con la excelencia, y esperamos que satisfaga sus necesidades y expectativas.`;
+  const introEnlace = en ? 'You can review the full proposal at the following link:' : 'Puede consultar la propuesta completa en el siguiente enlace:';
+  const marker = en ? EMAIL_LINK_MARKER.en : EMAIL_LINK_MARKER.es;
+  const parrafo3 = en
+    ? `If you have any questions about the proposal or would like more details about our services, we'd be happy to help. We can also schedule a call or meeting to discuss your needs and clarify any questions.`
+    : `Si tiene alguna pregunta sobre la propuesta o desea conocer más detalles sobre nuestros servicios, estaremos encantados de ayudarle. También podemos coordinar una llamada o reunión para conversar sobre sus necesidades y aclarar cualquier inquietud.`;
+  const parrafo4 = en
+    ? `Thank you very much for considering Asistente Virtual OK. We look forward to the opportunity to work with you.`
+    : `Muchas gracias por considerar a Asistente Virtual OK. Esperamos tener la oportunidad de trabajar con usted.`;
+  const despedida = en ? 'Best regards,' : 'Saludos cordiales,';
+  const firma = en ? 'The AsistenteVirtualOk.com Team' : 'Equipo de Asistente Virtual Ok.com';
+
+  const bloques = [
+    `${saludo}\n\n${parrafo1}\n\n${parrafo2}`,
+    `${introEnlace}`,
+    marker,
+  ];
+  if (vigenciaTexto) bloques.push(vigenciaTexto);
+  bloques.push(`${parrafo3}\n\n${parrafo4}`);
+  bloques.push(`${despedida}\n${firma}`);
+  return bloques.join('\n\n');
+}
+
+// Convierte el texto editable en el mismo HTML que arma send-quote-link.js: separa por
+// líneas en blanco, y el párrafo que contiene el marcador se reemplaza por el botón
+// (aquí, un botón de vista previa ya que el enlace real todavía no existe).
+function buildEmailBodyPreviewHtml(texto) {
+  const marcadores = [EMAIL_LINK_MARKER.es, EMAIL_LINK_MARKER.en];
+  const parrafos = texto.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  const botonPreview = `
+    <div style="text-align:center; margin:4px 0 4px;">
+      <span style="display:inline-block; background:#0F1F3D; color:white; font-size:13px; font-weight:700; padding:9px 18px; border-radius:8px;">Ver propuesta →</span>
+    </div>
+    <div style="font-size:11px; color:var(--gray-400); margin:0 0 12px; text-align:center; font-style:italic;">(el enlace real se genera al guardar la cotización)</div>`;
+  let marcadorEncontrado = false;
+  let html = parrafos.map(p => {
+    const tieneMarcador = marcadores.some(m => p.toUpperCase().includes(m.toUpperCase()));
+    if (tieneMarcador) { marcadorEncontrado = true; return botonPreview; }
+    return `<p style="margin:0 0 12px; white-space:pre-wrap;">${escHtml(p)}</p>`;
+  }).join('\n');
+  if (!marcadorEncontrado) html += botonPreview;
+  return html;
+}
+
+function onEmailBodyInput() {
+  emailBodyEdited = true;
+  updateEmailLivePreview();
+}
+
+function resetEmailBody() {
+  emailBodyEdited = false;
+  renderEmailPreview();
+}
+
+function updateEmailLivePreview() {
+  const box = document.getElementById('email-preview-box');
+  const bodyEl = document.getElementById('email-cuerpo');
+  if (!box || !bodyEl) return;
+
+  const idioma = document.getElementById('gen-idioma').value;
+  const en = idioma === 'en';
+  const empresa = document.getElementById('client-empresa').value.trim();
+  const nombre = document.getElementById('client-nombre').value.trim();
+  const clienteEmail = document.getElementById('client-email').value.trim();
+  const segundoCorreo = (document.getElementById('email-segundo-correo')?.value || '').trim();
+
+  const asunto = en
+    ? `Service quote - AsistenteVirtualOK.com -- ${empresa || nombre || ''}`
+    : `Cotización de servicio - AsistenteVirtualOK.com -- ${empresa || nombre || ''}`;
+
+  const destinatarios = [clienteEmail, segundoCorreo].filter(Boolean);
+  const destinatariosTxt = destinatarios.length ? destinatarios.map(escHtml).join(', ') : `<span style="color:var(--avo-orange);">⚠ Este cliente no tiene correo registrado — no se enviará automáticamente</span>`;
+
+  box.innerHTML = `
+    <div style="font-size:12px; color:var(--gray-500); margin-bottom:10px;">
+      <strong>Para:</strong> ${destinatariosTxt}<br>
+      <strong>Asunto:</strong> ${escHtml(asunto)}
+    </div>
+    <div style="background:white; border-radius:8px; padding:18px; font-size:13px; color:#4A4A46; line-height:1.6;">
+      ${buildEmailBodyPreviewHtml(bodyEl.value || '')}
+    </div>
+  `;
+}
+
+function renderEmailPreview() {
+  const bodyEl = document.getElementById('email-cuerpo');
+  if (!bodyEl) return;
+  const idioma = document.getElementById('gen-idioma').value;
+  if (!emailBodyEdited) {
+    bodyEl.value = buildDefaultEmailBodyText(idioma);
+  }
+  updateEmailLivePreview();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1569,6 +1808,10 @@ async function saveQuotation() {
 
     // Telephony
     let telefonia = { tipo: voipType, voip_only: voipOnlyMode || false };
+    if (!voipOnlyMode && voipType !== 'none') {
+      const linkSel = document.getElementById('voip-link-service');
+      telefonia.vinculado_a_servicio = (linkSel && linkSel.value) ? linkSel.value : null;
+    }
     if (voipType === 'incluida') {
       telefonia.incluida_info = {
         pais_key: document.getElementById('voip-incl-pais').value,
@@ -1589,6 +1832,7 @@ async function saveQuotation() {
           todos_los_planes: planes  // El cliente elige cuál en el viewer
         };
       });
+      telefonia.extras = (document.getElementById('voip-opt-extras').value || '').split('\n').filter(l => l.trim());
     }
 
     // Detectar España: por país VoIP (modo "opcional" o "incluida"), o porque la moneda de la cotización es EUR
@@ -1673,6 +1917,12 @@ async function saveQuotation() {
           ? [idioma === 'en' ? 'VoIP telephony service' : 'Servicio de telefonía VoIP adicional']
           : servicios.map(s => s.nombre_display);
 
+        const segundoCorreoEmail = (document.getElementById('email-segundo-correo')?.value || '').trim() || null;
+        // El texto que ve/edita el comercial en el paso 7 es el que se envía tal cual
+        // (send-quote-link.js reemplaza el marcador [ENLACE DE LA COTIZACIÓN]/[QUOTE LINK]
+        // por el botón con el enlace real).
+        const cuerpoEditado = (document.getElementById('email-cuerpo')?.value || '').trim() || null;
+
         const resp = await fetch(LINK_EMAIL_FUNCTION_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1681,6 +1931,8 @@ async function saveQuotation() {
             cliente_nombre: clientData.nombre_contacto,
             cliente_empresa: clientData.empresa,
             cliente_email: clienteEmail,
+            segundo_email: segundoCorreoEmail,
+            cuerpo_editado: cuerpoEditado,
             servicios_nombres: serviciosNombres,
             link,
             vencimiento_dias: vencDias || null,
@@ -1688,7 +1940,8 @@ async function saveQuotation() {
           })
         });
         if (!resp.ok) throw new Error(await resp.text());
-        statusEl.innerHTML = `✓ También enviamos la cotización por correo a <strong>${escHtml(clienteEmail)}</strong>.`;
+        const destinatariosMsg = [clienteEmail, segundoCorreoEmail].filter(Boolean).map(escHtml).join(' y ');
+        statusEl.innerHTML = `✓ También enviamos la cotización por correo a <strong>${destinatariosMsg}</strong>.`;
       } catch (mailErr) {
         console.error('Error al enviar correo al cliente:', mailErr);
         statusEl.innerHTML = '⚠️ El enlace se generó correctamente, pero no se pudo enviar el correo automático al cliente. Compártelo manualmente.';
