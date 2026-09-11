@@ -520,11 +520,13 @@
                     <label for="f_company"><span id="l_company">Nombre legal de la empresa</span><span class="req">*</span></label>
                     <input type="text" id="f_company" placeholder="Ej: Tech Solutions C.A. (nombre registrado)" />
                     <span class="ferr" id="e_company">Este campo es requerido</span>
-                    <span class="sched-note" id="l_company_legal_note">* Indique el nombre legal de tu empresa.</span>
+                    <span class="sched-note" id="l_company_legal_note">* Indique el nombre legal de la empresa o, si es persona natural, su nombre completo.</span>
                 </div>
                 <div class="field">
-                    <label for="f_rif"><span id="l_rif">RIF</span><span class="opt" id="l_opt1">(opcional)</span></label>
+                    <label for="f_rif"><span id="l_rif">Número de identificación tributaria</span><span class="req">*</span></label>
                     <input type="text" id="f_rif" placeholder="NIT, EIN, ITIN, RUC, RUT, RNC, NIE, SSN..." />
+                    <span class="ferr" id="e_rif">Este campo es requerido</span>
+                    <span class="sched-note" id="l_rif_note">* Ingrese el número de identificación tributaria de la empresa o, si es persona natural, su número de identificación personal.</span>
                 </div>
             </div>
 
@@ -695,7 +697,7 @@
                 <div class="cond-block" id="cond_voip">
                     <div class="field">
                         <label for="f_voip_country"><span id="l_voip_country">¿Para qué país necesitas la línea VoIP?</span></label>
-                        <select id="f_voip_country">
+                        <select id="f_voip_country" onchange="onVoipCountryChange()">
                             <option value="" id="voip_country_ph">Selecciona un país...</option>
                             <option value="Argentina">🇦🇷 Argentina</option>
                             <option value="Bolivia">🇧🇴 Bolivia</option>
@@ -722,6 +724,10 @@
                             <option value="Venezuela">🇻🇪 Venezuela</option>
                             <option value="Otro" id="voip_country_other">Otro</option>
                         </select>
+                        <div class="cond-block" id="cond_voip_country_other">
+                            <input type="text" id="f_voip_country_other" placeholder="Escribe el nombre del país"
+                                   style="border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;width:100%;outline:none;margin-top:8px;" />
+                        </div>
                     </div>
                     <p class="hint" id="l_voip_hint" style="margin-top:10px;">Nuestro equipo te informará sobre los planes disponibles según tu país.</p>
                 </div>
@@ -819,9 +825,10 @@ es: {
   country_ph:'Selecciona tu país...', tz_ph:'— selecciona el país —',
   s2h:'Datos de la Empresa', s2d:'Esta información nos ayuda a entender mejor el contexto de tu negocio.',
   l_company:'Nombre legal de la empresa', e_company:'Este campo es requerido',
-  l_company_legal_note:'* Indique el nombre legal de tu empresa.',
+  l_company_legal_note:'* Indique el nombre legal de la empresa o, si es persona natural, su nombre completo.',
   l_trade_name:'Nombre comercial',
-  l_rif:'Número de identificación tributaria', l_opt:'(opcional)',
+  l_rif:'Número de identificación tributaria', e_rif:'Este campo es requerido', l_opt:'(opcional)',
+  l_rif_note:'* Ingrese el número de identificación tributaria de la empresa o, si es persona natural, su número de identificación personal.',
   l_address:'Dirección legal de la empresa',
   l_company_desc:'Descripción de la empresa', e_company_desc:'Por favor describe brevemente tu empresa',
   company_desc_ph:'Describe brevemente a qué se dedica tu empresa, sus principales actividades y el sector en el que opera...',
@@ -882,9 +889,10 @@ en: {
   country_ph:'Select your country...', tz_ph:'— select country first —',
   s2h:'Company Information', s2d:'This helps us better understand the context of your business.',
   l_company:'Legal company name', e_company:'This field is required',
-  l_company_legal_note:'* Please enter your company\'s legal name.',
+  l_company_legal_note:'* Enter the company\'s legal name, or your full name if you are an individual.',
   l_trade_name:'Trade / commercial name',
-  l_rif:'Tax ID Number', l_opt:'(optional)',
+  l_rif:'Tax ID Number', e_rif:'This field is required', l_opt:'(optional)',
+  l_rif_note:'* Enter the company\'s tax ID number, or your personal ID number if you are an individual.',
   l_address:'Legal company address',
   l_company_desc:'Company description', e_company_desc:'Please briefly describe your company',
   company_desc_ph:'Briefly describe what your company does, its main activities and the sector it operates in...',
@@ -1284,6 +1292,13 @@ function onCrmChange() {
     document.getElementById('cond_crm_other').classList.toggle('show', v === '__otro__');
 }
 
+function onVoipCountryChange() {
+    const v = document.getElementById('f_voip_country').value;
+    const isOtro = v === 'Otro';
+    document.getElementById('cond_voip_country_other').classList.toggle('show', isOtro);
+    if (!isOtro) document.getElementById('f_voip_country_other').value = '';
+}
+
 /* ═══════════════════════════════════════════
    LANGUAGE TOGGLE
 ═══════════════════════════════════════════ */
@@ -1321,7 +1336,7 @@ function applyLang() {
     setText('l_company',t.l_company);   setText('e_company',t.e_company);
     if (t.l_company_legal_note) setText('l_company_legal_note', t.l_company_legal_note);
     if (t.l_trade_name) setText('l_trade_name', t.l_trade_name);
-    setText('l_rif',t.l_rif);
+    setText('l_rif',t.l_rif); setText('e_rif',t.e_rif); setText('l_rif_note',t.l_rif_note);
     setText('l_address',t.l_address);
     setText('l_company_desc',t.l_company_desc);
     setText('e_company_desc',t.e_company_desc);
@@ -1367,6 +1382,8 @@ function applyLang() {
     setText('l_voip_country', t.l_voip_country);
     if(document.getElementById('voip_country_ph')) document.getElementById('voip_country_ph').textContent = t.voip_country_ph;
     if(document.getElementById('voip_country_other')) document.getElementById('voip_country_other').textContent = t.voip_country_other;
+    const _vOther = document.getElementById('f_voip_country_other');
+    if (_vOther) _vOther.placeholder = lang === 'es' ? 'Escribe el nombre del país' : 'Type your country name';
     setText('l_crm',t.l_crm);
     setText('l_crm_name',t.l_crm_name);
     document.getElementById('crm_ph').textContent       = t.crm_ph;
@@ -1444,6 +1461,7 @@ function validate(step) {
     }
     if (step === 2) {
         chk('f_company',     'e_company',      v => v.length > 1);
+        chk('f_rif',         'e_rif',          v => v.length > 1);
         chk('f_company_desc','e_company_desc', v => v.length > 8);
     }
     if (step === 3) {
@@ -1545,6 +1563,10 @@ async function submitForm() {
     let crmVal = document.getElementById('f_crm_select').value;
     if (crmVal === '__otro__') crmVal = document.getElementById('f_crm_other').value.trim() || 'Otro';
 
+    // País VoIP
+    let voipCountryVal = document.getElementById('f_voip_country')?.value || '';
+    if (voipCountryVal === 'Otro') voipCountryVal = document.getElementById('f_voip_country_other').value.trim() || 'Otro';
+
     const leadId = crypto.randomUUID();
     const payload = {
         id: leadId,
@@ -1579,7 +1601,7 @@ async function submitForm() {
         referred_by_commercial: toggles.referred,
         commercial_name:     toggles.referred ? (document.getElementById('f_commercial').value.trim() || null) : null,
         needs_voip:          toggles.voip,
-        voip_country:        toggles.voip ? (document.getElementById('f_voip_country')?.value || null) : null,
+        voip_country:        toggles.voip ? (voipCountryVal || null) : null,
         uses_crm:            toggles.crm,
         crm_name:            toggles.crm ? (crmVal || null) : null,
         // Meta
