@@ -1,0 +1,169 @@
+// netlify/functions/send-quote-link.js
+// ─────────────────────────────────────────────────────────────
+//  Netlify Function — Envío automático del enlace de la cotización al cliente
+//  Se dispara desde generator.html justo después de crear la cotización,
+//  para que el cliente reciba el enlace por correo (y el comercial lo
+//  comparta además por WhatsApp de forma manual).
+//
+//  Variable de entorno necesaria en Netlify:
+//    RESEND_API_KEY  →  tu API key de resend.com
+// ─────────────────────────────────────────────────────────────
+
+const REMITENTE = 'AVO Cotizaciones <cotizaciones@asistentevirtualok.com>';
+
+exports.handler = async function (event) {
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: 'Method Not Allowed' };
+  }
+
+  const RESEND_API_KEY = process.env.RESEND_API_KEY;
+  if (!RESEND_API_KEY) {
+    console.error('RESEND_API_KEY no configurada');
+    return { statusCode: 500, body: 'Configuración incompleta' };
+  }
+
+  let body;
+  try {
+    body = JSON.parse(event.body);
+  } catch {
+    return { statusCode: 400, body: 'JSON inválido' };
+  }
+
+  const {
+    quote_id,
+    cliente_nombre,
+    cliente_empresa,
+    cliente_email,
+    servicios_nombres,   // array de nombres de los servicios cotizados
+    link,                // enlace de la cotización (viewer.html?id=...)
+    vencimiento_dias,    // número de días de vigencia, o null/'' si no tiene vencimiento
+    idioma               // 'es' | 'en'
+  } = body;
+
+  if (!cliente_email) {
+    return { statusCode: 400, body: 'Falta el correo del cliente' };
+  }
+  if (!link) {
+    return { statusCode: 400, body: 'Falta el enlace de la cotización' };
+  }
+
+  console.log('=== SEND-QUOTE-LINK ===', JSON.stringify({ quote_id, cliente_email, vencimiento_dias }));
+
+  const en = idioma === 'en';
+
+  // ── Lista de servicios cotizados, en texto natural ──
+  const servicios = Array.isArray(servicios_nombres) ? servicios_nombres.filter(Boolean) : [];
+  let serviciosTexto;
+  if (servicios.length === 0) {
+    serviciosTexto = en ? 'our services' : 'nuestros servicios';
+  } else if (servicios.length === 1) {
+    serviciosTexto = servicios[0];
+  } else {
+    const ultimo = servicios[servicios.length - 1];
+    const resto = servicios.slice(0, -1).join(', ');
+    serviciosTexto = en ? `${resto} and ${ultimo}` : `${resto} y ${ultimo}`;
+  }
+
+  // ── Frase de vigencia, según los días de vencimiento configurados ──
+  let vigenciaTexto = '';
+  const dias = vencimiento_dias ? parseInt(vencimiento_dias, 10) : null;
+  if (dias) {
+    if (en) {
+      vigenciaTexto = `This quote is valid for ${dias} day${dias === 1 ? '' : 's'}. If the service is not contracted within this period, a new quote will need to be requested, as rates and terms may be subject to change.`;
+    } else {
+      vigenciaTexto = `La cotización tiene una vigencia de ${dias} día${dias === 1 ? '' : 's'}. Si el servicio no se contrata dentro de este período, será necesario solicitar una nueva cotización, ya que las tarifas y condiciones pueden estar sujetas a actualización.`;
+    }
+  }
+
+  const asunto = en
+    ? `Service quote - AsistenteVirtualOK.com -- ${cliente_empresa || cliente_nombre}`
+    : `Cotización de servicio - AsistenteVirtualOK.com -- ${cliente_empresa || cliente_nombre}`;
+
+  const saludo = en ? `Hi ${cliente_nombre || ''},` : `Hola ${cliente_nombre || ''},`;
+
+  const parrafo1 = en
+    ? `It's a pleasure to greet you.`
+    : `Un placer saludarle.`;
+
+  const parrafo2 = en
+    ? `Following your request, we are sharing the quote for our ${serviciosTexto} service${servicios.length === 1 ? '' : 's'}. We have prepared a detailed proposal that reflects our commitment to excellence, and we hope it meets your needs and expectations.`
+    : `De acuerdo a su solicitud, le compartimos la cotización de nuestros servicios de ${serviciosTexto}. Hemos preparado una propuesta detallada, que refleja nuestro compromiso con la excelencia, y esperamos que satisfaga sus necesidades y expectativas.`;
+
+  const verLabel = en ? 'View quote:' : 'Ver cotización:';
+  const introEnlace = en ? 'You can review the full proposal at the following link:' : 'Puede consultar la propuesta completa en el siguiente enlace:';
+
+  const parrafo3 = en
+    ? `If you have any questions about the proposal or would like more details about our services, we'd be happy to help. We can also schedule a call or meeting to discuss your needs and clarify any questions.`
+    : `Si tiene alguna pregunta sobre la propuesta o desea conocer más detalles sobre nuestros servicios, estaremos encantados de ayudarle. También podemos coordinar una llamada o reunión para conversar sobre sus necesidades y aclarar cualquier inquietud.`;
+
+  const parrafo4 = en
+    ? `Thank you very much for considering Asistente Virtual OK. We look forward to the opportunity to work with you.`
+    : `Muchas gracias por considerar a Asistente Virtual OK. Esperamos tener la oportunidad de trabajar con usted.`;
+
+  const despedida = en ? 'Best regards,' : 'Saludos cordiales,';
+  const firma = en ? 'The AsistenteVirtualOk.com Team' : 'Equipo de Asistente Virtual Ok.com';
+
+  const contenidoHtml = `
+    <div style="font-family:Segoe UI,system-ui,sans-serif;max-width:560px;margin:0 auto;">
+      <div style="background:#0F1F3D;padding:20px 28px;border-radius:10px 10px 0 0;display:flex;align-items:center;">
+        <img src="https://res.cloudinary.com/ny7ucpsj/image/upload/v1786393386/SVO_vcculy.jpg" style="width:40px;height:40px;border-radius:8px;object-fit:cover;margin-right:12px;" alt="AVO" />
+        <span style="color:#ffffff;font-size:15px;font-weight:700;">AsistenteVirtualOk.com</span>
+      </div>
+      <div style="background:#ffffff;padding:28px;border:1px solid #EDEDEA;border-top:none;">
+        <p style="font-size:15px;color:#0F1F3D;margin:0 0 4px;">${saludo}</p>
+        <p style="font-size:14px;color:#4A4A46;line-height:1.6;margin:8px 0 16px;">${parrafo1}</p>
+        <p style="font-size:14px;color:#4A4A46;line-height:1.6;margin:0 0 20px;">${parrafo2}</p>
+
+        <p style="font-size:14px;color:#4A4A46;line-height:1.6;margin:0 0 10px;">${introEnlace}</p>
+        <div style="text-align:center;margin:0 0 22px;">
+          <a href="${link}" style="display:inline-block;background:#0F1F3D;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 26px;border-radius:8px;">${verLabel} ${en ? 'View proposal' : 'Ver propuesta'} →</a>
+        </div>
+        <p style="font-size:12px;color:#8C8B85;word-break:break-all;margin:0 0 20px;">${link}</p>
+
+        ${vigenciaTexto ? `<p style="font-size:14px;color:#4A4A46;line-height:1.6;margin:0 0 20px;">${vigenciaTexto}</p>` : ''}
+
+        <p style="font-size:14px;color:#4A4A46;line-height:1.6;margin:0 0 16px;">${parrafo3}</p>
+        <p style="font-size:14px;color:#4A4A46;line-height:1.6;margin:0 0 4px;">${parrafo4}</p>
+
+        <p style="font-size:14px;color:#4A4A46;line-height:1.6;margin:20px 0 2px;">${despedida}</p>
+        <p style="font-size:14px;color:#0F1F3D;font-weight:700;margin:0;">${firma}</p>
+      </div>
+      <div style="background:#F7F5F0;padding:14px 28px;border-radius:0 0 10px 10px;font-size:11px;color:#8C8B85;border:1px solid #EDEDEA;border-top:none;">
+        AsistenteVirtualOk.com · Sistema de Cotizaciones · ID: ${quote_id || ''}
+      </div>
+    </div>
+  `;
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: REMITENTE,
+        to: [cliente_email],
+        reply_to: 'cotizaciones@asistentevirtualok.com',
+        subject: asunto,
+        html: contenidoHtml
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error('Error Resend:', result);
+      return { statusCode: 500, body: JSON.stringify({ error: result }) };
+    }
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ success: true, id: result.id })
+    };
+
+  } catch (e) {
+    console.error('Error al enviar correo de enlace de cotización:', e);
+    return { statusCode: 500, body: 'Error interno' };
+  }
+};
