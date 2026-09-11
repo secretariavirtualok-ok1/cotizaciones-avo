@@ -591,6 +591,7 @@ Monitoreo especializado del agente, con revisión del 5% de las llamadas y entre
             <button class="btn btn-accent btn-sm" onclick="copyLink()">Copiar</button>
           </div>
         </div>
+        <div id="result-email-status" style="margin-top:10px;font-size:13px;"></div>
         <div style="display:flex; gap:10px; margin-top:12px;">
           <a class="btn btn-outline btn-sm" id="result-preview" href="#" target="_blank">Ver cotización →</a>
           <a class="btn btn-outline btn-sm" href="admin.html">Ir al panel admin</a>
@@ -608,6 +609,7 @@ Monitoreo especializado del agente, con revisión del 5% de las llamadas y entre
 const SUPABASE_URL = 'https://avtznfyenkvfapwxdrho.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dHpuZnllbmt2ZmFwd3hkcmhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTAwNTIsImV4cCI6MjEwMTkyNjA1Mn0.QAIFNFtxnwRrQLkooj7CqK0x2lbWDUaHLnCsBzDYFQo';
 const VIEWER_BASE = 'https://cotizacionesavo.netlify.app/viewer.html';
+const LINK_EMAIL_FUNCTION_URL = '/.netlify/functions/send-quote-link';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
@@ -1658,6 +1660,42 @@ async function saveQuotation() {
     document.getElementById('result-preview').href = link;
     document.getElementById('result-card').classList.remove('hidden');
     btn.textContent = '✓ Cotización creada';
+
+    // 7. Enviar automáticamente el enlace por correo al cliente (además de compartirlo
+    // manualmente por WhatsApp). Si el cliente no tiene correo registrado, se omite y se
+    // avisa — el enlace ya quedó generado de todas formas.
+    const clienteEmail = clientData.email;
+    const statusEl = document.getElementById('result-email-status');
+    if (clienteEmail) {
+      statusEl.innerHTML = '<span style="color:var(--gray-500);">Enviando correo al cliente...</span>';
+      try {
+        const serviciosNombres = voipOnlyMode
+          ? [idioma === 'en' ? 'VoIP telephony service' : 'Servicio de telefonía VoIP adicional']
+          : servicios.map(s => s.nombre_display);
+
+        const resp = await fetch(LINK_EMAIL_FUNCTION_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            quote_id: quote.id,
+            cliente_nombre: clientData.nombre_contacto,
+            cliente_empresa: clientData.empresa,
+            cliente_email: clienteEmail,
+            servicios_nombres: serviciosNombres,
+            link,
+            vencimiento_dias: vencDias || null,
+            idioma
+          })
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        statusEl.innerHTML = `✓ También enviamos la cotización por correo a <strong>${escHtml(clienteEmail)}</strong>.`;
+      } catch (mailErr) {
+        console.error('Error al enviar correo al cliente:', mailErr);
+        statusEl.innerHTML = '⚠️ El enlace se generó correctamente, pero no se pudo enviar el correo automático al cliente. Compártelo manualmente.';
+      }
+    } else {
+      statusEl.innerHTML = '⚠️ Este cliente no tiene correo registrado — no se envió el correo automático. Compártele el enlace manualmente.';
+    }
 
   } catch (err) {
     console.error(err);
