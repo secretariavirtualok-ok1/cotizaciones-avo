@@ -2029,13 +2029,69 @@ async function openQuoteModal(quoteId) {
   if (!events || events.length === 0) {
     evEl.innerHTML = '<p style="color:var(--gray-500);font-size:13px;">Sin eventos registrados aún.</p>';
   } else {
+    // Función helper para formatear info de cada evento
+    function eventInfoHtml(e) {
+      if (e.tipo === 'opened') {
+        const m = e.metadata || {};
+        const parts = [];
+        // País y ciudad
+        if (m.country) {
+          const flag = m.country_code ? countryFlag(m.country_code) : '';
+          parts.push(`${flag} ${m.country}${m.city ? ', ' + m.city : ''}`);
+        }
+        // Dispositivo resumido del user_agent
+        if (m.user_agent) {
+          parts.push(`<span style="color:var(--gray-400);">${parseDevice(m.user_agent)}</span>`);
+        }
+        // ISP / org
+        if (m.org) {
+          parts.push(`<span style="color:var(--gray-400);font-size:11px;">${m.org}</span>`);
+        }
+        return parts.length ? parts.join(' · ') : '<span style="color:var(--gray-400);">Sin datos geo</span>';
+      }
+      if (e.tipo === 'plan_selected') return e.metadata?.plan_nombre || '';
+      if (e.tipo === 'status_changed') return e.metadata?.estado || '';
+      if (e.tipo === 'contract_signed') return e.metadata?.por ? 'por ' + e.metadata.por : '';
+      if (e.tipo === 'payment_confirmed') return '💳 Pago confirmado';
+      return e.metadata?.estado || e.metadata?.plan_nombre || '';
+    }
+
+    // Convertir country_code a emoji de bandera
+    function countryFlag(cc) {
+      if (!cc || cc.length !== 2) return '';
+      const c = cc.toUpperCase();
+      return String.fromCodePoint(...[...c].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65));
+    }
+
+    // Extraer dispositivo resumido del user_agent
+    function parseDevice(ua) {
+      if (!ua) return '';
+      if (/iPhone/i.test(ua)) return '📱 iPhone';
+      if (/iPad/i.test(ua)) return '📱 iPad';
+      if (/Android/i.test(ua)) return '📱 Android';
+      if (/Mac OS/i.test(ua)) return '💻 Mac';
+      if (/Windows/i.test(ua)) return '💻 Windows';
+      if (/Linux/i.test(ua)) return '💻 Linux';
+      return '🌐 Navegador';
+    }
+
+    const tipoLabel = (t) => {
+      if (t === 'opened') return '👁 Apertura';
+      if (t === 'plan_selected') return '✅ Servicio seleccionado';
+      if (t === 'status_changed') return '🔄 Cambio de estado';
+      if (t === 'contract_signed') return '📝 Contrato firmado';
+      if (t === 'payment_confirmed') return '💳 Pago confirmado';
+      if (t === 'payment_info_sent') return '💰 Info de pago enviada';
+      return '📋 ' + t;
+    };
+
     evEl.innerHTML = `<table style="width:100%;font-size:12px;">
-      <thead><tr><th>Tipo</th><th>Fecha / hora</th><th>Info</th></tr></thead>
+      <thead><tr><th>Tipo</th><th>Fecha / hora</th><th>Detalles</th></tr></thead>
       <tbody>${events.map(e => `
         <tr>
-          <td>${e.tipo === 'opened' ? '👁 Apertura' : e.tipo === 'plan_selected' ? '✅ Servicio seleccionado' : '🔄 Cambio de estado'}</td>
-          <td>${fmtDt(e.created_at)}</td>
-          <td style="color:var(--gray-500);">${e.metadata?.plan_nombre || e.metadata?.estado || ''}</td>
+          <td style="white-space:nowrap;">${tipoLabel(e.tipo)}</td>
+          <td style="white-space:nowrap;">${fmtDt(e.created_at)}</td>
+          <td style="color:var(--gray-500);">${eventInfoHtml(e)}</td>
         </tr>`).join('')}
       </tbody>
     </table>`;
