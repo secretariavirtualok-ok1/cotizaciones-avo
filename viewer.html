@@ -239,17 +239,38 @@
   .gen-voip-table td { padding:8px 12px;border-bottom:1px solid var(--gray-100);color:var(--gray-700); }
 
   /* ── PDF EXPORT MODE ─────────────────────────────────── */
-  body.pdf-export { min-height: auto; }
-  body.pdf-export .container { max-width: none; width: 100%; padding: 24px 20px 40px; }
-  body.pdf-export .header { padding: 24px 20px 28px; }
+  body.pdf-export {
+    min-height: auto;
+    width: 680px !important;       /* forzar ancho fijo = ancho del contenido */
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  body.pdf-export #screen-viewer {
+    width: 680px !important;
+    overflow: hidden !important;
+  }
+  body.pdf-export .header {
+    padding: 24px 20px 28px;
+    width: 680px;
+    box-sizing: border-box;
+  }
+  body.pdf-export .container {
+    max-width: 680px;              /* mantener max-width original */
+    width: 100%;
+    padding: 24px 16px 40px;
+    box-sizing: border-box;
+    margin: 0;
+  }
   body.pdf-export #screen-loading,
   body.pdf-export #screen-error,
   body.pdf-export #screen-expired { display: none !important; }
   body.pdf-export #screen-viewer { display: block !important; }
   body.pdf-export .plan-option { break-inside: avoid; }
-  body.pdf-export .card { break-inside: avoid; }
+  body.pdf-export .card { break-inside: avoid; page-break-inside: avoid; }
   body.pdf-export .gen-svc-img { max-width: 100%; height: auto; }
-  body.pdf-export .footer { break-inside: avoid; }
+  body.pdf-export .footer { break-inside: avoid; page-break-inside: avoid; }
+  body.pdf-export * { box-sizing: border-box; }
 </style>
 </head>
 <body>
