@@ -340,7 +340,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
           </div>
           <div class="field">
             <label>Idioma de la cotización *</label>
-            <select id="gen-idioma">
+            <select id="gen-idioma" onchange="onIdiomaChange()">
               <option value="es">Español</option>
               <option value="en">English</option>
             </select>
@@ -1116,6 +1116,39 @@ function toggleBilingue() {
 }
 
 // ══════════════════════════════════════════════════════════
+//  IDIOMA CHANGE — actualizar defaults bilingües
+// ══════════════════════════════════════════════════════════
+const VOIP_EXTRAS_ES = [
+  'Llamadas entrantes ilimitadas.',
+  'Acceso a panel de control para visualizar y gestionar la actividad telefónica.',
+  'Grabación de llamadas para respaldo y control de calidad.',
+  'Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales.'
+];
+const VOIP_EXTRAS_EN = [
+  'Unlimited inbound calls.',
+  'Access to a control panel to view and manage phone activity.',
+  'Call recording for backup and quality control.',
+  'Specialized agent monitoring, with review of 5% of calls and delivery of monthly reports.'
+];
+
+function onIdiomaChange() {
+  const idioma = document.getElementById('gen-idioma').value;
+  // Actualizar extras VoIP si el usuario no los ha editado (es decir, siguen siendo el default del otro idioma)
+  const inclEl = document.getElementById('voip-incl-extras');
+  const optEl = document.getElementById('voip-opt-extras');
+  const oldDefault = (idioma === 'en' ? VOIP_EXTRAS_ES : VOIP_EXTRAS_EN).join('\n');
+  const newDefault = (idioma === 'en' ? VOIP_EXTRAS_EN : VOIP_EXTRAS_ES).join('\n');
+  if (inclEl && (inclEl.value.trim() === oldDefault.trim() || inclEl.value.trim() === '')) {
+    inclEl.value = newDefault;
+  }
+  if (optEl && (optEl.value.trim() === oldDefault.trim() || optEl.value.trim() === '')) {
+    optEl.value = newDefault;
+  }
+  // Re-renderizar servicios si ya están cargados, para actualizar horarios/labels
+  if (selectedServices.length > 0) renderServices();
+}
+
+// ══════════════════════════════════════════════════════════
 //  STEP 3: FUNCTIONS EDITOR (multi-service tabs)
 // ══════════════════════════════════════════════════════════
 function loadFunctions() {
@@ -1131,15 +1164,17 @@ function loadFunctions() {
 
 function getDefaultFunctions(svc) {
   const idioma = document.getElementById('gen-idioma').value;
+  let funcs;
   if (isBilingue) {
-    return idioma === 'en'
-      ? [...(svc.funciones_bilingue_en || svc.funciones_en || [])]
-      : [...(svc.funciones_bilingue_es || svc.funciones_es || [])];
+    funcs = idioma === 'en'
+      ? (svc.funciones_bilingue_en || svc.funciones_en || svc.funciones_bilingue_es || svc.funciones_es || [])
+      : (svc.funciones_bilingue_es || svc.funciones_es || []);
   } else {
-    return idioma === 'en'
-      ? [...(svc.funciones_en || [])]
-      : [...(svc.funciones_es || [])];
+    funcs = idioma === 'en'
+      ? (svc.funciones_en || svc.funciones_es || [])
+      : (svc.funciones_es || []);
   }
+  return [...funcs];
 }
 
 function renderFuncTabs() {
@@ -1238,19 +1273,21 @@ function renderPriceTabs() {
       const jName = idioma === 'en' ? (j === 'media' ? 'Part-time' : 'Full-time') : jLabels[j].es;
       const schKey = `${svc.clave}_schedule_${j}`;
       const prKey = `${svc.clave}_precio_${j}`;
-      const schVal = sd.horarios?.[j] || (j === 'media' ? 'Lunes a viernes de 8:00 a.m. a 12:00 p.m.' : 'Lunes a viernes de 8:00 a.m. a 6:00 p.m. con una hora de descanso.');
+      const schVal = sd.horarios?.[j] || (idioma === 'en'
+        ? (j === 'media' ? 'Monday to Friday, 8:00 a.m. to 12:00 p.m.' : 'Monday to Friday, 8:00 a.m. to 6:00 p.m. with a one-hour break.')
+        : (j === 'media' ? 'Lunes a viernes de 8:00 a.m. a 12:00 p.m.' : 'Lunes a viernes de 8:00 a.m. a 6:00 p.m. con una hora de descanso.'));
       const prVal = sd.precios?.[j] || '';
       return `
         <div class="schedule-block" style="margin-bottom:12px;">
           <div class="sch-label">${jName}</div>
           <div class="field-row">
             <div class="field" style="flex:2;">
-              <label>Horario</label>
+              <label>${idioma === 'en' ? 'Schedule' : 'Horario'}</label>
               <input type="text" id="${schKey}" value="${schVal}"
                      onchange="updateHorario('${svc.clave}','${j}',this.value)" />
             </div>
             <div class="field" style="flex:1;">
-              <label>Precio (${sym})</label>
+              <label>${idioma === 'en' ? 'Price' : 'Precio'} (${sym})</label>
               <input type="number" id="${prKey}" value="${prVal}" placeholder="0"
                      onchange="updatePrecio('${svc.clave}','${j}',this.value)" />
             </div>
@@ -1945,7 +1982,9 @@ async function saveQuotation() {
       jornadasNormales.forEach(j => {
         const schEl = document.getElementById(svc.clave + '_schedule_' + j);
         const prEl = document.getElementById(svc.clave + '_precio_' + j);
-        if (schEl) horariosFinal[j] = schEl.value || (j === 'media' ? 'Lunes a viernes de 8:00 a.m. a 12:00 p.m.' : 'Lunes a viernes de 8:00 a.m. a 6:00 p.m. con una hora de descanso.');
+        if (schEl) horariosFinal[j] = schEl.value || (idioma === 'en'
+          ? (j === 'media' ? 'Monday to Friday, 8:00 a.m. to 12:00 p.m.' : 'Monday to Friday, 8:00 a.m. to 6:00 p.m. with a one-hour break.')
+          : (j === 'media' ? 'Lunes a viernes de 8:00 a.m. a 12:00 p.m.' : 'Lunes a viernes de 8:00 a.m. a 6:00 p.m. con una hora de descanso.'));
         if (prEl) preciosFinal[j] = parseFloat(prEl.value) || 0;
       });
 
