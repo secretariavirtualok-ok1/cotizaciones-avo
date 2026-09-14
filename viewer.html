@@ -424,6 +424,22 @@ async function init() {
         language: navigator.language,
         timestamp: new Date().toISOString()
       };
+
+      // Obtener geolocalización por IP (silencioso, no bloquea render)
+      try {
+        const geoRes = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+        if (geoRes.ok) {
+          const geo = await geoRes.json();
+          meta.ip = geo.ip || null;
+          meta.country = geo.country_name || null;
+          meta.country_code = geo.country_code || null;
+          meta.city = geo.city || null;
+          meta.region = geo.region || null;
+          meta.org = geo.org || null;          // ISP / organización
+          meta.timezone = geo.timezone || null;
+        }
+      } catch (_) { /* geo no disponible — continuar sin ella */ }
+
       const { data: openResult } = await sb.rpc('register_quote_open', {
         quote_uuid: quoteId,
         meta
