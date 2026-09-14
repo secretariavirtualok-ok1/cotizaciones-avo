@@ -241,24 +241,27 @@
   /* ── PDF EXPORT MODE ─────────────────────────────────── */
   body.pdf-export {
     min-height: auto;
-    width: 680px !important;       /* forzar ancho fijo = ancho del contenido */
+    width: 660px !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
+    font-size: 13px;
   }
+  body.pdf-export * { box-sizing: border-box; }
   body.pdf-export #screen-viewer {
-    width: 680px !important;
+    width: 660px !important;
     overflow: hidden !important;
   }
   body.pdf-export .header {
-    padding: 24px 20px 28px;
-    width: 680px;
+    padding: 20px 20px 24px;
+    width: 660px;
     box-sizing: border-box;
   }
+  body.pdf-export .header-client { font-size: 20px; }
   body.pdf-export .container {
-    max-width: 680px;              /* mantener max-width original */
+    max-width: 660px;
     width: 100%;
-    padding: 24px 16px 40px;
+    padding: 16px 16px 30px;
     box-sizing: border-box;
     margin: 0;
   }
@@ -266,11 +269,56 @@
   body.pdf-export #screen-error,
   body.pdf-export #screen-expired { display: none !important; }
   body.pdf-export #screen-viewer { display: block !important; }
-  body.pdf-export .plan-option { break-inside: avoid; }
-  body.pdf-export .card { break-inside: avoid; page-break-inside: avoid; }
-  body.pdf-export .gen-svc-img { max-width: 100%; height: auto; }
-  body.pdf-export .footer { break-inside: avoid; page-break-inside: avoid; }
-  body.pdf-export * { box-sizing: border-box; }
+
+  /* Imagen del servicio: reducir para que no domine la página */
+  body.pdf-export .card img[style*="width:100%"] {
+    width: 100% !important;
+    max-height: 320px !important;
+    object-fit: cover !important;
+    object-position: center top !important;
+  }
+  body.pdf-export .gen-svc-img {
+    max-width: 100%;
+    max-height: 320px;
+    height: auto;
+    object-fit: cover;
+  }
+
+  /* Page breaks inteligentes */
+  body.pdf-export .card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 14px;
+  }
+  body.pdf-export .footer {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Ocultar elementos interactivos que no van en el PDF */
+  body.pdf-export .confirm-section { display: none !important; }
+  body.pdf-export .btn-confirm { display: none !important; }
+  body.pdf-export .confirm-note { display: none !important; }
+
+  /* Ocultar card de "Documento de cotización" (no aplica en PDF) */
+  body.pdf-export #v-doc-card { display: none !important; }
+
+  /* Ocultar sección completa de selección de plan (interactiva, no va en PDF) */
+  body.pdf-export #v-plans-section { display: none !important; }
+
+  /* Texto: evitar corte en el borde derecho */
+  body.pdf-export ul, body.pdf-export ol {
+    padding-left: 20px;
+    margin-right: 0;
+  }
+  body.pdf-export li {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  body.pdf-export p, body.pdf-export div {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
 </style>
 </head>
 <body>
@@ -326,7 +374,7 @@
   <div class="container">
 
     <!-- Cotización adjunta -->
-    <div class="card">
+    <div class="card" id="v-doc-card">
       <div class="card-label" id="v-doc-label">📄 Documento de cotización</div>
       <p id="v-doc-desc" style="font-size:13px;color:var(--gray-700);margin-bottom:14px;">
         Hemos preparado una propuesta detallada para ti. Descárgala o ábrela para conocer todos los detalles.
