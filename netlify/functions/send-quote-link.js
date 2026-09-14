@@ -176,7 +176,7 @@ exports.handler = async function (event) {
         ${cuerpoHtml}
       </div>
       <div style="background:#F7F5F0;padding:14px 28px;border-radius:0 0 10px 10px;font-size:11px;color:#8C8B85;border:1px solid #EDEDEA;border-top:none;">
-        AsistenteVirtualOk.com · Sistema de Cotizaciones · ID: ${quote_id || ''}
+        AsistenteVirtualOk.com · ${en ? 'Quote System' : 'Sistema de Cotizaciones'} · ID: ${quote_id || ''}
       </div>
     </div>
   `;
