@@ -480,10 +480,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
             </div>
             <div class="field">
               <label>Características adicionales (una por línea)</label>
-              <textarea id="voip-incl-extras" rows="4">Llamadas entrantes ilimitadas.
-Acceso a panel de control para visualizar y gestionar la actividad telefónica.
-Grabación de llamadas para respaldo y control de calidad.
-Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales.</textarea>
+              <textarea id="voip-incl-extras" rows="4"></textarea>
             </div>
           </div>
 
@@ -501,10 +498,7 @@ Monitoreo especializado del agente, con revisión del 5% de las llamadas y entre
 
             <div class="field" style="margin-top:16px;">
               <label>Características adicionales (una por línea)</label>
-              <textarea id="voip-opt-extras" rows="4">Llamadas entrantes ilimitadas.
-Acceso a panel de control para visualizar y gestionar la actividad telefónica.
-Grabación de llamadas para respaldo y control de calidad.
-Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales.</textarea>
+              <textarea id="voip-opt-extras" rows="4"></textarea>
             </div>
           </div>
         </div>
@@ -679,10 +673,20 @@ let activePriceTab = 0;
 let activeVoipTab = 0;
 // Texto por defecto de "características adicionales" para telefonía — compartido entre el
 // modo Solo Telefonía (global) y el modo por-servicio (uno independiente por cada servicio).
-const DEFAULT_VOIP_EXTRAS_TEXT = `Llamadas entrantes ilimitadas.
+const VOIP_EXTRAS_TEXT = {
+  es: `Llamadas entrantes ilimitadas.
 Acceso a panel de control para visualizar y gestionar la actividad telefónica.
 Grabación de llamadas para respaldo y control de calidad.
-Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales.`;
+Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales.`,
+  en: `Unlimited inbound calls.
+Access to a control panel to view and manage phone activity.
+Call recording for backup and quality control.
+Specialized agent monitoring, with review of 5% of calls and delivery of monthly reports.`
+};
+function getDefaultVoipExtrasText() {
+  const idioma = document.getElementById('gen-idioma')?.value || 'es';
+  return VOIP_EXTRAS_TEXT[idioma] || VOIP_EXTRAS_TEXT.es;
+}
 // Por servicio: funciones, jornadas, precios, horarios
 let serviceData = {}; // { clave: { funciones:[], jornadas:[], precios:{}, horarios:{}, precio_inicio, precio_full, horario_inicio, horario_full } }
 
@@ -1118,32 +1122,29 @@ function toggleBilingue() {
 // ══════════════════════════════════════════════════════════
 //  IDIOMA CHANGE — actualizar defaults bilingües
 // ══════════════════════════════════════════════════════════
-const VOIP_EXTRAS_ES = [
-  'Llamadas entrantes ilimitadas.',
-  'Acceso a panel de control para visualizar y gestionar la actividad telefónica.',
-  'Grabación de llamadas para respaldo y control de calidad.',
-  'Monitoreo especializado del agente, con revisión del 5% de las llamadas y entrega de informes mensuales.'
-];
-const VOIP_EXTRAS_EN = [
-  'Unlimited inbound calls.',
-  'Access to a control panel to view and manage phone activity.',
-  'Call recording for backup and quality control.',
-  'Specialized agent monitoring, with review of 5% of calls and delivery of monthly reports.'
-];
-
 function onIdiomaChange() {
   const idioma = document.getElementById('gen-idioma').value;
-  // Actualizar extras VoIP si el usuario no los ha editado (es decir, siguen siendo el default del otro idioma)
+  const newDefault = getDefaultVoipExtrasText();
+  const oldDefault = VOIP_EXTRAS_TEXT[idioma === 'en' ? 'es' : 'en'];
+
+  // Actualizar extras VoIP del modo "solo telefonía" si no han sido editados
   const inclEl = document.getElementById('voip-incl-extras');
   const optEl = document.getElementById('voip-opt-extras');
-  const oldDefault = (idioma === 'en' ? VOIP_EXTRAS_ES : VOIP_EXTRAS_EN).join('\n');
-  const newDefault = (idioma === 'en' ? VOIP_EXTRAS_EN : VOIP_EXTRAS_ES).join('\n');
   if (inclEl && (inclEl.value.trim() === oldDefault.trim() || inclEl.value.trim() === '')) {
     inclEl.value = newDefault;
   }
   if (optEl && (optEl.value.trim() === oldDefault.trim() || optEl.value.trim() === '')) {
     optEl.value = newDefault;
   }
+
+  // Actualizar extras VoIP de cada servicio ya inicializado (modo por servicio)
+  Object.values(serviceData).forEach(sd => {
+    if (sd.telefonia) {
+      if (sd.telefonia.inclExtras === oldDefault) sd.telefonia.inclExtras = newDefault;
+      if (sd.telefonia.optExtras === oldDefault) sd.telefonia.optExtras = newDefault;
+    }
+  });
+
   // Re-renderizar servicios si ya están cargados, para actualizar horarios/labels
   if (selectedServices.length > 0) renderServices();
 }
@@ -1379,14 +1380,27 @@ function renderVoipStep5() {
   const perUi = document.getElementById('voip-permode-ui');
   const subtitle = document.getElementById('voip-step5-subtitle');
   if (!onlyUi || !perUi) return;
+
+  // Inicializar textareas del modo "solo telefonía" con el idioma correcto
+  const idioma = document.getElementById('gen-idioma')?.value || 'es';
+  const defText = getDefaultVoipExtrasText();
+  const inclEl = document.getElementById('voip-incl-extras');
+  const optEl = document.getElementById('voip-opt-extras');
+  if (inclEl && !inclEl.value.trim()) inclEl.value = defText;
+  if (optEl && !optEl.value.trim()) optEl.value = defText;
+
   if (voipOnlyMode) {
     onlyUi.classList.remove('hidden');
     perUi.classList.add('hidden');
-    if (subtitle) subtitle.textContent = 'Configura si la cotización incluye servicio de telefonía';
+    if (subtitle) subtitle.textContent = idioma === 'en'
+      ? 'Configure whether the quote includes a telephony service'
+      : 'Configura si la cotización incluye servicio de telefonía';
   } else {
     onlyUi.classList.add('hidden');
     perUi.classList.remove('hidden');
-    if (subtitle) subtitle.textContent = 'Configura la telefonía de cada servicio cotizado';
+    if (subtitle) subtitle.textContent = idioma === 'en'
+      ? 'Configure telephony for each quoted service'
+      : 'Configura la telefonía de cada servicio cotizado';
     renderVoipTabs();
   }
 }
@@ -1483,9 +1497,9 @@ function ensureTelefoniaSvc(clave) {
       tipo: 'none',
       inclPais: '',
       inclMinutos: '',
-      inclExtras: DEFAULT_VOIP_EXTRAS_TEXT,
+      inclExtras: getDefaultVoipExtrasText(),
       paisesSeleccionados: [],
-      optExtras: DEFAULT_VOIP_EXTRAS_TEXT
+      optExtras: getDefaultVoipExtrasText()
     };
   }
   return serviceData[clave].telefonia;
@@ -1547,8 +1561,12 @@ function voipPlansListHtml(selectedArr) {
 function renderVoipServicePanel(svc) {
   const tel = ensureTelefoniaSvc(svc.clave);
   const clave = svc.clave;
+  const idioma = document.getElementById('gen-idioma')?.value || 'es';
+  const en = idioma === 'en';
 
-  const typeLabels = { none: '🚫 Sin telefonía', incluida: '📞 Incluida en el plan', opcional: '📋 Planes opcionales' };
+  const typeLabels = en
+    ? { none: '🚫 No telephony', incluida: '📞 Included in plan', opcional: '📋 Optional plans' }
+    : { none: '🚫 Sin telefonía', incluida: '📞 Incluida en el plan', opcional: '📋 Planes opcionales' };
   const typeBtns = ['none', 'incluida', 'opcional'].map(t =>
     `<div class="voip-type-btn ${tel.tipo === t ? 'active' : ''}" onclick="setVoipTypeForService('${clave}','${t}')">${typeLabels[t]}</div>`
   ).join('');
@@ -1556,33 +1574,33 @@ function renderVoipServicePanel(svc) {
   let body = '';
   if (tel.tipo === 'incluida') {
     body = `
-      <div class="card-subtitle" style="margin-top:16px;">La telefonía viene incluida en el servicio principal</div>
+      <div class="card-subtitle" style="margin-top:16px;">${en ? 'Telephony is included in the main service' : 'La telefonía viene incluida en el servicio principal'}</div>
       <div class="field-row">
         <div class="field">
-          <label>País de destino</label>
+          <label>${en ? 'Destination country' : 'País de destino'}</label>
           <select onchange="updateTelSvc('${clave}','inclPais',this.value)">${voipCountryOptionsHtml(tel.inclPais)}</select>
         </div>
         <div class="field">
-          <label>Minutos mensuales incluidos</label>
+          <label>${en ? 'Monthly minutes included' : 'Minutos mensuales incluidos'}</label>
           <input type="number" value="${tel.inclMinutos || ''}" placeholder="1500" onchange="updateTelSvc('${clave}','inclMinutos',this.value)" />
         </div>
       </div>
       <div class="field">
-        <label>Características adicionales (una por línea)</label>
+        <label>${en ? 'Additional features (one per line)' : 'Características adicionales (una por línea)'}</label>
         <textarea rows="4" onchange="updateTelSvc('${clave}','inclExtras',this.value)">${escHtml(tel.inclExtras)}</textarea>
       </div>`;
   } else if (tel.tipo === 'opcional') {
     const hasCountries = (tel.paisesSeleccionados || []).length > 0;
     body = `
-      <div class="card-subtitle" style="margin-top:16px;">Selecciona los países y planes VoIP disponibles</div>
+      <div class="card-subtitle" style="margin-top:16px;">${en ? 'Select available countries and VoIP plans' : 'Selecciona los países y planes VoIP disponibles'}</div>
       <div class="country-grid">${voipCountryGridHtml(clave, tel.paisesSeleccionados)}</div>
       ${hasCountries ? `
       <div style="margin-top:20px;">
-        <div class="card-subtitle">Planes disponibles por país — el cliente elige cuál paquete prefiere al ver la cotización</div>
+        <div class="card-subtitle">${en ? 'Available plans by country — the client chooses their preferred package when viewing the quote' : 'Planes disponibles por país — el cliente elige cuál paquete prefiere al ver la cotización'}</div>
         <div>${voipPlansListHtml(tel.paisesSeleccionados)}</div>
       </div>` : ''}
       <div class="field" style="margin-top:16px;">
-        <label>Características adicionales (una por línea)</label>
+        <label>${en ? 'Additional features (one per line)' : 'Características adicionales (una por línea)'}</label>
         <textarea rows="4" onchange="updateTelSvc('${clave}','optExtras',this.value)">${escHtml(tel.optExtras)}</textarea>
       </div>`;
   }
