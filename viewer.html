@@ -1262,10 +1262,15 @@ function renderGeneratedQuote(data) {
     // Solo mostrar la nota de ajuste de tarifas (sin condiciones estándar de contratación)
     var soloTelCard = document.createElement('div');
     soloTelCard.className = 'card';
-    var esEspanaST = (cd.telefonia && cd.telefonia.paises_seleccionados || []).includes('es');
-    var ajTxtST = idioma === 'en'
-      ? ('Rates are subject to an annual adjustment. ' + (esEspanaST ? 'This adjustment is applied every February.' : 'This adjustment applies upon completion of each year of service.'))
-      : (esEspanaST ? 'Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año.' : 'Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio.');
+    // Nota de ajuste: texto manual si existe, si no retrocompatibilidad con el flag ajuste_es_espana
+    var notaAjusteST = cd.condiciones_extras && cd.condiciones_extras.nota_ajuste_tarifas;
+    if (notaAjusteST === undefined || notaAjusteST === null) {
+      var esEspanaST = (cd.telefonia && cd.telefonia.paises_seleccionados || []).includes('es');
+      notaAjusteST = idioma === 'en'
+        ? ('Rates are subject to an annual adjustment. ' + (esEspanaST ? 'This adjustment is applied every February.' : 'This adjustment applies upon completion of each year of service.'))
+        : (esEspanaST ? 'Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año.' : 'Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio.');
+    }
+    var ajTxtST = notaAjusteST || '';
     var voipCondiciones = idioma === 'en' ? [
       'The contracted minute package does not carry over to the next billing period.',
       'The telephony service allows calls only to mobile and landline numbers within the contracted country.',
@@ -1287,6 +1292,9 @@ function renderGeneratedQuote(data) {
       voipCondHtml += '<li style="margin-bottom:10px;font-size:14px;color:var(--gray-700);line-height:1.5;">' + c + '</li>';
     });
     voipCondHtml += '</ol>';
+    if (ajTxtST) {
+      voipCondHtml += '<div class="gen-nota" style="margin-top:16px;">' + ajTxtST + '</div>';
+    }
     if (cd.condiciones_extras && cd.condiciones_extras.nota_personalizada) {
       voipCondHtml += '<div class="gen-nota" style="margin-top:12px;">' + cd.condiciones_extras.nota_personalizada + '</div>';
     }
@@ -1321,30 +1329,33 @@ function renderGeneratedQuote(data) {
   ];
 
   var extrasCondHtml = '';
-  // Nota de ajuste de tarifas: aparece siempre que la cotización incluye servicios (jornada media/completa).
-  // Esta sección del código solo se ejecuta cuando NO es Solo Telefonía (ver "return" más arriba), así que
-  // aquí siempre hay servicios cotizados y la nota debe mostrarse, tenga o no telefonía adicional.
-  // Detectar España: flag explícito en condiciones_extras, España entre los países VoIP (si hay telefonía),
-  // o moneda de la cotización es EUR (cliente de España aunque no tenga telefonía)
-  var esEspanaPorServicio = !!(cd.telefonia_por_servicio && Object.keys(cd.telefonia_por_servicio).some(function(k) {
-    var t = cd.telefonia_por_servicio[k];
-    if (!t) return false;
-    if (t.tipo === 'incluida') return t.incluida_info && t.incluida_info.pais_key === 'es';
-    if (t.tipo === 'opcional') return (t.paises_seleccionados || []).includes('es');
-    return false;
-  }));
-  var esEspana = (cd.condiciones_extras && cd.condiciones_extras.ajuste_es_espana)
-    || ((cd.telefonia && cd.telefonia.paises_seleccionados || []).includes('es'))
-    || (cd.telefonia && cd.telefonia.incluida_info && cd.telefonia.incluida_info.pais_key === 'es')
-    || esEspanaPorServicio
-    || (data.moneda === 'EUR');
-  if (idioma === 'en') {
-    extrasCondHtml += '<div class="gen-nota" style="margin-top:16px;">Rates are subject to an annual adjustment. ' + (esEspana ? 'This adjustment is applied every February.' : 'This adjustment applies upon completion of each year of service.') + '</div>';
-  } else {
-    var ajTxt = esEspana
-      ? 'Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año.'
-      : 'Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio.';
-    extrasCondHtml += '<div class="gen-nota" style="margin-top:16px;">' + ajTxt + '</div>';
+  // Nota de ajuste de tarifas: se muestra el texto que el comercial escribió manualmente.
+  // Retrocompatibilidad: cotizaciones antiguas usan ajuste_es_espana (booleano) para auto-generar el texto.
+  var notaAjuste = cd.condiciones_extras && cd.condiciones_extras.nota_ajuste_tarifas;
+  if (notaAjuste === undefined || notaAjuste === null) {
+    // Cotización antigua — generar el texto automáticamente como antes
+    var esEspanaPorServicio = !!(cd.telefonia_por_servicio && Object.keys(cd.telefonia_por_servicio).some(function(k) {
+      var t = cd.telefonia_por_servicio[k];
+      if (!t) return false;
+      if (t.tipo === 'incluida') return t.incluida_info && t.incluida_info.pais_key === 'es';
+      if (t.tipo === 'opcional') return (t.paises_seleccionados || []).includes('es');
+      return false;
+    }));
+    var esEspana = !!(cd.condiciones_extras && cd.condiciones_extras.ajuste_es_espana)
+      || ((cd.telefonia && cd.telefonia.paises_seleccionados || []).includes('es'))
+      || !!(cd.telefonia && cd.telefonia.incluida_info && cd.telefonia.incluida_info.pais_key === 'es')
+      || esEspanaPorServicio
+      || (data.moneda === 'EUR');
+    if (idioma === 'en') {
+      notaAjuste = 'Rates are subject to an annual adjustment. ' + (esEspana ? 'This adjustment is applied every February.' : 'This adjustment applies upon completion of each year of service.');
+    } else {
+      notaAjuste = esEspana
+        ? 'Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año.'
+        : 'Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio.';
+    }
+  }
+  if (notaAjuste) {
+    extrasCondHtml += '<div class="gen-nota" style="margin-top:16px;">' + notaAjuste + '</div>';
   }
   if (cd.condiciones_extras && cd.condiciones_extras.nota_personalizada) {
     extrasCondHtml += '<div class="gen-nota" style="margin-top:12px;">' + cd.condiciones_extras.nota_personalizada + '</div>';
