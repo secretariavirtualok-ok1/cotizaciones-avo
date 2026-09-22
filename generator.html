@@ -553,9 +553,11 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
           </ol>
         </div>
 
-        <!-- Nota de ajuste de tarifas — dinámica según país, oculta en Solo Telefonía -->
-        <div id="cond-tariff-note" style="display:none; background:#FFFBEA; border:1px solid #F6E05E; border-radius:8px; padding:12px 14px; font-size:13px; color:#744210; margin-bottom:12px;">
-          <!-- Se rellena dinámicamente al entrar al paso 6 -->
+        <!-- Nota de ajuste de tarifas — editable manualmente por el comercial -->
+        <div id="cond-tariff-note-wrap" style="margin-bottom:16px;">
+          <label style="font-size:13px; font-weight:600; color:var(--gray-700); display:block; margin-bottom:6px;">Nota de ajuste de tarifas <span style="font-weight:400; color:var(--gray-500);">(opcional — aparecerá en la cotización del cliente)</span></label>
+          <textarea id="cond-tariff-note" rows="2" style="width:100%; font-size:13px; color:#744210; background:#FFFBEA; border:1px solid #F6E05E; border-radius:8px; padding:10px 14px; resize:vertical; box-sizing:border-box;" placeholder="Ej: Las tarifas están sujetas a un ajuste anual..."></textarea>
+          <p class="field-hint">Si dejas este campo vacío, no aparecerá ninguna nota de ajuste en la cotización.</p>
         </div>
 
         <div class="field" style="margin-top:16px;">
@@ -892,17 +894,26 @@ function renderCondiciones() {
   document.getElementById('cond-estandar').style.display = esVoip ? 'none' : '';
   document.getElementById('cond-voip').style.display = esVoip ? '' : 'none';
 
-  // Nota de ajuste de tarifas: aparece siempre que la cotización incluye servicios (jornada media/completa),
-  // tenga o no telefonía adicional. Se oculta únicamente en cotizaciones Solo Telefonía (sin servicio).
+  // Nota de ajuste de tarifas: editable manualmente. Se oculta solo en Solo Telefonía.
+  const tariffWrap = document.getElementById('cond-tariff-note-wrap');
   const tariffEl = document.getElementById('cond-tariff-note');
   if (!esVoip) {
-    const msg = esEspana
-      ? 'Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año.'
-      : 'Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio.';
-    tariffEl.textContent = msg;
-    tariffEl.style.display = '';
+    // Solo pre-rellenar si el textarea está vacío (primera vez que se entra al paso 6)
+    if (tariffEl && tariffEl.value.trim() === '') {
+      const idioma = document.getElementById('gen-idioma')?.value || 'es';
+      if (idioma === 'en') {
+        tariffEl.value = esEspana
+          ? 'Rates are subject to an annual adjustment, applied every February.'
+          : 'Rates are subject to an annual adjustment upon the completion of each year of service.';
+      } else {
+        tariffEl.value = esEspana
+          ? 'Las tarifas están sujetas a un ajuste anual, aplicado en el mes de febrero de cada año.'
+          : 'Las tarifas están sujetas a un ajuste anual al cumplirse cada año de servicio.';
+      }
+    }
+    if (tariffWrap) tariffWrap.style.display = '';
   } else {
-    tariffEl.style.display = 'none';
+    if (tariffWrap) tariffWrap.style.display = 'none';
   }
 }
 
@@ -2135,8 +2146,7 @@ async function saveQuotation() {
       servicios,
       ...(voipOnlyMode ? { telefonia } : { telefonia_por_servicio: telefoniaPorServicio }),
       condiciones_extras: {
-        ajuste_precios: true, // siempre incluido automáticamente
-        ajuste_es_espana: esEspanaTelefonia, // España → mensaje de febrero
+        nota_ajuste_tarifas: document.getElementById('cond-tariff-note')?.value?.trim() || '',
         nota_contable: '',
         nota_personalizada: document.getElementById('cond-nota-especial')?.value?.trim() || ''
       }
