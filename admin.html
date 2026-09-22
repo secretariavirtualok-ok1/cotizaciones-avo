@@ -2014,7 +2014,7 @@ async function openQuoteModal(quoteId) {
   const pagoAction = document.getElementById('mq-pago-action');
   if (['en_gestion', 'en_negociacion', 'cerrada'].includes(q.estado)) {
     pagoAction.innerHTML = `
-      <button class="btn btn-success btn-sm" onclick="openPaymentModal('${quoteId}')">💳 Enviar información de pago</button>
+      <button class="btn btn-success btn-sm" onclick="goToPaymentPanel('${quoteId}')">💳 Enviar información de pago</button>
       ${q.contrato_firmado_at ? `<span style="font-size:12px;color:var(--gray-500);margin-left:8px;">Contrato firmado el ${fmtDt(q.contrato_firmado_at)}${q.contrato_firmado_por ? ' por ' + q.contrato_firmado_por : ''}</span>` : ''}
     `;
   } else {
@@ -3170,6 +3170,26 @@ document.getElementById('mpay-close').addEventListener('click', () => document.g
 document.getElementById('modal-payment').addEventListener('click', e => {
   if (e.target === document.getElementById('modal-payment')) document.getElementById('modal-payment').classList.remove('open');
 });
+
+function goToPaymentPanel(quoteId) {
+  // 1. Cerrar modal de cotización
+  document.getElementById('modal-quote').classList.remove('open');
+
+  // 2. Navegar a la pestaña Pagos
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const pagosTab = document.querySelector('[data-panel="pagos"]');
+  const pagosPanel = document.getElementById('panel-pagos');
+  if (pagosTab) pagosTab.classList.add('active');
+  if (pagosPanel) pagosPanel.classList.add('active');
+
+  // 3. Cargar datos del panel Pagos y abrir el modal de pago
+  Promise.all([loadPagos(), loadPaymentAccounts()]).then(() => {
+    openPaymentModal(quoteId);
+  }).catch(() => {
+    openPaymentModal(quoteId); // abrir de todos modos aunque falle la carga
+  });
+}
 
 async function openPaymentModal(quoteId) {
   document.getElementById('mpay-alert').innerHTML = '';
