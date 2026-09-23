@@ -468,7 +468,7 @@ function show(screenId) {
 async function init() {
   const params = new URLSearchParams(window.location.search);
   const quoteId = params.get('id');
-  const isPreview = params.get('preview') === 'true'; // modo vista previa del admin
+  let isPreview = params.get('preview') === 'true'; // modo vista previa del admin
   const isPdfExport = params.get('pdf') === 'true'; // captura para exportar a PDF desde el admin — sin banner ni botón deshabilitado, para que se vea idéntico a lo que ve el cliente
   window._isPdfExport = isPdfExport;
 
@@ -483,6 +483,11 @@ async function init() {
     if (error || !data) { show('screen-error'); return; }
 
     quoteData = data;
+
+    // Una cotización "en revisión" todavía no se ha enviado al cliente: siempre se muestra
+    // como vista previa (sin registrar aperturas ni permitir seleccionar plan), aunque
+    // alguien quite "&preview=true" del enlace.
+    if (data.estado === 'en_revision') isPreview = true;
 
     if (data.expired && !isPreview) { show('screen-expired'); return; }
 
@@ -674,8 +679,11 @@ function renderViewer(data, quoteId, isPreview) {
     const banner = document.createElement('div');
     banner.id = 'admin-preview-banner';
     banner.style.cssText = 'position:sticky;top:0;z-index:999;background:#0F1F3D;color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;gap:12px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.3);';
-    banner.innerHTML = '<span>🔒 VISTA PREVIA — Panel Administrativo · Solo lectura</span>'
-      + (planSelNombre ? '<span style="background:#C89B3C;color:#0F1F3D;padding:4px 12px;border-radius:20px;font-size:12px;">✅ Cliente eligió: ' + planSelNombre + (jorNombre ? ' · ' + jorNombre : '') + '</span>' : '<span style="background:#F39C12;color:#fff;padding:4px 12px;border-radius:20px;font-size:12px;">⏳ Cliente aún no ha seleccionado</span>')
+    const enRevision = data.estado === 'en_revision';
+    banner.innerHTML = (enRevision
+        ? '<span>📝 BORRADOR EN REVISIÓN · Aún no enviado al cliente · Solo lectura</span>'
+        : '<span>🔒 VISTA PREVIA — Panel Administrativo · Solo lectura</span>')
+      + (enRevision ? '' : planSelNombre ? '<span style="background:#C89B3C;color:#0F1F3D;padding:4px 12px;border-radius:20px;font-size:12px;">✅ Cliente eligió: ' + planSelNombre + (jorNombre ? ' · ' + jorNombre : '') + '</span>' : '<span style="background:#F39C12;color:#fff;padding:4px 12px;border-radius:20px;font-size:12px;">⏳ Cliente aún no ha seleccionado</span>')
       + '<button onclick="window.close()" style="background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;">✕ Cerrar</button>';
     document.body.insertBefore(banner, document.body.firstChild);
   }
