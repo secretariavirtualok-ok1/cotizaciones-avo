@@ -63,6 +63,23 @@ exports.handler = async function (event) {
 
   const en = idioma === 'en';
 
+  // ── Traducción de nombres de métodos de pago almacenados en español ──
+  const METODO_TRANSLATIONS = {
+    'transferencia bancaria': 'Bank transfer',
+    'transferencia': 'Bank transfer',
+    'wire transfer': 'Wire transfer',
+    'nequi': 'Nequi',
+    'yape': 'Yape',
+    'zelle': 'Zelle',
+    'paypal': 'PayPal',
+  };
+
+  function translateMetodo(metodo) {
+    if (!en || !metodo) return metodo;
+    const lower = metodo.trim().toLowerCase();
+    return METODO_TRANSLATIONS[lower] || metodo;
+  }
+
   // ── Etiquetas de campos de una cuenta bancaria, en el idioma del correo ──
   const LABELS = en
     ? {
@@ -82,6 +99,7 @@ exports.handler = async function (event) {
 
   // ── Construye el bloque HTML de una cuenta/opción de pago ──
   function renderCuenta(cuenta, numero) {
+    const nombreMetodo = translateMetodo(cuenta.metodo);
     const esSoloEmail = /zelle|paypal/i.test(cuenta.metodo || '') && cuenta.email_pago && !cuenta.numero_cuenta && !cuenta.iban;
 
     if (esSoloEmail) {
@@ -89,7 +107,7 @@ exports.handler = async function (event) {
       return `
         <tr>
           <td style="padding:6px 0;font-size:14px;color:#0F1F3D;" valign="top"><strong>${numero}.</strong></td>
-          <td style="padding:6px 0;font-size:14px;color:#0F1F3D;"><strong>${cuenta.metodo}:</strong> ${cuenta.email_pago}</td>
+          <td style="padding:6px 0;font-size:14px;color:#0F1F3D;"><strong>${nombreMetodo}:</strong> ${cuenta.email_pago}</td>
         </tr>`;
     }
 
@@ -118,7 +136,7 @@ exports.handler = async function (event) {
     return `
       <tr>
         <td colspan="2" style="padding:10px 0 4px;">
-          <div style="font-size:14px;color:#0F1F3D;margin-bottom:4px;"><strong>${numero}. ${cuenta.metodo}</strong></div>
+          <div style="font-size:14px;color:#0F1F3D;margin-bottom:4px;"><strong>${numero}. ${nombreMetodo}</strong></div>
           <table style="width:100%;border-collapse:collapse;margin-left:6px;">${subFilasHtml}</table>
           ${cuenta.instrucciones ? `<div style="margin:6px 0 0 6px;font-size:12px;color:#1A5296;">ℹ️ ${cuenta.instrucciones}</div>` : ''}
         </td>
@@ -163,6 +181,8 @@ exports.handler = async function (event) {
 
   const firma = en ? 'The AsistenteVirtualOk.com Team' : 'Equipo de Asistente Virtual Ok.com';
 
+  const footerLabel = en ? 'Quote System' : 'Sistema de Cotizaciones';
+
   const contenidoHtml = `
     <div style="font-family:Segoe UI,system-ui,sans-serif;max-width:560px;margin:0 auto;">
       <div style="background:#0F1F3D;padding:20px 28px;border-radius:10px 10px 0 0;display:flex;align-items:center;">
@@ -191,7 +211,7 @@ exports.handler = async function (event) {
         <p style="font-size:14px;color:#0F1F3D;font-weight:700;margin:2px 0 0;">${firma}</p>
       </div>
       <div style="background:#F7F5F0;padding:14px 28px;border-radius:0 0 10px 10px;font-size:11px;color:#8C8B85;border:1px solid #EDEDEA;border-top:none;">
-        AsistenteVirtualOk.com · Sistema de Cotizaciones · ID: ${quote_id || ''}
+        AsistenteVirtualOk.com · ${footerLabel} · ID: ${quote_id || ''}
       </div>
     </div>
   `;
