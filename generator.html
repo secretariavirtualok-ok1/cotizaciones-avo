@@ -88,8 +88,13 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 .topbar-sub { font-size: 11px; opacity: 0.7; }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 .topbar-user { font-size: 13px; opacity: 0.8; }
-.topbar a, .topbar .btn-outline { color: white; border-color: rgba(255,255,255,0.3); }
-.topbar a:hover, .topbar .btn-outline:hover { background: rgba(255,255,255,0.1); }
+.topbar a, .topbar .btn-outline { color: white; background: transparent; border-color: rgba(255,255,255,0.35); }
+.topbar a:hover, .topbar .btn-outline:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.55); }
+.topbar-draftbox { display: flex; align-items: center; gap: 10px; padding: 5px 6px 5px 14px; border-radius: 20px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); }
+.topbar-draft-status { font-size: 12px; color: rgba(255,255,255,0.75); white-space: nowrap; }
+.topbar-draft-status.pending { color: var(--avo-orange, #f0ad4e); font-weight: 600; }
+#draft-save-btn { border-radius: 16px; }
+.topbar-divider { width: 1px; align-self: stretch; background: rgba(255,255,255,0.15); margin: 6px 2px; }
 
 /* ══ LAYOUT ═════════════════════════════════════════════ */
 #app { display: none; }
@@ -261,8 +266,11 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
       </div>
     </div>
     <div class="topbar-right">
-      <span id="draft-status" style="font-size:12px;opacity:0.85;"></span>
-      <button class="btn btn-outline btn-sm" id="draft-save-btn" onclick="saveDraftCloud(true)" title="Guarda el borrador en la nube para retomarlo desde cualquier equipo">💾 Guardar borrador</button>
+      <div class="topbar-draftbox">
+        <span id="draft-status" class="topbar-draft-status"></span>
+        <button class="btn btn-outline btn-sm" id="draft-save-btn" onclick="saveDraftCloud(true)" title="Guarda el borrador en la nube para retomarlo desde cualquier equipo">💾 Guardar borrador</button>
+      </div>
+      <span class="topbar-divider"></span>
       <a href="admin.html" class="btn btn-outline btn-sm">← Panel Admin</a>
       <span class="topbar-user" id="topbar-email"></span>
       <button class="btn btn-outline btn-sm" id="logout-btn">Salir</button>
@@ -2420,7 +2428,9 @@ function hhmm() {
 }
 function setDraftStatus(txt) {
   const el = document.getElementById('draft-status');
-  if (el) el.textContent = txt;
+  if (!el) return;
+  el.textContent = txt;
+  el.classList.toggle('pending', txt.includes('⚠️'));
 }
 
 // Los horarios/precios del paso 4 se guardan en serviceData solo al salir del campo (onchange);
