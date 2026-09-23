@@ -261,6 +261,8 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
       </div>
     </div>
     <div class="topbar-right">
+      <span id="draft-status" style="font-size:12px;opacity:0.85;"></span>
+      <button class="btn btn-outline btn-sm" id="draft-save-btn" onclick="saveDraftCloud(true)" title="Guarda el borrador en la nube para retomarlo desde cualquier equipo">💾 Guardar borrador</button>
       <a href="admin.html" class="btn btn-outline btn-sm">← Panel Admin</a>
       <span class="topbar-user" id="topbar-email"></span>
       <button class="btn btn-outline btn-sm" id="logout-btn">Salir</button>
@@ -269,6 +271,18 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 
   <!-- STEPPER -->
   <div class="main">
+    <!-- Aviso de borrador pendiente en este equipo -->
+    <div id="draft-restore-banner" class="hidden" style="background:#EFF9FF;border:1.5px solid var(--avo-accent);border-radius:10px;padding:14px 18px;margin-bottom:16px;font-size:14px;color:var(--avo-blue);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div>
+        📝 <strong>Tienes una cotización sin terminar</strong> <span id="draft-restore-info"></span>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">Si la descartas, se borra solo de este equipo. Si ya estaba guardada en la nube, seguirá disponible en el panel admin.</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-success btn-sm" onclick="resumeLocalDraft()">Continuar donde lo dejé</button>
+        <button class="btn btn-outline btn-sm" onclick="discardLocalDraft()">Descartar</button>
+      </div>
+    </div>
+
     <div class="stepper" id="stepper">
       <div class="step active" data-step="1"><div class="step-num">1</div> Cliente</div>
       <span class="step-arrow">›</span>
@@ -618,9 +632,29 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 
       <div class="step-nav">
         <button class="btn btn-outline" onclick="goToStep(6)">← Anterior</button>
-        <button class="btn btn-success" id="save-btn" onclick="saveQuotation()">
-          ✓ Generar cotización y enlace
-        </button>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+          <button class="btn btn-outline" id="preview-btn" onclick="saveQuotation('preview')">
+            👁 Generar vista previa (sin enviar)
+          </button>
+          <button class="btn btn-success" id="save-btn" onclick="saveQuotation('send')">
+            ✉️ Aprobar y enviar al cliente
+          </button>
+        </div>
+      </div>
+
+      <!-- Vista previa interna (no se envía nada al cliente) -->
+      <div class="card hidden" id="preview-card" style="margin-top:20px; border: 2px solid var(--avo-accent);">
+        <div class="card-title" style="color: var(--avo-accent);">👁 Vista previa lista. Todavía NO se ha enviado al cliente</div>
+        <div class="card-subtitle">Comparte este enlace con el comercial o la jefatura para que lo revisen. Si hay que corregir algo, edita los pasos anteriores y pulsa <strong>"Actualizar vista previa"</strong>: el mismo enlace mostrará los cambios. Cuando esté aprobado, pulsa <strong>"Aprobar y enviar al cliente"</strong>.</div>
+        <div class="field" style="margin-top:12px;">
+          <label>Enlace de revisión interna</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="preview-link" readonly style="flex:1; background:var(--gray-50);" />
+            <button class="btn btn-accent btn-sm" onclick="copyFromInput('preview-link', this)">Copiar</button>
+            <a class="btn btn-outline btn-sm" id="preview-open" href="#" target="_blank">Abrir →</a>
+          </div>
+        </div>
+        <div id="preview-status" style="margin-top:6px;font-size:12px;color:var(--gray-500);"></div>
       </div>
 
       <!-- Resultado -->
@@ -630,7 +664,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
           <label>Enlace para el cliente</label>
           <div style="display:flex; gap:8px;">
             <input type="text" id="result-link" readonly style="flex:1; background:var(--gray-50);" />
-            <button class="btn btn-accent btn-sm" onclick="copyLink()">Copiar</button>
+            <button class="btn btn-accent btn-sm" onclick="copyFromInput('result-link', this)">Copiar</button>
           </div>
         </div>
         <div id="result-email-status" style="margin-top:10px;font-size:13px;"></div>
@@ -673,6 +707,13 @@ let plans = [];
 let activeFuncTab = 0;
 let activePriceTab = 0;
 let activeVoipTab = 0;
+
+// ── Vista previa y borradores ──
+let previewQuoteId = null;       // id en "quotes" de la cotización en revisión (se reutiliza al actualizar la vista previa)
+let currentDraftId = null;       // id en "quote_drafts" (borrador en la nube)
+let quoteSent = false;           // true una vez enviada al cliente: se detiene el autoguardado
+let draftRestoring = false;      // true mientras se restaura un borrador (evita autoguardados a medias)
+let draftDecisionPending = false;// true mientras se muestra el aviso "¿continuar borrador?"
 // Texto por defecto de "características adicionales" para telefonía — compartido entre el
 // modo Solo Telefonía (global) y el modo por-servicio (uno independiente por cada servicio).
 const VOIP_EXTRAS_TEXT = {
@@ -793,6 +834,7 @@ async function initApp(user) {
     await loadCatalogs();
     renderServices();
     renderCountries();
+    await initDraftRecovery();
   } catch(e) {
     console.error('initApp error:', e);
   }
@@ -940,6 +982,12 @@ function goToStep(n) {
   });
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Borrador: guardar al cambiar de paso (local al instante, nube también)
+  if (!draftRestoring && !draftDecisionPending && !quoteSent) {
+    saveDraftLocal();
+    saveDraftCloud(false);
+  }
 }
 
 function validateStep(n) {
@@ -1943,12 +1991,28 @@ function withTimeout(promise, ms, label) {
   ]);
 }
 
-async function saveQuotation() {
+// mode: 'preview' → guarda en estado "en_revision" y muestra un enlace interno (no envía nada al cliente)
+//       'send'    → guarda en estado "enviada" y envía el correo al cliente (flujo de siempre)
+// En ambos casos, si ya existe una vista previa, se ACTUALIZA esa misma cotización en vez de crear otra.
+async function saveQuotation(mode) {
+  mode = mode === 'preview' ? 'preview' : 'send';
+  const isPreviewMode = mode === 'preview';
   const btn = document.getElementById('save-btn');
+  const previewBtn = document.getElementById('preview-btn');
+
+  if (!isPreviewMode) {
+    const email = document.getElementById('client-email').value.trim();
+    const nombre = document.getElementById('client-nombre').value.trim();
+    const ok = confirm(`¿Confirmas que la cotización ya fue revisada y quieres enviarla a ${nombre}${email ? ' (' + email + ')' : ''}?\n\nEl cliente recibirá el correo con el enlace.`);
+    if (!ok) return;
+  }
+
   btn.disabled = true;
-  btn.textContent = 'Guardando...';
+  if (previewBtn) previewBtn.disabled = true;
+  (isPreviewMode ? previewBtn : btn).textContent = 'Guardando...';
 
   try {
+    syncDynamicInputsToState();
     // Verificar que la sesión siga activa antes de continuar.
     // Usamos getSession() (lee de localStorage, no hace round-trip de red) en vez de
     // getUser() (valida contra el servidor de Auth) porque getUser() puede colgarse
@@ -1978,6 +2042,8 @@ async function saveQuotation() {
       const { data: newClient, error: cErr } = await withTimeout(sb.from('clients').insert(clientData).select().single(), 20000, 'guardar cliente');
       if (cErr) throw cErr;
       clientId = newClient.id;
+      // Recordarlo: si se actualiza la vista previa o se envía después, no se crea un cliente duplicado
+      selectedClientId = clientId;
     } else {
       const { error: cUpdErr } = await withTimeout(sb.from('clients').update(clientData).eq('id', clientId), 20000, 'actualizar cliente');
       if (cUpdErr) throw cUpdErr;
@@ -2011,10 +2077,13 @@ async function saveQuotation() {
       jornadasNormales.forEach(j => {
         const schEl = document.getElementById(svc.clave + '_schedule_' + j);
         const prEl = document.getElementById(svc.clave + '_precio_' + j);
-        if (schEl) horariosFinal[j] = schEl.value || (idioma === 'en'
+        // Si los campos no están en pantalla (p. ej. borrador retomado directo en el paso 7),
+        // se usan los valores guardados en serviceData.
+        const schVal = schEl ? schEl.value : ((sd.horarios || {})[j] || '');
+        horariosFinal[j] = schVal || (idioma === 'en'
           ? (j === 'media' ? 'Monday to Friday, 8:00 a.m. to 12:00 p.m.' : 'Monday to Friday, 8:00 a.m. to 6:00 p.m. with a one-hour break.')
           : (j === 'media' ? 'Lunes a viernes de 8:00 a.m. a 12:00 p.m.' : 'Lunes a viernes de 8:00 a.m. a 6:00 p.m. con una hora de descanso.'));
-        if (prEl) preciosFinal[j] = parseFloat(prEl.value) || 0;
+        preciosFinal[j] = prEl ? (parseFloat(prEl.value) || 0) : (parseFloat((sd.precios || {})[j]) || 0);
       });
 
       if (!jornadas.includes('media_3meses')) {
@@ -2184,15 +2253,56 @@ async function saveQuotation() {
       planes_ofrecidos: planesOfrecidos,
       precios_combinaciones: preciosComb,
       jornadas_ofrecidas: todasJornadas,
-      estado: 'enviada',
+      // "en_revision" = vista previa interna, aún no enviada. El vencimiento se calcula
+      // recién al enviar, para que los días de vigencia cuenten desde el envío real.
+      estado: isPreviewMode ? 'en_revision' : 'enviada',
       fecha_envio: new Date().toISOString(),
-      vencimiento,
-      notas_internas: document.getElementById('cond-notas-internas')?.value?.trim() || null,
-      created_by: user.id
+      vencimiento: isPreviewMode ? null : vencimiento,
+      notas_internas: document.getElementById('cond-notas-internas')?.value?.trim() || null
     };
 
-    const { data: quote, error: qErr } = await withTimeout(sb.from('quotes').insert(quoteData).select().single(), 20000, 'guardar cotización');
+    // Si ya había una vista previa, verificar que siga existiendo y que nadie la haya enviado
+    // (p. ej. otra persona retomó el borrador desde otro equipo y ya la envió).
+    if (previewQuoteId) {
+      const { data: existing } = await withTimeout(
+        sb.from('quotes').select('id, estado').eq('id', previewQuoteId).maybeSingle(), 15000, 'verificar cotización');
+      if (!existing) {
+        previewQuoteId = null; // la eliminaron → se crea una nueva
+      } else if (existing.estado !== 'en_revision') {
+        alert('Esta cotización ya fue enviada al cliente (posiblemente desde otro equipo), así que no se puede modificar desde aquí.\n\nSi necesitas una versión corregida, crea una nueva cotización.');
+        btn.disabled = false;
+        if (previewBtn) previewBtn.disabled = false;
+        btn.textContent = '✉️ Aprobar y enviar al cliente';
+        if (previewBtn) previewBtn.textContent = '🔄 Actualizar vista previa';
+        return;
+      }
+    }
+
+    let quote, qErr;
+    if (previewQuoteId) {
+      // Ya existe una vista previa → actualizar esa misma cotización (el enlace no cambia)
+      ({ data: quote, error: qErr } = await withTimeout(
+        sb.from('quotes').update(quoteData).eq('id', previewQuoteId).select().single(), 20000, 'actualizar cotización'));
+    } else {
+      quoteData.created_by = user.id;
+      ({ data: quote, error: qErr } = await withTimeout(
+        sb.from('quotes').insert(quoteData).select().single(), 20000, 'guardar cotización'));
+    }
     if (qErr) throw qErr;
+    previewQuoteId = quote.id;
+
+    // ── Modo vista previa: mostrar enlace interno y terminar aquí (sin correo, sin tocar el prospecto) ──
+    if (isPreviewMode) {
+      const previewLink = VIEWER_BASE + '?id=' + quote.id + '&preview=true';
+      showPreviewCard(previewLink);
+      btn.disabled = false;
+      previewBtn.disabled = false;
+      previewBtn.textContent = '🔄 Actualizar vista previa';
+      saveDraftLocal();
+      saveDraftCloud(false);
+      document.getElementById('preview-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
 
     // 5. If quote was made for a prospect, update lead status to "contacted"
     if (selectedLeadId) {
@@ -2204,8 +2314,13 @@ async function saveQuotation() {
     const link = VIEWER_BASE + '?id=' + quote.id;
     document.getElementById('result-link').value = link;
     document.getElementById('result-preview').href = link;
+    document.getElementById('preview-card').classList.add('hidden');
     document.getElementById('result-card').classList.remove('hidden');
-    btn.textContent = '✓ Cotización creada';
+    btn.textContent = '✓ Cotización enviada';
+    if (previewBtn) previewBtn.classList.add('hidden');
+
+    // La cotización ya salió: borrar el borrador local y el de la nube
+    await clearAllDrafts();
 
     // 7. Enviar automáticamente el enlace por correo al cliente (además de compartirlo
     // manualmente por WhatsApp). Si el cliente no tiene correo registrado, se omite y se
@@ -2256,21 +2371,344 @@ async function saveQuotation() {
     console.error(err);
     alert('Error al guardar: ' + (err.message || JSON.stringify(err)));
     btn.disabled = false;
-    btn.textContent = '✓ Generar cotización y enlace';
+    btn.textContent = '✉️ Aprobar y enviar al cliente';
+    if (previewBtn) {
+      previewBtn.disabled = false;
+      previewBtn.textContent = previewQuoteId ? '🔄 Actualizar vista previa' : '👁 Generar vista previa (sin enviar)';
+    }
   }
 }
 
-function copyLink() {
-  const input = document.getElementById('result-link');
+function showPreviewCard(previewLink) {
+  document.getElementById('preview-link').value = previewLink;
+  document.getElementById('preview-open').href = previewLink;
+  document.getElementById('preview-status').textContent = 'Última actualización: ' + new Date().toLocaleString('es-VE', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+  document.getElementById('preview-card').classList.remove('hidden');
+}
+
+function copyFromInput(inputId, btn) {
+  const input = document.getElementById(inputId);
   input.select();
   navigator.clipboard.writeText(input.value);
-  const btn = event.target;
+  const original = btn.textContent;
   btn.textContent = '✓ Copiado';
-  setTimeout(() => { btn.textContent = 'Copiar'; }, 2000);
+  setTimeout(() => { btn.textContent = original; }, 2000);
 }
 
 function newQuotation() {
-  location.reload();
+  try { localStorage.removeItem(DRAFT_LS_KEY); } catch (e) {}
+  location.href = location.pathname; // recarga sin parámetros (?draft=...)
+}
+
+// ══════════════════════════════════════════════════════════
+//  BORRADORES
+//  1) Local: autoguardado en este navegador (protege ante cortes de luz / cierre de pestaña).
+//  2) Nube: tabla "quote_drafts" en Supabase, para retomar desde otro equipo
+//     (desde el panel admin → Cotizaciones → Borradores en curso → Continuar).
+// ══════════════════════════════════════════════════════════
+const DRAFT_LS_KEY = 'avo_generator_draft_v1';
+const DRAFT_SKIP_IDS = new Set(['client-search', 'result-link', 'preview-link', 'login-email', 'login-pass']);
+let localSaveTimer = null;
+let cloudSaveTimer = null;
+let cloudSaving = false;
+let cloudSavePending = false;
+let pendingLocalDraft = null;
+let cloudDraftGone = false; // el borrador en la nube fue eliminado/enviado: no recrearlo automáticamente
+
+function hhmm() {
+  return new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
+}
+function setDraftStatus(txt) {
+  const el = document.getElementById('draft-status');
+  if (el) el.textContent = txt;
+}
+
+// Los horarios/precios del paso 4 se guardan en serviceData solo al salir del campo (onchange);
+// esto los copia desde la pantalla para no perder lo que se está escribiendo.
+function syncDynamicInputsToState() {
+  selectedServices.forEach(svc => {
+    const sd = serviceData[svc.clave];
+    if (!sd) return;
+    sd.horarios = sd.horarios || {};
+    sd.precios = sd.precios || {};
+    ['media', 'completa'].forEach(j => {
+      const s = document.getElementById(svc.clave + '_schedule_' + j);
+      const p = document.getElementById(svc.clave + '_precio_' + j);
+      if (s) sd.horarios[j] = s.value;
+      if (p) sd.precios[j] = parseFloat(p.value) || 0;
+    });
+    const pi = document.getElementById(svc.clave + '_precio_m3_inicio');
+    const pf = document.getElementById(svc.clave + '_precio_m3_full');
+    const hi = document.getElementById(svc.clave + '_horario_m3_inicio');
+    const hf = document.getElementById(svc.clave + '_horario_m3_full');
+    if (pi) sd.precio_inicio = parseFloat(pi.value) || 0;
+    if (pf) sd.precio_full = parseFloat(pf.value) || 0;
+    if (hi) sd.horario_inicio = hi.value;
+    if (hf) sd.horario_full = hf.value;
+  });
+}
+
+function collectDraftFields() {
+  const out = {};
+  document.querySelectorAll('#app input[id], #app select[id], #app textarea[id]').forEach(el => {
+    if (DRAFT_SKIP_IDS.has(el.id) || el.type === 'password') return;
+    // Los campos del paso 4 se reconstruyen desde serviceData
+    if (/_schedule_|_precio_|_horario_m3_/.test(el.id)) return;
+    out[el.id] = (el.type === 'checkbox' || el.type === 'radio') ? { c: el.checked } : el.value;
+  });
+  return out;
+}
+
+function buildDraftState() {
+  syncDynamicInputsToState();
+  return {
+    v: 1,
+    savedAt: new Date().toISOString(),
+    step: currentStep,
+    fields: collectDraftFields(),
+    selectedClientId,
+    selectedLeadId,
+    leadName: document.getElementById('lead-banner-name')?.textContent || '',
+    isBilingue,
+    voipOnlyMode,
+    voipType,
+    selectedVoipCountries,
+    selectedMinutesByCountry,
+    selectedServiceClaves: selectedServices.map(s => s.clave),
+    serviceData,
+    emailBodyEdited,
+    activeFuncTab, activePriceTab, activeVoipTab,
+    previewQuoteId,
+    currentDraftId
+  };
+}
+
+function draftHasContent(st) {
+  return !!(st && ((st.fields && (st.fields['client-nombre'] || '').trim()) || (st.selectedServiceClaves || []).length));
+}
+
+function saveDraftLocal() {
+  if (draftRestoring || draftDecisionPending || quoteSent) return;
+  try {
+    const st = buildDraftState();
+    if (!draftHasContent(st)) return;
+    localStorage.setItem(DRAFT_LS_KEY, JSON.stringify(st));
+    if (!cloudSaving) setDraftStatus('💾 Guardado en este equipo · ' + hhmm());
+  } catch (e) { /* almacenamiento no disponible */ }
+}
+
+async function saveDraftCloud(manual) {
+  if (quoteSent) return;
+  if (draftRestoring || draftDecisionPending) {
+    if (manual) alert('Primero elige si quieres continuar o descartar el borrador pendiente (aviso azul arriba).');
+    return;
+  }
+  const st = buildDraftState();
+  const nombre = (st.fields['client-nombre'] || '').trim();
+  if (!nombre) {
+    if (manual) alert('Escribe al menos el nombre del cliente (paso 1) para guardar el borrador.');
+    return;
+  }
+  if (!manual && cloudDraftGone) return;
+  if (manual) cloudDraftGone = false;
+  if (cloudSaving) { cloudSavePending = true; return; }
+  cloudSaving = true;
+  clearTimeout(cloudSaveTimer);
+  if (manual) setDraftStatus('☁️ Guardando borrador...');
+  try {
+    const { data: s } = await sb.auth.getSession();
+    const email = s?.session?.user?.email || null;
+    const row = {
+      cliente_nombre: nombre,
+      cliente_empresa: (st.fields['client-empresa'] || '').trim() || null,
+      comercial: st.fields['gen-comercial'] || null,
+      paso: currentStep,
+      state: st,
+      quote_id: previewQuoteId,
+      updated_by_email: email,
+      updated_at: new Date().toISOString()
+    };
+    if (currentDraftId) {
+      const { data, error } = await withTimeout(
+        sb.from('quote_drafts').update(row).eq('id', currentDraftId).select('id'), 15000, 'guardar borrador');
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        // Lo eliminaron desde el admin o ya se envió desde otro equipo.
+        currentDraftId = null;
+        if (!manual) {
+          cloudDraftGone = true;
+          setDraftStatus('ℹ️ El borrador en la nube fue eliminado o enviado. Pulsa "Guardar borrador" para crearlo de nuevo');
+          return;
+        }
+      }
+    }
+    if (!currentDraftId) {
+      row.created_by_email = email;
+      const { data, error } = await withTimeout(
+        sb.from('quote_drafts').insert(row).select('id').single(), 15000, 'guardar borrador');
+      if (error) throw error;
+      currentDraftId = data.id;
+    }
+    setDraftStatus('☁️ Borrador guardado · ' + hhmm());
+    saveDraftLocal(); // para que el local también recuerde el id del borrador en la nube
+  } catch (e) {
+    console.error('Error guardando borrador en la nube:', e);
+    setDraftStatus('⚠️ Sin conexión a la nube: guardado solo en este equipo');
+    if (manual) alert('No se pudo guardar el borrador en la nube: ' + (e.message || e) + '\n\nTu avance sí quedó guardado en este equipo.');
+  } finally {
+    cloudSaving = false;
+    if (cloudSavePending) { cloudSavePending = false; scheduleCloudSave(); }
+  }
+}
+
+function scheduleCloudSave() {
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = setTimeout(() => saveDraftCloud(false), 10000); // 10 s después del último cambio
+}
+
+function markDraftDirty() {
+  if (draftRestoring || draftDecisionPending || quoteSent) return;
+  clearTimeout(localSaveTimer);
+  localSaveTimer = setTimeout(saveDraftLocal, 600);
+  scheduleCloudSave();
+}
+
+async function clearAllDrafts() {
+  quoteSent = true;
+  clearTimeout(localSaveTimer);
+  clearTimeout(cloudSaveTimer);
+  try { localStorage.removeItem(DRAFT_LS_KEY); } catch (e) {}
+  if (currentDraftId) {
+    try { await sb.from('quote_drafts').delete().eq('id', currentDraftId); } catch (e) { console.error(e); }
+    currentDraftId = null;
+  }
+  setDraftStatus('');
+  const dBtn = document.getElementById('draft-save-btn');
+  if (dBtn) dBtn.classList.add('hidden');
+}
+
+// Reconstruye el generador a partir de un borrador guardado
+function applyDraftState(st) {
+  draftRestoring = true;
+  try {
+    selectedClientId = st.selectedClientId || null;
+    selectedLeadId = st.selectedLeadId || null;
+    isBilingue = !!st.isBilingue;
+    serviceData = st.serviceData || {};
+    selectedServices = (st.selectedServiceClaves || [])
+      .map(c => serviceCatalog.find(s => s.clave === c))
+      .filter(Boolean);
+    selectedVoipCountries = st.selectedVoipCountries || [];
+    selectedMinutesByCountry = st.selectedMinutesByCountry || {};
+    emailBodyEdited = !!st.emailBodyEdited;
+    activeFuncTab = st.activeFuncTab || 0;
+    activePriceTab = st.activePriceTab || 0;
+    activeVoipTab = st.activeVoipTab || 0;
+    previewQuoteId = st.previewQuoteId || null;
+    if (!currentDraftId && st.currentDraftId) currentDraftId = st.currentDraftId;
+
+    // Campos fijos del formulario
+    Object.entries(st.fields || {}).forEach(([id, val]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (val && typeof val === 'object' && 'c' in val) el.checked = !!val.c;
+      else el.value = val;
+    });
+
+    // Modo Solo Telefonía y tipo de telefonía
+    if (st.voipOnlyMode) toggleVoipOnly(true);
+    voipType = st.voipType || 'none';
+    setVoipType(voipType);
+
+    // Aviso de prospecto
+    if (selectedLeadId) {
+      document.getElementById('lead-banner-name').textContent = st.leadName || '';
+      document.getElementById('lead-banner').classList.remove('hidden');
+    }
+
+    renderServices();
+    renderCountries();
+    renderVoipPlans();
+    // Pre-renderizar pasos 3 y 4 para que sus campos existan aunque se retome en un paso posterior
+    if (!voipOnlyMode && selectedServices.length) {
+      loadFunctions();
+      renderPriceTabs();
+    }
+
+    if (previewQuoteId) {
+      showPreviewCard(VIEWER_BASE + '?id=' + previewQuoteId + '&preview=true');
+      document.getElementById('preview-status').textContent = 'Vista previa generada anteriormente. Si hiciste cambios, pulsa "Actualizar vista previa".';
+      const pb = document.getElementById('preview-btn');
+      if (pb) pb.textContent = '🔄 Actualizar vista previa';
+    }
+
+    const step = Math.min(Math.max(parseInt(st.step, 10) || 1, 1), 7);
+    currentStep = step;
+    goToStep(step);
+  } finally {
+    draftRestoring = false;
+  }
+}
+
+async function initDraftRecovery() {
+  // Autoguardado: cualquier cambio dentro del generador
+  const app = document.getElementById('app');
+  ['input', 'change'].forEach(ev => app.addEventListener(ev, e => {
+    if (e.target && DRAFT_SKIP_IDS.has(e.target.id)) return;
+    markDraftDirty();
+  }, true));
+  app.addEventListener('click', e => {
+    if (e.target.closest('.service-option, .jornada-card, .country-option, .voip-type-btn, .svc-tab, button')) markDraftDirty();
+  }, true);
+  window.addEventListener('beforeunload', () => saveDraftLocal());
+
+  // ¿Viene desde el admin para retomar un borrador de la nube? (generator.html?draft=ID)
+  const params = new URLSearchParams(location.search);
+  const draftId = params.get('draft');
+  if (draftId) {
+    const { data, error } = await sb.from('quote_drafts').select('*').eq('id', draftId).maybeSingle();
+    history.replaceState(null, '', location.pathname);
+    if (error || !data) {
+      alert('No se encontró el borrador. Puede que ya se haya enviado o que lo hayan eliminado.');
+      return;
+    }
+    currentDraftId = data.id;
+    applyDraftState(data.state || {});
+    saveDraftLocal();
+    const quien = data.updated_by_email ? ' por ' + data.updated_by_email : '';
+    const cuando = new Date(data.updated_at).toLocaleString('es-VE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    setDraftStatus('☁️ Borrador retomado (última edición ' + cuando + quien + ')');
+    return;
+  }
+
+  // ¿Hay un borrador guardado en este equipo?
+  let st = null;
+  try { st = JSON.parse(localStorage.getItem(DRAFT_LS_KEY) || 'null'); } catch (e) {}
+  if (draftHasContent(st)) {
+    pendingLocalDraft = st;
+    draftDecisionPending = true;
+    const nombre = (st.fields['client-nombre'] || '').trim();
+    const cuando = st.savedAt ? new Date(st.savedAt).toLocaleString('es-VE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    document.getElementById('draft-restore-info').textContent =
+      (nombre ? 'para ' + nombre : '') + (cuando ? ' (guardada el ' + cuando + ', paso ' + (st.step || 1) + ' de 7)' : '');
+    document.getElementById('draft-restore-banner').classList.remove('hidden');
+  }
+}
+
+function resumeLocalDraft() {
+  document.getElementById('draft-restore-banner').classList.add('hidden');
+  draftDecisionPending = false;
+  if (pendingLocalDraft) applyDraftState(pendingLocalDraft);
+  pendingLocalDraft = null;
+  setDraftStatus('💾 Borrador recuperado · ' + hhmm());
+}
+
+function discardLocalDraft() {
+  if (!confirm('¿Descartar el borrador guardado en este equipo?')) return;
+  try { localStorage.removeItem(DRAFT_LS_KEY); } catch (e) {}
+  pendingLocalDraft = null;
+  draftDecisionPending = false;
+  document.getElementById('draft-restore-banner').classList.add('hidden');
 }
 
 // ══════════════════════════════════════════════════════════
