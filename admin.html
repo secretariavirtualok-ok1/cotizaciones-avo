@@ -198,6 +198,7 @@
     font-size: 11px; font-weight: 700; letter-spacing: .2px; white-space: nowrap;
   }
   .badge-enviada        { background: var(--gray-100); color: var(--gray-700); }
+  .badge-en_revision    { background: #EFF9FF; color: #1A5296; border: 1px dashed #1A5296; }
   .badge-abierta        { background: var(--blue-lt); color: var(--blue); }
   .badge-plan_seleccionado { background: var(--green-lt); color: var(--green); }
   .badge-en_gestion     { background: var(--amber-lt); color: var(--amber); }
@@ -663,6 +664,34 @@
         <h2 style="font-size:18px;font-weight:800;">Cotizaciones</h2>
       </div>
 
+      <!-- Borradores del generador (guardados en la nube) -->
+      <div class="card" id="drafts-card" style="margin-bottom:20px;padding:0;overflow:hidden;">
+        <div style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--gray-100);">
+          <div>
+            <h3 style="font-size:15px;font-weight:800;margin:0;">📝 Borradores en curso</h3>
+            <p style="color:var(--gray-500);font-size:12px;margin:2px 0 0;">Cotizaciones que se están armando en el generador y aún no se han enviado. Cualquiera del equipo puede continuarlas desde aquí.</p>
+          </div>
+          <button class="btn btn-sm btn-outline" onclick="loadDrafts()">↻ Actualizar</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Empresa</th>
+                <th>Comercial</th>
+                <th>Avance</th>
+                <th>Última edición</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="drafts-tbody">
+              <tr><td colspan="6" class="loading">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="filters">
         <div class="field">
           <label>Mes</label>
@@ -672,6 +701,7 @@
           <label>Estado</label>
           <select id="list-estado">
             <option value="">Todos</option>
+            <option value="en_revision">En revisión (no enviada)</option>
             <option value="enviada">Enviada</option>
             <option value="abierta">Abierta</option>
             <option value="plan_seleccionado">Servicio seleccionado</option>
@@ -978,6 +1008,7 @@
           <div class="field" style="margin:0;min-width:180px;">
             <label>Cambiar estado</label>
             <select id="mq-estado-sel">
+              <option value="en_revision" disabled>En revisión (no enviada): se envía desde el generador</option>
               <option value="enviada">Enviada</option>
               <option value="abierta">Abierta</option>
               <option value="plan_seleccionado">Servicio seleccionado</option>
@@ -1312,7 +1343,7 @@ document.querySelectorAll('.nav-tab').forEach(t => {
     const panel = document.getElementById('panel-' + t.dataset.panel);
     if (panel) panel.classList.add('active');
     // lazy load
-    if (t.dataset.panel === 'cotizaciones') loadQuotes();
+    if (t.dataset.panel === 'cotizaciones') { loadQuotes(); loadDrafts(); }
     if (t.dataset.panel === 'clientes')     loadClients();
     if (t.dataset.panel === 'planes')       loadPlanesPanel();
     if (t.dataset.panel === 'prospectos')   loadProspectos();
@@ -1333,7 +1364,7 @@ function fmtDt(dateStr) {
 }
 function badgeHtml(estado) {
   const labels = {
-    enviada:'Enviada', abierta:'Abierta', plan_seleccionado:'Servicio seleccionado',
+    en_revision:'En revisión (no enviada)', enviada:'Enviada', abierta:'Abierta', plan_seleccionado:'Servicio seleccionado',
     en_gestion:'Contrato firmado', en_negociacion:'Pago completado', cerrada:'Cerrada', descartada:'Descartada'
   };
   return `<span class="badge badge-${estado}">${labels[estado] || estado}</span>`;
@@ -1844,7 +1875,8 @@ async function loadDashboard() {
   const { data: quotes } = await sb.from('quotes_full').select('*')
     .gte('created_at', start).lt('created_at', end);
 
-  const rows = quotes || [];
+  // Las cotizaciones "en revisión" aún no se han enviado al cliente: no cuentan en el dashboard
+  const rows = (quotes || []).filter(r => r.estado !== 'en_revision');
 
   // stats
   const counts = {};
@@ -1960,6 +1992,65 @@ async function loadQuotes() {
       </td>
     </tr>
   `).join('');
+}
+
+// ════════════════════════════════════════════════════════════
+//  BORRADORES DEL GENERADOR (tabla quote_drafts)
+// ════════════════════════════════════════════════════════════
+const DRAFT_STEP_NAMES = { 1:'Cliente', 2:'Servicio', 3:'Funciones', 4:'Jornada y precio', 5:'Telefonía', 6:'Condiciones', 7:'Guardar' };
+
+async function loadDrafts() {
+  const tbody = document.getElementById('drafts-tbody');
+  if (!tbody) return;
+  const { data, error } = await sb.from('quote_drafts')
+    .select('id, cliente_nombre, cliente_empresa, comercial, paso, quote_id, created_by_email, updated_by_email, updated_at')
+    .order('updated_at', { ascending: false })
+    .limit(50);
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">No se pudieron cargar los borradores: ${esc(error.message)}</td></tr>`;
+    return;
+  }
+  if (!data || data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--gray-500);font-size:13px;">No hay borradores pendientes 🎉</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(d => {
+    const paso = d.paso || 1;
+    const avance = `Paso ${paso} de 7 · ${DRAFT_STEP_NAMES[paso] || ''}`
+      + (d.quote_id ? ` <span class="badge badge-en_revision" style="margin-left:4px;">Vista previa generada</span>` : '');
+    const quien = d.updated_by_email || d.created_by_email || '';
+    const previewBtn = d.quote_id
+      ? `<a class="btn btn-sm btn-outline" href="viewer.html?id=${d.quote_id}&preview=true" target="_blank">👁 Vista previa</a>`
+      : '';
+    return `
+      <tr>
+        <td><strong>${esc(d.cliente_nombre || '—')}</strong></td>
+        <td>${esc(d.cliente_empresa || '—')}</td>
+        <td>${esc(d.comercial || '—')}</td>
+        <td><small>${avance}</small></td>
+        <td><small>${fmtDt(d.updated_at)}${quien ? '<br><span style="color:var(--gray-500)">' + esc(quien) + '</span>' : ''}</small></td>
+        <td style="white-space:nowrap;">
+          <a class="btn btn-sm btn-primary" href="generator.html?draft=${d.id}">✏️ Continuar</a>
+          ${previewBtn}
+          <button class="btn btn-sm btn-danger" onclick="deleteDraft('${d.id}', ${JSON.stringify(d.cliente_nombre || '').replace(/"/g, '&quot;')}, ${d.quote_id ? `'${d.quote_id}'` : 'null'})">Eliminar</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+async function deleteDraft(id, nombre, quoteId) {
+  const msg = quoteId
+    ? `¿Eliminar el borrador de ${nombre}?\n\nTambién se eliminará su vista previa (cotización en revisión que nunca se envió).`
+    : `¿Eliminar el borrador de ${nombre}?`;
+  if (!confirm(msg)) return;
+  const { error } = await sb.from('quote_drafts').delete().eq('id', id);
+  if (error) { alert('No se pudo eliminar: ' + error.message); return; }
+  if (quoteId) {
+    // Solo se borra si sigue en revisión (nunca se envió al cliente)
+    await sb.from('quotes').delete().eq('id', quoteId).eq('estado', 'en_revision');
+  }
+  loadDrafts();
+  loadQuotes();
 }
 
 // ════════════════════════════════════════════════════════════
