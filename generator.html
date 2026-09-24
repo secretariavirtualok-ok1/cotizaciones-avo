@@ -371,7 +371,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
         <div class="field-row">
           <div class="field">
             <label>Moneda *</label>
-            <select id="gen-moneda">
+            <select id="gen-moneda" onchange="onMonedaChange()">
               <option value="USD">USD — Dólar americano ($)</option>
               <option value="EUR">EUR — Euro (€)</option>
               <option value="COP">COP — Peso colombiano ($)</option>
@@ -388,6 +388,24 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
               <option value="">Sin vencimiento</option>
             </select>
           </div>
+        </div>
+
+        <!-- Precios + IVA — aparece automáticamente al elegir COP. Los precios que escribes en los
+             pasos siguientes siguen siendo el monto base (sin IVA); esto solo agrega el texto
+             "+ IVA (19%)" junto a cada precio que ve el cliente, sin alterar el número guardado. -->
+        <div id="iva-box" class="hidden" style="margin-top:16px; padding:14px 16px; background:#FFF8E6; border:1.5px solid #E0B84A; border-radius:8px;">
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:14px; font-weight:700; color:#8A6D1F;">
+            <input type="checkbox" id="iva-aplica" checked style="width:18px; height:18px; accent-color:#E0B84A; cursor:pointer;">
+            Agregar "+ IVA" a los precios (Colombia)
+          </label>
+          <div id="iva-detalle" style="display:flex; align-items:center; gap:8px; margin-top:10px; padding-left:28px;">
+            <span style="font-size:13px; color:#8A6D1F;">Porcentaje:</span>
+            <input type="number" id="iva-porcentaje" value="19" min="0" max="100" step="0.1" style="width:70px; padding:6px 8px; font-size:13px;">
+            <span style="font-size:13px; color:#8A6D1F;">%</span>
+          </div>
+          <p style="font-size:12px; color:#8A6D1F; margin:8px 0 0 28px;">
+            Los precios que escribas siguen siendo el monto base. El cliente verá, por ejemplo, "$950.000 COP + IVA (19%)" junto a cada precio, sin que tengas que escribirlo tú.
+          </p>
         </div>
 
         <div style="margin-top:16px; padding:14px 16px; background:#EFF9FF; border:1.5px solid var(--avo-accent); border-radius:8px;">
@@ -1193,6 +1211,25 @@ function toggleBilingue() {
 }
 
 // ══════════════════════════════════════════════════════════
+//  MONEDA CHANGE — mostrar/ocultar el bloque de "+ IVA" (Colombia)
+// ══════════════════════════════════════════════════════════
+function onMonedaChange() {
+  const moneda = document.getElementById('gen-moneda').value;
+  const box = document.getElementById('iva-box');
+  const chk = document.getElementById('iva-aplica');
+  if (moneda === 'COP') {
+    box.classList.remove('hidden');
+    chk.checked = true; // por defecto activado; el comercial puede desmarcarlo si no aplica
+  } else {
+    box.classList.add('hidden');
+    chk.checked = false; // fuera de Colombia nunca se agrega el "+ IVA"
+  }
+}
+document.getElementById('iva-aplica').addEventListener('change', () => {
+  document.getElementById('iva-detalle').style.opacity = document.getElementById('iva-aplica').checked ? '1' : '0.4';
+});
+
+// ══════════════════════════════════════════════════════════
 //  IDIOMA CHANGE — actualizar defaults bilingües
 // ══════════════════════════════════════════════════════════
 function onIdiomaChange() {
@@ -1520,6 +1557,8 @@ function renderVoipPlans() {
 
   const moneda = document.getElementById('gen-moneda').value;
   const sym = { USD: '$', EUR: '€', COP: '$', MXN: '$' }[moneda] || '$';
+  const ivaAplicaP = moneda === 'COP' && !!document.getElementById('iva-aplica')?.checked;
+  const ivaPctP = parseFloat(document.getElementById('iva-porcentaje')?.value) || 19;
 
   list.innerHTML = selectedVoipCountries.map(key => {
     // Prefer VOIP_PRICING; fall back to voipCatalog
@@ -1530,6 +1569,7 @@ function renderVoipPlans() {
     // España siempre en euros, independientemente de la moneda de la cotización
     const countrySym = voipData?.simbolo || sym;
     const countryMoneda = voipData?.moneda || moneda;
+    const ivaTxtP = (ivaAplicaP && key === 'colombia') ? ` <span style="color:#8A6D1F;font-weight:700;">+ IVA (${ivaPctP}%)</span>` : '';
 
     return `
       <div style="margin-bottom:16px;">
@@ -1544,8 +1584,8 @@ function renderVoipPlans() {
             ${planes.map(p => `
               <tr>
                 <td><strong>${p.minutos} minutos</strong></td>
-                <td>${countrySym}${p.precio_inicial}</td>
-                <td>${countrySym}${p.precio_mensual}/mes</td>
+                <td>${countrySym}${p.precio_inicial}${ivaTxtP}</td>
+                <td>${countrySym}${p.precio_mensual}/mes${ivaTxtP}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -1598,12 +1638,15 @@ function voipPlansListHtml(selectedArr) {
   if (!selectedArr || selectedArr.length === 0) return '';
   const moneda = document.getElementById('gen-moneda').value;
   const sym = { USD: '$', EUR: '€', COP: '$', MXN: '$' }[moneda] || '$';
+  const ivaAplicaP = moneda === 'COP' && !!document.getElementById('iva-aplica')?.checked;
+  const ivaPctP = parseFloat(document.getElementById('iva-porcentaje')?.value) || 19;
   return selectedArr.map(key => {
     const voipData = VOIP_PRICING[key];
     const catalogEntry = voipCatalog.find(v => v.pais_key === key);
     const nombre = voipData?.nombre || catalogEntry?.pais_nombre_es || key;
     const planes = voipData?.planes || catalogEntry?.planes || [];
     const countrySym = voipData?.simbolo || sym;
+    const ivaTxtP = (ivaAplicaP && key === 'colombia') ? ` <span style="color:#8A6D1F;font-weight:700;">+ IVA (${ivaPctP}%)</span>` : '';
     return `
       <div style="margin-bottom:16px;">
         <h4 style="font-size:13px; font-weight:700; margin-bottom:8px; color:var(--avo-blue);">
@@ -1617,8 +1660,8 @@ function voipPlansListHtml(selectedArr) {
             ${planes.map(p => `
               <tr>
                 <td><strong>${p.minutos} minutos</strong></td>
-                <td>${countrySym}${p.precio_inicial}</td>
-                <td>${countrySym}${p.precio_mensual}/mes</td>
+                <td>${countrySym}${p.precio_inicial}${ivaTxtP}</td>
+                <td>${countrySym}${p.precio_mensual}/mes${ivaTxtP}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -1764,13 +1807,16 @@ function buildSummary() {
   const empresa = document.getElementById('client-empresa').value;
   const comercial = document.getElementById('gen-comercial').value;
   const jLabels = { media: 'Media Jornada', completa: 'Jornada Completa', media_3meses: 'Media → Jornada Completa' };
+  const ivaAplica = moneda === 'COP' && !!document.getElementById('iva-aplica')?.checked;
+  const ivaPct = parseFloat(document.getElementById('iva-porcentaje')?.value) || 19;
+  const ivaTxt = ivaAplica ? ` <span style="color:#8A6D1F;font-weight:700;">+ IVA (${ivaPct}%)</span>` : '';
 
   let html = `
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
       <div><strong>Cliente:</strong> ${escHtml(nombre)}${empresa ? ' — ' + escHtml(empresa) : ''}</div>
       <div><strong>Comercial:</strong> ${escHtml(comercial)}</div>
       <div><strong>Idioma:</strong> ${idioma === 'en' ? 'English' : 'Español'}</div>
-      <div><strong>Moneda:</strong> ${moneda}</div>
+      <div><strong>Moneda:</strong> ${moneda}${ivaAplica ? ' (precios + IVA)' : ''}</div>
       ${voipOnlyMode ? `<div style="grid-column:1/-1;"><span style="background:#EFF9FF;color:var(--avo-accent);padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;">📞 COTIZACIÓN SOLO TELEFONÍA</span></div>` : ''}
     </div>
   `;
@@ -1784,10 +1830,10 @@ function buildSummary() {
 
     let preciosHtml = '';
     if (jornadas.includes('media_3meses')) {
-      preciosHtml = `<li>Primeros 3 meses: ${sym}${sd.precio_inicio || 0} → Desde 4to mes: ${sym}${sd.precio_full || 0}</li>`;
+      preciosHtml = `<li>Primeros 3 meses: ${sym}${sd.precio_inicio || 0}${ivaTxt} → Desde 4to mes: ${sym}${sd.precio_full || 0}${ivaTxt}</li>`;
     } else {
       jornadasNormales.forEach(j => {
-        preciosHtml += `<li>${jLabels[j]}: ${sym}${(sd.precios || {})[j] || 0}</li>`;
+        preciosHtml += `<li>${jLabels[j]}: ${sym}${(sd.precios || {})[j] || 0}${ivaTxt}</li>`;
       });
     }
 
@@ -2231,7 +2277,11 @@ async function saveQuotation(mode) {
       condiciones_extras: {
         nota_ajuste_tarifas: document.getElementById('cond-tariff-note')?.value?.trim() || '',
         nota_contable: '',
-        nota_personalizada: document.getElementById('cond-nota-especial')?.value?.trim() || ''
+        nota_personalizada: document.getElementById('cond-nota-especial')?.value?.trim() || '',
+        // "+ IVA" junto a los precios — hoy pensado para Colombia (moneda COP). Los precios
+        // guardados en "servicios" y en los planes VoIP siguen siendo el monto base.
+        iva_aplica: moneda === 'COP' && !!document.getElementById('iva-aplica')?.checked,
+        iva_porcentaje: parseFloat(document.getElementById('iva-porcentaje')?.value) || 19
       }
     };
 
