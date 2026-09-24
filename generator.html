@@ -793,6 +793,12 @@ const VOIP_PRICING = {
     { minutos: 750,  precio_inicial: 102, precio_mensual: 34  },
     { minutos: 1000, precio_inicial: 117, precio_mensual: 39  },
   ]},
+  'pa': { nombre: 'Panamá', flag: '🇵🇦', planes: [
+    { minutos: 250,  precio_inicial: 210, precio_mensual: 70  },
+    { minutos: 500,  precio_inicial: 360, precio_mensual: 120 },
+    { minutos: 750,  precio_inicial: 504, precio_mensual: 168 },
+    { minutos: 1000, precio_inicial: 645, precio_mensual: 215 },
+  ]},
 };
 
 // ══════════════════════════════════════════════════════════
@@ -2414,13 +2420,27 @@ function newQuotation() {
 //  2) Nube: tabla "quote_drafts" en Supabase, para retomar desde otro equipo
 //     (desde el panel admin → Cotizaciones → Borradores en curso → Continuar).
 // ══════════════════════════════════════════════════════════
-const DRAFT_LS_KEY = 'avo_generator_draft_v1';
+// Cada PESTAÑA guarda su borrador local bajo una llave propia (basada en un id por pestaña
+// en sessionStorage, que no se comparte entre pestañas aunque sean del mismo navegador).
+// Antes, todas las pestañas escribían sobre la MISMA llave de localStorage: si se trabajaban
+// dos cotizaciones a la vez en dos pestañas, la segunda pisaba silenciosamente el borrador
+// local de la primera (y al enviar una, se borraba el respaldo local de la otra también).
+function getTabId() {
+  try {
+    let id = sessionStorage.getItem('avo_tab_id');
+    if (!id) { id = 'tab-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8); sessionStorage.setItem('avo_tab_id', id); }
+    return id;
+  } catch (e) { return 'tab-fallback-' + Math.random().toString(36).slice(2, 8); }
+}
+const DRAFT_LS_PREFIX = 'avo_generator_draft_v1__';
+const DRAFT_LS_KEY = DRAFT_LS_PREFIX + getTabId();
 const DRAFT_SKIP_IDS = new Set(['client-search', 'result-link', 'preview-link', 'login-email', 'login-pass']);
 let localSaveTimer = null;
 let cloudSaveTimer = null;
 let cloudSaving = false;
 let cloudSavePending = false;
 let pendingLocalDraft = null;
+let pendingLocalDraftKey = null; // puede ser de OTRA pestaña (cerrada sin enviar) — ver initDraftRecovery
 let cloudDraftGone = false; // el borrador en la nube fue eliminado/enviado: no recrearlo automáticamente
 
 function hhmm() {
@@ -2691,11 +2711,27 @@ async function initDraftRecovery() {
     return;
   }
 
-  // ¿Hay un borrador guardado en este equipo?
-  let st = null;
-  try { st = JSON.parse(localStorage.getItem(DRAFT_LS_KEY) || 'null'); } catch (e) {}
-  if (draftHasContent(st)) {
+  // ¿Hay un borrador guardado en este equipo? Primero el de esta misma pestaña (por si se
+  // recargó); si no hay, se busca entre TODAS las pestañas — incluidas otras que hayan quedado
+  // abiertas o se hayan cerrado sin enviar — y se ofrece la más reciente con contenido.
+  let st = null, foundKey = null;
+  try {
+    st = JSON.parse(localStorage.getItem(DRAFT_LS_KEY) || 'null');
+    if (draftHasContent(st)) foundKey = DRAFT_LS_KEY;
+    if (!foundKey) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(DRAFT_LS_PREFIX) || k === DRAFT_LS_KEY) continue;
+        let cand = null;
+        try { cand = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { continue; }
+        if (!draftHasContent(cand)) continue;
+        if (!st || !foundKey || new Date(cand.savedAt || 0) > new Date(st.savedAt || 0)) { st = cand; foundKey = k; }
+      }
+    }
+  } catch (e) {}
+  if (foundKey && draftHasContent(st)) {
     pendingLocalDraft = st;
+    pendingLocalDraftKey = foundKey;
     draftDecisionPending = true;
     const nombre = (st.fields['client-nombre'] || '').trim();
     const cuando = st.savedAt ? new Date(st.savedAt).toLocaleString('es-VE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
@@ -2709,14 +2745,22 @@ function resumeLocalDraft() {
   document.getElementById('draft-restore-banner').classList.add('hidden');
   draftDecisionPending = false;
   if (pendingLocalDraft) applyDraftState(pendingLocalDraft);
+  // Si el borrador venía de otra pestaña (cerrada o todavía abierta), se elimina esa llave:
+  // de aquí en adelante esta pestaña guarda bajo su propia llave, y así no queda un
+  // duplicado ofreciéndose de nuevo en la próxima pestaña que se abra.
+  if (pendingLocalDraftKey && pendingLocalDraftKey !== DRAFT_LS_KEY) {
+    try { localStorage.removeItem(pendingLocalDraftKey); } catch (e) {}
+  }
   pendingLocalDraft = null;
+  pendingLocalDraftKey = null;
   setDraftStatus('💾 Borrador recuperado · ' + hhmm());
 }
 
 function discardLocalDraft() {
   if (!confirm('¿Descartar el borrador guardado en este equipo?')) return;
-  try { localStorage.removeItem(DRAFT_LS_KEY); } catch (e) {}
+  try { localStorage.removeItem(pendingLocalDraftKey || DRAFT_LS_KEY); } catch (e) {}
   pendingLocalDraft = null;
+  pendingLocalDraftKey = null;
   draftDecisionPending = false;
   document.getElementById('draft-restore-banner').classList.add('hidden');
 }
