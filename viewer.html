@@ -596,6 +596,7 @@ const T = {
 
 let lang = 'es';
 let selectedJornada = null;
+let ivaSuffix = ''; // " + IVA (19%)" — se agrega a cada precio cuando la cotización lo trae marcado
 
 function formatPrecio(precio, moneda) {
   if (!precio && precio !== 0) return '';
@@ -604,12 +605,22 @@ function formatPrecio(precio, moneda) {
   const simbolo = simbolos[moneda] || '$';
   const nombre = nombres[moneda] || moneda;
   const formatted = new Intl.NumberFormat('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(precio);
-  return `${simbolo}${formatted} ${nombre}`;
+  return `${simbolo}${formatted} ${nombre}${ivaSuffix}`;
 }
 
 function renderViewer(data, quoteId, isPreview) {
   lang = data.idioma || 'es';
   const tx = T[lang];
+
+  // Precios + IVA (hoy pensado para Colombia): la cotización trae condiciones_extras.iva_aplica
+  // marcado desde el generador, con el porcentaje que corresponda (19% por defecto en Colombia).
+  const cdIva = data.cotizacion_data && data.cotizacion_data.condiciones_extras;
+  if (cdIva && cdIva.iva_aplica) {
+    const pct = cdIva.iva_porcentaje != null ? cdIva.iva_porcentaje : 19;
+    ivaSuffix = lang === 'en' ? ` + VAT (${pct}%)` : ` + IVA (${pct}%)`;
+  } else {
+    ivaSuffix = '';
+  }
 
   document.title = tx.title(data.cliente_empresa);
   document.getElementById('v-cliente').textContent   = data.cliente_nombre;
@@ -1096,6 +1107,9 @@ function renderGeneratedQuote(data) {
         var pFlag = (typeof paisData === 'object' && !Array.isArray(paisData) && paisData && paisData.flag) ? paisData.flag : '';
         // España siempre muestra precios en euros independientemente de la moneda de la cotización
         var countrySym = paisKey === 'es' ? '€' : sym;
+        // El IVA de esta cotización (si aplica) solo corresponde a los planes de Colombia,
+        // aunque la cotización combine varios países de telefonía.
+        var voipIvaSuffix = (paisKey === 'colombia' || paisKey === 'co') ? ivaSuffix : '';
         var planCards = planes.map(function(p) {
           return '<label id="voip-lbl-' + paisKey + '-' + p.minutos + '" style="display:flex;align-items:flex-start;gap:9px;cursor:pointer;padding:11px 12px;background:white;border:2px solid #DEE2E6;border-radius:8px;transition:all .15s;">'
             + '<input type="radio" name="voip-plan-' + paisKey + '" value="' + p.minutos + '"'
@@ -1103,8 +1117,8 @@ function renderGeneratedQuote(data) {
             + ' style="margin-top:3px;accent-color:#2E86C1;cursor:pointer;">'
             + '<div>'
             + '<div style="font-weight:700;font-size:14px;color:#212529;">' + p.minutos + ' ' + vt.min + '</div>'
-            + '<div style="font-size:12px;color:#868E96;margin-top:2px;">' + vt.mo3 + ': <strong style="color:#343A40;">' + countrySym + p.precio_inicial + '</strong></div>'
-            + '<div style="font-size:12px;color:#868E96;">' + vt.mo4 + ': <strong style="color:#343A40;">' + countrySym + p.precio_mensual + vt.per + '</strong></div>'
+            + '<div style="font-size:12px;color:#868E96;margin-top:2px;">' + vt.mo3 + ': <strong style="color:#343A40;">' + countrySym + p.precio_inicial + voipIvaSuffix + '</strong></div>'
+            + '<div style="font-size:12px;color:#868E96;">' + vt.mo4 + ': <strong style="color:#343A40;">' + countrySym + p.precio_mensual + vt.per + voipIvaSuffix + '</strong></div>'
             + '</div></label>';
         }).join('');
         voipCardsHtml += '<div id="voip-sec-' + paisKey + '" style="margin-bottom:20px;padding:14px 16px;background:#F8F9FA;border-radius:8px;border:1px solid #E9ECEF;">'
