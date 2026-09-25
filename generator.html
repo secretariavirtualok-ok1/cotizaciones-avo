@@ -134,6 +134,10 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 .func-item .func-remove { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: 2px 4px; font-size: 16px; line-height: 1; border-radius: 4px; }
 .func-item .func-remove:hover { color: var(--avo-red); background: #FEF2F2; }
 .func-actions { display: flex; gap: 8px; margin-top: 10px; }
+.func-order { display: flex; flex-direction: column; gap: 1px; padding-top: 1px; }
+.func-order button { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: 0 4px; font-size: 12px; line-height: 1.3; border-radius: 3px; }
+.func-order button:hover:not(:disabled) { color: var(--avo-accent); background: var(--gray-100); }
+.func-order button:disabled { color: var(--gray-200); cursor: default; }
 
 /* ══ JORNADA CARDS ══════════════════════════════════════ */
 .jornada-options { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -305,6 +309,14 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
       <div class="step" data-step="6"><div class="step-num">6</div> Condiciones</div>
       <span class="step-arrow">›</span>
       <div class="step" data-step="7"><div class="step-num">7</div> Guardar</div>
+    </div>
+
+    <!-- Ayuda visual: para quién es esta cotización — útil si se trabajan varias a la vez
+         en pestañas distintas, así no hace falta volver al paso 1 para recordarlo. -->
+    <div id="client-context-banner" class="hidden" style="display:flex; align-items:center; gap:10px; background:white; border:1px solid var(--gray-200); border-left:4px solid var(--avo-accent); border-radius:8px; padding:10px 16px; margin-bottom:16px; font-size:13px; color:var(--gray-700); flex-wrap:wrap;">
+      <span style="font-size:16px;">🧾</span>
+      <span>Cotizando para: <strong id="ccb-nombre" style="color:var(--avo-blue);"></strong><span id="ccb-empresa"></span></span>
+      <span id="ccb-email" style="color:var(--gray-500);"></span>
     </div>
 
     <!-- ══ STEP 1: CLIENTE ═══════════════════════════════ -->
@@ -991,6 +1003,25 @@ function renderCondiciones() {
   }
 }
 
+// Actualiza la franja "Cotizando para: ..." — visible en todos los pasos, para saber de un
+// vistazo a quién pertenece la cotización sin tener que volver al paso 1 (útil cuando se
+// trabajan varias cotizaciones a la vez, cada una en su propia pestaña).
+function updateClientContextBanner() {
+  const banner = document.getElementById('client-context-banner');
+  if (!banner) return;
+  const nombre = document.getElementById('client-nombre')?.value.trim() || '';
+  const empresa = document.getElementById('client-empresa')?.value.trim() || '';
+  const email = document.getElementById('client-email')?.value.trim() || '';
+  if (!nombre && !empresa && !email) { banner.classList.add('hidden'); return; }
+  document.getElementById('ccb-nombre').textContent = nombre || '(sin nombre)';
+  document.getElementById('ccb-empresa').textContent = empresa ? ' — ' + empresa : '';
+  document.getElementById('ccb-email').textContent = email ? '· ' + email : '';
+  banner.classList.remove('hidden');
+}
+['client-nombre', 'client-empresa', 'client-email'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', updateClientContextBanner);
+});
+
 function goToStep(n) {
   // Validate current step before advancing
   if (n > currentStep && !validateStep(currentStep)) return;
@@ -1014,6 +1045,7 @@ function goToStep(n) {
   });
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  updateClientContextBanner();
 
   // Borrador: guardar al cambiar de paso (local al instante, nube también)
   if (!draftRestoring && !draftDecisionPending && !quoteSent) {
@@ -1118,6 +1150,7 @@ function selectClient(c) {
   document.getElementById('client-results').classList.add('hidden');
   document.getElementById('client-search').value = '';
   document.getElementById('lead-banner').classList.add('hidden');
+  updateClientContextBanner();
 }
 
 function selectLead(l) {
@@ -1131,6 +1164,7 @@ function selectLead(l) {
   document.getElementById('client-search').value = '';
   document.getElementById('lead-banner-name').textContent = l.full_name;
   document.getElementById('lead-banner').classList.remove('hidden');
+  updateClientContextBanner();
 }
 
 function clearLeadBanner() {
@@ -1140,6 +1174,7 @@ function clearLeadBanner() {
   document.getElementById('client-empresa').value = '';
   document.getElementById('client-email').value = '';
   document.getElementById('client-telefono').value = '';
+  updateClientContextBanner();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1302,6 +1337,10 @@ function renderFuncTabs() {
     const funcs = serviceData[svc.clave]?.funciones || [];
     const funcItems = funcs.map((f, fi) => `
       <li class="func-item">
+        <div class="func-order">
+          <button onclick="moveFunc('${svc.clave}', ${fi}, -1)" title="Subir" ${fi === 0 ? 'disabled' : ''}>▲</button>
+          <button onclick="moveFunc('${svc.clave}', ${fi}, 1)" title="Bajar" ${fi === funcs.length - 1 ? 'disabled' : ''}>▼</button>
+        </div>
         <textarea rows="1" oninput="autoResize(this); updateFunc('${svc.clave}', ${fi}, this.value)"
                   onfocus="autoResize(this)">${escHtml(f)}</textarea>
         <button class="func-remove" onclick="removeFunc('${svc.clave}', ${fi})" title="Eliminar">×</button>
@@ -1334,6 +1373,16 @@ function autoResize(el) {
 
 function updateFunc(clave, idx, val) { if (serviceData[clave]) serviceData[clave].funciones[idx] = val; }
 function removeFunc(clave, idx) { if (serviceData[clave]) { serviceData[clave].funciones.splice(idx, 1); renderFuncTabs(); } }
+// Reordena las funciones de un servicio: mueve el elemento en `idx` una posición
+// hacia arriba (-1) o hacia abajo (+1) dentro de la lista de ESE servicio.
+function moveFunc(clave, idx, dir) {
+  const funcs = serviceData[clave]?.funciones;
+  if (!funcs) return;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= funcs.length) return;
+  [funcs[idx], funcs[newIdx]] = [funcs[newIdx], funcs[idx]];
+  renderFuncTabs();
+}
 function addFunc(clave) { if (serviceData[clave]) { serviceData[clave].funciones.push(''); renderFuncTabs(); } }
 function resetFuncForService(clave) {
   const svc = selectedServices.find(s => s.clave === clave);
