@@ -10,6 +10,7 @@
 // ─────────────────────────────────────────────────────────────
 
 const REMITENTE = 'AVO Cotizaciones <cotizaciones@asistentevirtualok.com>';
+const CORREO_COTIZACIONES = 'cotizaciones@asistentevirtualok.com'; // copia interna en todos los envíos al cliente
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
@@ -55,7 +56,14 @@ exports.handler = async function (event) {
   const destinatarios = [cliente_email, segundo_email].filter(Boolean);
   const destinatariosUnicos = [...new Set(destinatarios.map(e => e.trim()).filter(Boolean))];
 
-  console.log('=== SEND-QUOTE-LINK ===', JSON.stringify({ quote_id, destinatariosUnicos, vencimiento_dias }));
+  // Copia interna a cotizaciones@ en TODOS los envíos, para poder verificar que el correo
+  // salió y que el cliente lo recibió — sin duplicarla si ya está entre los destinatarios
+  // (por ejemplo, si alguien puso ese mismo correo como "segundo correo").
+  const copiaInterna = destinatariosUnicos.some(e => e.toLowerCase() === CORREO_COTIZACIONES.toLowerCase())
+    ? []
+    : [CORREO_COTIZACIONES];
+
+  console.log('=== SEND-QUOTE-LINK ===', JSON.stringify({ quote_id, destinatariosUnicos, copiaInterna, vencimiento_dias }));
 
   const en = idioma === 'en';
 
@@ -182,19 +190,22 @@ exports.handler = async function (event) {
   `;
 
   try {
+    const emailPayload = {
+      from: REMITENTE,
+      to: destinatariosUnicos,
+      reply_to: 'cotizaciones@asistentevirtualok.com',
+      subject: asunto,
+      html: contenidoHtml
+    };
+    if (copiaInterna.length) emailPayload.cc = copiaInterna;
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        from: REMITENTE,
-        to: destinatariosUnicos,
-        reply_to: 'cotizaciones@asistentevirtualok.com',
-        subject: asunto,
-        html: contenidoHtml
-      })
+      body: JSON.stringify(emailPayload)
     });
 
     const result = await response.json();
