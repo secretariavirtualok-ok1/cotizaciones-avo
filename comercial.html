@@ -118,8 +118,10 @@
   .stat-label { font-size: 11px; color: var(--gray-500); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
   .stat-value { font-size: 26px; font-weight: 800; color: var(--navy); margin-top: 4px; line-height: 1; }
 
-  .field-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .field-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
   .field-row .field { flex: 1; min-width: 160px; margin-bottom: 0; }
+  .field-row .field.field-narrow { flex: 0 1 150px; min-width: 130px; }
+  .field-row .field.field-wide   { flex: 1.4; min-width: 200px; }
   select { width: 100%; padding: 9px 12px; border: 1.5px solid var(--gray-300); border-radius: var(--radius); font-size: 14px; color: var(--navy); background: var(--white); font-family: inherit; }
 
   .table-wrap { overflow-x: auto; }
@@ -205,21 +207,19 @@
         <span>Mis cotizaciones</span>
       </div>
       <div class="field-row">
-        <div class="field">
+        <div class="field field-narrow">
           <label>Periodo</label>
           <select id="f-mes"></select>
         </div>
-        <div class="field">
-          <label>Desde (fecha personalizada)</label>
+        <div class="field field-narrow">
+          <label>Desde</label>
           <input type="date" id="f-desde" />
         </div>
-        <div class="field">
-          <label>Hasta (fecha personalizada)</label>
+        <div class="field field-narrow">
+          <label>Hasta</label>
           <input type="date" id="f-hasta" />
         </div>
-      </div>
-      <div class="field-row">
-        <div class="field">
+        <div class="field field-narrow">
           <label>Estado</label>
           <select id="f-estado">
             <option value="">Todos</option>
@@ -232,7 +232,7 @@
             <option value="descartada">Descartada</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field field-wide">
           <label>Buscar cliente / empresa</label>
           <input type="text" id="f-search" placeholder="Nombre o empresa..." />
         </div>
