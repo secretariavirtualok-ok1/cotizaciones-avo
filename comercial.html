@@ -278,6 +278,10 @@
 const SUPABASE_URL = 'https://avtznfyenkvfapwxdrho.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dHpuZnllbmt2ZmFwd3hkcmhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTAwNTIsImV4cCI6MjEwMTkyNjA1Mn0.QAIFNFtxnwRrQLkooj7CqK0x2lbWDUaHLnCsBzDYFQo';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const VIEWER_BASE = 'https://cotizacionesavo.netlify.app/viewer.html';
+// &preview=true hace que viewer.html NO registre la apertura (fecha_primera_apertura / total_aperturas):
+// así el comercial puede revisar la cotización sin ensuciar los indicadores de seguimiento del cliente.
+function previewLink(id) { return `${VIEWER_BASE}?id=${id}&preview=true`; }
 
 let currentComercial = '';
 let allQuotes = [];
@@ -451,7 +455,7 @@ function renderTable() {
       <td>${r.plan_seleccionado_nombre || '<span style="color:var(--gray-300)">—</span>'}</td>
       <td><small>${fmt(r.fecha_envio || r.created_at)}</small></td>
       <td>${r.fecha_primera_apertura ? `<small style="color:var(--green)">${fmt(r.fecha_primera_apertura)}</small>` : '<small style="color:var(--gray-500)">No abierta</small>'}</td>
-      <td>${r.word_url ? `<a href="${r.word_url}" target="_blank" onclick="event.stopPropagation();" style="color:var(--blue);text-decoration:underline;font-size:12px;">📄 Ver</a>` : ''}</td>
+      <td><a href="${previewLink(r.id)}" target="_blank" onclick="event.stopPropagation();" style="color:var(--blue);text-decoration:underline;font-size:12px;">👁️ Ver</a></td>
     </tr>
   `).join('');
 }
@@ -477,9 +481,10 @@ function openDetail(id) {
     <div class="detail-item"><label>Moneda</label><div class="val">${q.moneda || 'USD'}</div></div>
     <div class="detail-item"><label>Vencimiento</label><div class="val">${q.vencimiento ? fmt(q.vencimiento) : 'Sin vencimiento'}</div></div>
   `;
-  document.getElementById('mq-word-wrap').innerHTML = q.word_url
-    ? `<a href="${q.word_url}" target="_blank" class="btn btn-primary" style="text-decoration:none;">📄 Ver la cotización enviada</a>`
-    : `<small style="color:var(--gray-500);">No hay archivo de cotización adjunto para esta.</small>`;
+  document.getElementById('mq-word-wrap').innerHTML = `
+    <a href="${previewLink(q.id)}" target="_blank" class="btn btn-primary" style="text-decoration:none;">👁️ Ver la cotización enviada (vista previa)</a>
+    <div style="margin-top:6px;"><small style="color:var(--gray-500);">Esta vista no cuenta como apertura del cliente — no afecta el seguimiento.</small></div>
+  `;
   document.getElementById('modal-quote').classList.add('active');
 }
 function closeModal() { document.getElementById('modal-quote').classList.remove('active'); }
