@@ -205,6 +205,7 @@
   .badge-en_negociacion { background: var(--purple-lt); color: var(--purple); }
   .badge-cerrada        { background: var(--green-lt); color: var(--green); }
   .badge-descartada     { background: var(--red-lt); color: var(--red); }
+  .badge-seguimiento_futuro { background: #E0F7F5; color: #0F766E; }
 
   /* ── PROSPECT BADGES ─────────────────────────────────── */
   .badge-new            { background: #e0f2fe; color: #0369a1; }
@@ -709,6 +710,7 @@
             <option value="en_negociacion">Pago completado</option>
             <option value="cerrada">Cerrada</option>
             <option value="descartada">Descartada</option>
+            <option value="seguimiento_futuro">Seguimiento futuro</option>
           </select>
         </div>
         <div class="field">
@@ -1016,6 +1018,7 @@
               <option value="en_negociacion">Pago completado</option>
               <option value="cerrada">Cerrada</option>
               <option value="descartada">Descartada</option>
+              <option value="seguimiento_futuro">Seguimiento futuro</option>
             </select>
           </div>
           <button class="btn btn-primary btn-sm" id="mq-save-estado">Guardar estado</button>
@@ -1365,7 +1368,7 @@ function fmtDt(dateStr) {
 function badgeHtml(estado) {
   const labels = {
     en_revision:'En revisión (no enviada)', enviada:'Enviada', abierta:'Abierta', plan_seleccionado:'Servicio seleccionado',
-    en_gestion:'Contrato firmado', en_negociacion:'Pago completado', cerrada:'Cerrada', descartada:'Descartada'
+    en_gestion:'Contrato firmado', en_negociacion:'Pago completado', cerrada:'Cerrada', descartada:'Descartada', seguimiento_futuro:'Seguimiento futuro'
   };
   return `<span class="badge badge-${estado}">${labels[estado] || estado}</span>`;
 }
@@ -1880,7 +1883,7 @@ async function loadDashboard() {
 
   // stats
   const counts = {};
-  ['enviada','abierta','plan_seleccionado','en_gestion','en_negociacion','cerrada','descartada'].forEach(s => {
+  ['enviada','abierta','plan_seleccionado','en_gestion','en_negociacion','cerrada','descartada','seguimiento_futuro'].forEach(s => {
     counts[s] = rows.filter(r => r.estado === s).length;
   });
   const total = rows.length;
@@ -1893,6 +1896,7 @@ async function loadDashboard() {
     <div class="stat-card amber"><div class="stat-label">Contrato firmado / Pago completado</div><div class="stat-value">${counts.en_gestion + counts.en_negociacion}</div></div>
     <div class="stat-card green"><div class="stat-label">Cerradas</div><div class="stat-value">${counts.cerrada}</div></div>
     <div class="stat-card red"><div class="stat-label">Descartadas</div><div class="stat-value">${counts.descartada}</div></div>
+    <div class="stat-card purple"><div class="stat-label">Seguimiento futuro</div><div class="stat-value">${counts.seguimiento_futuro}</div></div>
   `;
 
   // por comercial
