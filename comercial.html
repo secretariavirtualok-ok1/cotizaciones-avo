@@ -140,6 +140,7 @@
   .badge-en_negociacion    { background: var(--purple-lt); color: var(--purple); }
   .badge-cerrada           { background: var(--green-lt); color: var(--green); }
   .badge-descartada        { background: var(--red-lt); color: var(--red); }
+  .badge-seguimiento_futuro { background: #E0F7F5; color: #0F766E; }
 
   .empty { text-align: center; padding: 40px 20px; color: var(--gray-500); }
   .empty-icon { font-size: 32px; margin-bottom: 10px; }
@@ -230,6 +231,7 @@
             <option value="en_negociacion">Pago completado</option>
             <option value="cerrada">Cerrada</option>
             <option value="descartada">Descartada</option>
+            <option value="seguimiento_futuro">Seguimiento futuro</option>
           </select>
         </div>
         <div class="field field-wide">
@@ -297,7 +299,7 @@ function fmtDt(dateStr) {
 function badgeHtml(estado) {
   const labels = {
     en_revision:'En revisión (no enviada)', enviada:'Enviada', abierta:'Abierta', plan_seleccionado:'Servicio seleccionado',
-    en_gestion:'Contrato firmado', en_negociacion:'Pago completado', cerrada:'Cerrada', descartada:'Descartada'
+    en_gestion:'Contrato firmado', en_negociacion:'Pago completado', cerrada:'Cerrada', descartada:'Descartada', seguimiento_futuro:'Seguimiento futuro'
   };
   return `<span class="badge badge-${estado}">${labels[estado] || estado}</span>`;
 }
@@ -403,7 +405,7 @@ function renderStats() {
   const counts = {};
   allQuotes.forEach(q => { counts[q.estado] = (counts[q.estado] || 0) + 1; });
   document.getElementById('st-total').textContent = allQuotes.length;
-  document.getElementById('st-seguimiento').textContent = (counts.enviada||0) + (counts.abierta||0);
+  document.getElementById('st-seguimiento').textContent = (counts.enviada||0) + (counts.abierta||0) + (counts.seguimiento_futuro||0);
   document.getElementById('st-seleccionado').textContent = counts.plan_seleccionado || 0;
   document.getElementById('st-cerradas').textContent = (counts.en_gestion||0) + (counts.en_negociacion||0) + (counts.cerrada||0);
   document.getElementById('st-descartadas').textContent = counts.descartada || 0;
