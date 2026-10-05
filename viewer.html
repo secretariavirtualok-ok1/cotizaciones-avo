@@ -1071,9 +1071,19 @@ function renderGeneratedQuote(data) {
     if (tel.tipo === 'incluida' && tel.incluida_info) {
       var info = tel.incluida_info;
       var titleTxt = idioma === 'en' ? 'VoIP Telephony (Included)' : 'Telefonía VoIP (Incluida en el plan)';
-      var minTxt = idioma === 'en'
-        ? 'Outbound call package of ' + info.minutos + ' monthly minutes.'
-        : 'Paquete de llamadas salientes de ' + info.minutos + ' minutos mensuales.';
+      var mpj = info.minutos_por_jornada || {};
+      var fmtMin = function(n){ return Number(n).toLocaleString(idioma === 'en' ? 'en-US' : 'es-ES', {useGrouping:true}); };
+      var minTxt;
+      if (mpj.media && mpj.completa) {
+        minTxt = idioma === 'en'
+          ? 'Outbound call package: ' + fmtMin(mpj.media) + ' monthly minutes for part-time and ' + fmtMin(mpj.completa) + ' monthly minutes for full-time.'
+          : 'Paquete de llamadas salientes: ' + fmtMin(mpj.media) + ' minutos mensuales en media jornada y ' + fmtMin(mpj.completa) + ' minutos mensuales en jornada completa.';
+      } else {
+        var unico = info.minutos || mpj.media || mpj.completa;
+        minTxt = idioma === 'en'
+          ? 'Outbound call package of ' + fmtMin(unico) + ' monthly minutes.'
+          : 'Paquete de llamadas salientes de ' + fmtMin(unico) + ' minutos mensuales.';
+      }
       telContent = '<div class="card-label">📞 ' + titleTxt + '</div>'
         + '<ul class="gen-func-list"><li>' + minTxt + '</li>'
         + (info.extras || []).map(function(e){ return '<li>' + e + '</li>'; }).join('')
