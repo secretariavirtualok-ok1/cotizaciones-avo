@@ -1926,7 +1926,8 @@ function telJornadasRelevantes(clave) {
   const out = [];
   if (j.includes('media') || j.includes('media_3meses')) out.push('media');
   if (j.includes('completa') || j.includes('media_3meses')) out.push('completa');
-  return out;
+  // Si aún no se eligió jornada en el paso 4, ofrecer ambos campos
+  return out.length ? out : ['media', 'completa'];
 }
 function updateTelMinJornada(clave, jornada, value) {
   const tel = ensureTelefoniaSvc(clave);
