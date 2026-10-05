@@ -1,3 +1,5 @@
-/admin    /admin.html    200
-/viewer   /viewer.html   200
-/ /avo.html 301
+/admin       /admin.html       200
+/generator   /generator.html   200
+/comercial   /comercial.html   200
+/viewer      /viewer.html      200
+/            /avo.html         301
