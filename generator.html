@@ -757,6 +757,14 @@ let currentDraftId = null;       // id en "quote_drafts" (borrador en la nube)
 let quoteSent = false;           // true una vez enviada al cliente: se detiene el autoguardado
 let draftRestoring = false;      // true mientras se restaura un borrador (evita autoguardados a medias)
 let draftDecisionPending = false;// true mientras se muestra el aviso "¿continuar borrador?"
+// El aviso "¿continuar borrador?" solo debe frenar el guardado cuando el borrador pendiente es de
+// ESTA misma pestaña (recarga): ahí guardar pisaría lo que se quiere recuperar. Si el pendiente
+// viene de OTRA pestaña vive bajo otra llave, así que esta pestaña puede guardar sin riesgo.
+// (Antes se frenaba siempre: una segunda pestaña con el aviso ignorado no guardaba NINGÚN borrador,
+// pero igual podía generar la vista previa → cotización "en revisión" sin borrador.)
+function draftSavingBlocked() {
+  return draftRestoring || (draftDecisionPending && pendingLocalDraftKey === DRAFT_LS_KEY);
+}
 // Texto por defecto de "características adicionales" para telefonía — compartido entre el
 // modo Solo Telefonía (global) y el modo por-servicio (uno independiente por cada servicio).
 const VOIP_EXTRAS_TEXT = {
@@ -1053,7 +1061,7 @@ function goToStep(n) {
   updateClientContextBanner();
 
   // Borrador: guardar al cambiar de paso (local al instante, nube también)
-  if (!draftRestoring && !draftDecisionPending && !quoteSent) {
+  if (!draftSavingBlocked() && !quoteSent) {
     saveDraftLocal();
     saveDraftCloud(false);
   }
@@ -1749,6 +1757,7 @@ function ensureTelefoniaSvc(clave) {
       tipo: 'none',
       inclPais: '',
       inclMinutos: '',
+      inclMinutosPorJornada: { media: '', completa: '' }, // minutos distintos según la jornada contratada
       inclExtras: getDefaultVoipExtrasText(),
       paisesSeleccionados: [],
       optExtras: getDefaultVoipExtrasText()
@@ -1835,10 +1844,26 @@ function renderVoipServicePanel(svc) {
           <label>${en ? 'Destination country' : 'País de destino'}</label>
           <select onchange="updateTelSvc('${clave}','inclPais',this.value)">${voipCountryOptionsHtml(tel.inclPais)}</select>
         </div>
-        <div class="field">
-          <label>${en ? 'Monthly minutes included' : 'Minutos mensuales incluidos'}</label>
-          <input type="number" value="${tel.inclMinutos || ''}" placeholder="1500" onchange="updateTelSvc('${clave}','inclMinutos',this.value)" />
-        </div>
+        ${(() => {
+          const rel = telJornadasRelevantes(clave);
+          const mp = tel.inclMinutosPorJornada || {};
+          const jl = en ? { media: 'Part-time', completa: 'Full-time' } : { media: 'Media jornada', completa: 'Jornada completa' };
+          if (rel.length < 2) {
+            // Una sola jornada (o aún sin elegir en el paso 4): un solo campo, como antes
+            const lbl = rel.length === 1 ? `${en ? 'Monthly minutes included' : 'Minutos mensuales incluidos'} — ${jl[rel[0]]}` : (en ? 'Monthly minutes included' : 'Minutos mensuales incluidos');
+            const val = rel.length === 1 ? (mp[rel[0]] || tel.inclMinutos || '') : (tel.inclMinutos || '');
+            const handler = rel.length === 1
+              ? `updateTelMinJornada('${clave}','${rel[0]}',this.value); updateTelSvc('${clave}','inclMinutos',this.value)`
+              : `updateTelSvc('${clave}','inclMinutos',this.value)`;
+            return `<div class="field"><label>${lbl}</label><input type="number" value="${val}" placeholder="1500" onchange="${handler}" /></div>`;
+          }
+          return rel.map(j => `
+            <div class="field">
+              <label>${en ? 'Monthly minutes' : 'Minutos mensuales'} — ${jl[j]}</label>
+              <input type="number" value="${mp[j] || ''}" placeholder="${j === 'media' ? '750' : '1500'}"
+                     onchange="updateTelMinJornada('${clave}','${j}',this.value)" />
+            </div>`).join('');
+        })()}
       </div>
       <div class="field">
         <label>${en ? 'Additional features (one per line)' : 'Características adicionales (una por línea)'}</label>
@@ -1895,6 +1920,30 @@ function updateTelSvc(clave, field, value) {
   const tel = ensureTelefoniaSvc(clave);
   tel[field] = value;
 }
+// Jornadas del servicio para las que se piden minutos: media_3meses implica media + completa.
+function telJornadasRelevantes(clave) {
+  const j = serviceData[clave]?.jornadas || [];
+  const out = [];
+  if (j.includes('media') || j.includes('media_3meses')) out.push('media');
+  if (j.includes('completa') || j.includes('media_3meses')) out.push('completa');
+  return out;
+}
+function updateTelMinJornada(clave, jornada, value) {
+  const tel = ensureTelefoniaSvc(clave);
+  if (!tel.inclMinutosPorJornada) tel.inclMinutosPorJornada = { media: '', completa: '' };
+  tel.inclMinutosPorJornada[jornada] = value;
+}
+// Minutos efectivos por jornada: { media: 750, completa: 1500 } (solo las que tengan valor)
+function telMinutosPorJornada(clave, tel) {
+  const out = {};
+  const rel = telJornadasRelevantes(clave);
+  const mp = tel.inclMinutosPorJornada || {};
+  rel.forEach(j => {
+    const v = parseInt(mp[j]) || (rel.length === 1 ? parseInt(tel.inclMinutos) : 0) || 0;
+    if (v) out[j] = v;
+  });
+  return out;
+}
 
 function toggleCountrySvc(clave, key) {
   const tel = ensureTelefoniaSvc(clave);
@@ -1910,7 +1959,7 @@ function toggleCountrySvc(clave, key) {
 // ══════════════════════════════════════════════════════════
 // Resumen de la telefonía de UN servicio (modo por-servicio), para mostrar dentro de su
 // propia tarjeta en el Paso 7.
-function voipSummaryHtmlForService(tel) {
+function voipSummaryHtmlForService(tel, claveSvc) {
   if (!tel || tel.tipo === 'none') {
     return `<div style="margin-top:8px; font-size:12px; color:var(--gray-500);">📞 Telefonía: sin telefonía</div>`;
   }
@@ -1918,7 +1967,12 @@ function voipSummaryHtmlForService(tel) {
     const pais = tel.inclPais;
     const paisName = VOIP_PRICING[pais]?.nombre || voipCatalog.find(v => v.pais_key === pais)?.pais_nombre_es || pais || '—';
     const extras = (tel.inclExtras || '').split('\n').filter(l => l.trim());
-    let h = `<div style="margin-top:8px; font-size:12px; color:var(--avo-blue); font-weight:700;">📞 Telefonía incluida — ${tel.inclMinutos || 0} min hacia ${escHtml(paisName)}</div>`;
+    const mpj = telMinutosPorJornada(claveSvc, tel);
+    const jn = { media: 'media jornada', completa: 'jornada completa' };
+    const minTxt = Object.keys(mpj).length >= 2
+      ? Object.keys(mpj).map(j => `${mpj[j]} min (${jn[j]})`).join(' · ')
+      : `${Object.values(mpj)[0] || tel.inclMinutos || 0} min`;
+    let h = `<div style="margin-top:8px; font-size:12px; color:var(--avo-blue); font-weight:700;">📞 Telefonía incluida — ${minTxt} hacia ${escHtml(paisName)}</div>`;
     if (extras.length) h += `<ul style="font-size:12px; padding-left:20px; margin:4px 0 0; color:var(--gray-600);">${extras.map(e => `<li>${escHtml(e)}</li>`).join('')}</ul>`;
     return h;
   }
@@ -1980,7 +2034,7 @@ function buildSummary() {
       ? `<ul style="padding-left:20px; margin:4px 0;">${funcs.map(f => `<li>${escHtml(f)}</li>`).join('')}</ul>`
       : `<div style="color:var(--avo-orange); margin-top:2px;">⚠ Sin funciones configuradas</div>`;
 
-    const voipHtml = voipSummaryHtmlForService(serviceData[svc.clave]?.telefonia, sym);
+    const voipHtml = voipSummaryHtmlForService(serviceData[svc.clave]?.telefonia, svc.clave);
 
     html += `
       <div style="margin-bottom:20px; padding:16px; background:var(--gray-50); border-radius:8px; border-left:3px solid var(--avo-accent);">
@@ -2210,6 +2264,15 @@ async function saveQuotation(mode) {
   if (previewBtn) previewBtn.disabled = true;
   (isPreviewMode ? previewBtn : btn).textContent = 'Guardando...';
 
+  // Si quedó el aviso "¿continuar borrador?" de esta misma pestaña sin resolver, quien llegó hasta
+  // aquí ya siguió con el formulario actual: se resuelve para que el guardado no quede bloqueado.
+  if (draftDecisionPending && pendingLocalDraftKey === DRAFT_LS_KEY) {
+    draftDecisionPending = false;
+    pendingLocalDraft = null;
+    pendingLocalDraftKey = null;
+    document.getElementById('draft-restore-banner')?.classList.add('hidden');
+  }
+
   try {
     syncDynamicInputsToState();
     // Verificar que la sesión siga activa antes de continuar.
@@ -2388,7 +2451,8 @@ async function saveQuotation(mode) {
         if (tel.tipo === 'incluida') {
           entry.incluida_info = {
             pais_key: tel.inclPais || '',
-            minutos: parseInt(tel.inclMinutos) || 0,
+            minutos: (() => { const mpj = telMinutosPorJornada(svc.clave, tel); const v = Object.values(mpj); return v.length ? v[0] : (parseInt(tel.inclMinutos) || 0); })(),
+            minutos_por_jornada: telMinutosPorJornada(svc.clave, tel), // { media: 750, completa: 1500 }
             extras: (tel.inclExtras || '').split('\n').filter(l => l.trim())
           };
           if (entry.incluida_info.pais_key === 'es') esEspanaTelefonia = true;
@@ -2468,6 +2532,15 @@ async function saveQuotation(mode) {
 
     // Si ya había una vista previa, verificar que siga existiendo y que nadie la haya enviado
     // (p. ej. otra persona retomó el borrador desde otro equipo y ya la envió).
+    // Si este formulario ya tiene borrador en la nube con una vista previa asociada pero la pestaña
+    // la "olvidó" (p. ej. se recuperó una copia local más vieja), se reutiliza en vez de duplicarla.
+    if (!previewQuoteId && currentDraftId) {
+      try {
+        const { data: dr } = await withTimeout(
+          sb.from('quote_drafts').select('quote_id').eq('id', currentDraftId).maybeSingle(), 15000, 'verificar borrador');
+        if (dr && dr.quote_id) previewQuoteId = dr.quote_id;
+      } catch (e) { console.warn('No se pudo verificar la vista previa del borrador:', e); }
+    }
     if (previewQuoteId) {
       const { data: existing } = await withTimeout(
         sb.from('quotes').select('id, estado').eq('id', previewQuoteId).maybeSingle(), 15000, 'verificar cotización');
@@ -2503,6 +2576,9 @@ async function saveQuotation(mode) {
       btn.disabled = false;
       previewBtn.disabled = false;
       previewBtn.textContent = '🔄 Actualizar vista previa';
+      // Una vista previa SIEMPRE debe quedar respaldada por un borrador en la nube (aunque antes
+      // se hubiera dado por "eliminado"): así nunca queda una cotización en revisión sin borrador.
+      cloudDraftGone = false;
       saveDraftLocal();
       saveDraftCloud(false);
       document.getElementById('preview-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2625,6 +2701,21 @@ function getTabId() {
 }
 const DRAFT_LS_PREFIX = 'avo_generator_draft_v1__';
 const DRAFT_LS_KEY = DRAFT_LS_PREFIX + getTabId();
+// Latido de pestaña: cada pestaña abierta marca "sigo viva" cada 5 s. Así, al abrir una pestaña
+// nueva NO se le ofrece como "borrador pendiente" el de otra pestaña que sigue en uso (solo los
+// de pestañas cerradas o caídas, sin latido reciente).
+const ALIVE_PREFIX = 'avo_generator_alive_v1__';
+const ALIVE_KEY = ALIVE_PREFIX + getTabId();
+function tabBeat() { try { localStorage.setItem(ALIVE_KEY, String(Date.now())); } catch (e) {} }
+function isTabAlive(tabId) {
+  try {
+    const t = parseInt(localStorage.getItem(ALIVE_PREFIX + tabId) || '0', 10);
+    return t && (Date.now() - t) < 20000;
+  } catch (e) { return false; }
+}
+tabBeat();
+setInterval(tabBeat, 5000);
+window.addEventListener('beforeunload', () => { try { localStorage.removeItem(ALIVE_KEY); } catch (e) {} });
 const DRAFT_SKIP_IDS = new Set(['client-search', 'result-link', 'preview-link', 'login-email', 'login-pass']);
 let localSaveTimer = null;
 let cloudSaveTimer = null;
@@ -2709,7 +2800,7 @@ function draftHasContent(st) {
 }
 
 function saveDraftLocal() {
-  if (draftRestoring || draftDecisionPending || quoteSent) return;
+  if (draftSavingBlocked() || quoteSent) return;
   try {
     const st = buildDraftState();
     if (!draftHasContent(st)) return;
@@ -2720,7 +2811,7 @@ function saveDraftLocal() {
 
 async function saveDraftCloud(manual) {
   if (quoteSent) return;
-  if (draftRestoring || draftDecisionPending) {
+  if (draftSavingBlocked()) {
     if (manual) alert('Primero elige si quieres continuar o descartar el borrador pendiente (aviso azul arriba).');
     return;
   }
@@ -2788,7 +2879,7 @@ function scheduleCloudSave() {
 }
 
 function markDraftDirty() {
-  if (draftRestoring || draftDecisionPending || quoteSent) return;
+  if (draftSavingBlocked() || quoteSent) return;
   clearTimeout(localSaveTimer);
   localSaveTimer = setTimeout(saveDraftLocal, 600);
   scheduleCloudSave();
@@ -2913,6 +3004,7 @@ async function initDraftRecovery() {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
         if (!k || !k.startsWith(DRAFT_LS_PREFIX) || k === DRAFT_LS_KEY) continue;
+        if (isTabAlive(k.slice(DRAFT_LS_PREFIX.length))) continue; // esa pestaña sigue abierta y en uso
         let cand = null;
         try { cand = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { continue; }
         if (!draftHasContent(cand)) continue;
