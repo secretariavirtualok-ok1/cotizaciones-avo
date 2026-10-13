@@ -489,6 +489,16 @@ async function init() {
     // alguien quite "&preview=true" del enlace.
     if (data.estado === 'en_revision') isPreview = true;
 
+    // Si quien abre tiene sesión iniciada del equipo (admin o comercial) en este navegador,
+    // se trata como vista previa: nunca cuenta como apertura del cliente, aunque el enlace
+    // no lleve "&preview=true".
+    if (!isPreview) {
+      try {
+        const { data: sess } = await sb.auth.getSession();
+        if (sess && sess.session) isPreview = true;
+      } catch (_) { /* sin sesión — vista de cliente normal */ }
+    }
+
     if (data.expired && !isPreview) { show('screen-expired'); return; }
 
     if (!isPreview) {
