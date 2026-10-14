@@ -2335,7 +2335,17 @@ document.getElementById('mq-save-estado').addEventListener('click', async () => 
     }
   }
 
-  const { error } = await sb.from('quotes').update(payload).eq('id', editingQuote);
+  // .select() devuelve las filas realmente actualizadas: si la base no aplica el cambio
+  // (permisos/RLS) Supabase NO da error, solo 0 filas — así lo detectamos y avisamos.
+  let { data: updRows, error } = await sb.from('quotes').update(payload).eq('id', editingQuote).select('id, estado');
+  if (!error && (!updRows || updRows.length === 0)) {
+    error = { message: 'el cambio no se aplicó en la base de datos (0 filas actualizadas — revisar permisos/RLS de la tabla quotes).' };
+  } else if (!error && updRows[0].estado !== estado) {
+    error = { message: 'la base de datos guardó el estado "' + updRows[0].estado + '" en lugar de "' + estado + '" (revisar triggers de la tabla quotes).' };
+  }
+  if (error && /quote_status/i.test(error.message || '')) {
+    error.message += ' — Falta agregar el estado a la base de datos: ejecuta en Supabase › SQL Editor:  alter type quote_status add value if not exists \'' + estado + '\';';
+  }
   if (!error) {
     await sb.from('quote_events').insert({ quote_id: editingQuote, tipo: 'status_changed', metadata: { estado } });
     if (contratoReciénFirmado) {
