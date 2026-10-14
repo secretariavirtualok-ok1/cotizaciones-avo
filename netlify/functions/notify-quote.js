@@ -54,7 +54,8 @@ exports.handler = async function (event) {
     iva_porcentaje,
     iva_monto,
     total_facturar,
-    total_primeros_3_meses
+    total_primeros_3_meses,
+    voip_totales
   } = body;
 
   // LOG para diagnóstico (visible en Netlify Functions → Logs)
@@ -88,7 +89,7 @@ exports.handler = async function (event) {
                 <td style="padding:10px 0 0;color:#C89B3C;font-weight:800;font-size:18px;text-align:right;">${fmtMonto(total_facturar)}</td>
               </tr>
             </table>
-            <p style="font-size:11px;color:#8C8B85;margin:10px 0 0;">No incluye telefonía VoIP opcional (se detalla aparte si fue seleccionada).</p>
+            ${voip_selecciones && Object.keys(voip_selecciones).length > 0 ? '<p style="font-size:11px;color:#8C8B85;margin:10px 0 0;">La telefonía VoIP se factura aparte (ver detalle abajo).</p>' : ''}
           </div>` : '';
 
   // ── Construir asunto y contenido según el tipo de evento ──
@@ -193,19 +194,29 @@ exports.handler = async function (event) {
                 <tr style="background:#D6E8FF;">
                   <th style="text-align:left;padding:7px 10px;color:#1A5296;font-size:11px;text-transform:uppercase;">País</th>
                   <th style="text-align:left;padding:7px 10px;color:#1A5296;font-size:11px;text-transform:uppercase;">Paquete</th>
+                  <th style="text-align:left;padding:7px 10px;color:#1A5296;font-size:11px;text-transform:uppercase;">Líneas</th>
                   <th style="text-align:left;padding:7px 10px;color:#1A5296;font-size:11px;text-transform:uppercase;">Pago inicial (3 meses)</th>
                   <th style="text-align:left;padding:7px 10px;color:#1A5296;font-size:11px;text-transform:uppercase;">Mensual (4to mes+)</th>
                 </tr>
               </thead>
               <tbody>
-                ${Object.entries(voip_selecciones).map(([key, plan]) => `
+                ${Object.entries(voip_selecciones).map(([key, plan]) => {
+                  // v4: totales por país (precio × líneas, + IVA solo en Colombia) calculados por el visor
+                  const vt = (voip_totales || []).find(v => v.pais_key === key);
+                  const mon = vt ? vt.moneda : (key === 'es' ? 'EUR' : (moneda || 'USD'));
+                  const fm = (n) => `${simbolos[mon] || '$'}${Number(n).toLocaleString('es-VE', { maximumFractionDigits: mon === 'COP' ? 0 : 2 })} ${mon}`;
+                  const lineas = Number(plan.cantidad) || 1;
+                  const ivaTxt = vt && vt.iva_aplica ? `<br><span style="font-size:11px;color:#8C8B85;font-weight:400;">IVA ${vt.iva_porcentaje}% incluido</span>` : '';
+                  const unitTxt = (u) => lineas > 1 ? `<br><span style="font-size:11px;color:#8C8B85;font-weight:400;">${fm(u)} c/u</span>` : '';
+                  return `
                 <tr>
                   <td style="padding:8px 10px;border-bottom:1px solid #BEE3F8;color:#0F1F3D;font-weight:600;">${plan.nombre || key}</td>
                   <td style="padding:8px 10px;border-bottom:1px solid #BEE3F8;color:#0F1F3D;font-weight:700;">${plan.minutos} min</td>
-                  <td style="padding:8px 10px;border-bottom:1px solid #BEE3F8;color:#C89B3C;font-weight:700;">${simbolos[moneda] || '$'}${plan.precio_inicial}</td>
-                  <td style="padding:8px 10px;border-bottom:1px solid #BEE3F8;color:#0F1F3D;">${simbolos[moneda] || '$'}${plan.precio_mensual}/mes</td>
-                </tr>
-                `).join('')}
+                  <td style="padding:8px 10px;border-bottom:1px solid #BEE3F8;color:#0F1F3D;font-weight:800;">${lineas}</td>
+                  <td style="padding:8px 10px;border-bottom:1px solid #BEE3F8;color:#C89B3C;font-weight:700;">${fm(vt ? vt.inicial_con_iva : plan.precio_inicial * lineas)}${unitTxt(plan.precio_inicial)}${ivaTxt}</td>
+                  <td style="padding:8px 10px;border-bottom:1px solid #BEE3F8;color:#0F1F3D;">${fm(vt ? vt.mensual_con_iva : plan.precio_mensual * lineas)}/mes${unitTxt(plan.precio_mensual)}${ivaTxt}</td>
+                </tr>`;
+                }).join('')}
               </tbody>
             </table>
           </div>
