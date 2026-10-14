@@ -239,6 +239,8 @@
   .gen-precio-phase-amount { display:block;font-size:22px;font-weight:800;color:var(--navy); }
   .gen-precio-arrow { font-size:24px;color:var(--gold);font-weight:700; }
   .gen-nota { background:#FFF8E1;border-radius:8px;padding:14px 16px;font-size:13px;color:#7D6608;line-height:1.6;margin-bottom:12px; }
+  /* Notas escritas por el comercial: respetar saltos de línea, párrafos y sangrías tal cual se redactaron */
+  .gen-nota.texto-libre { white-space: pre-wrap; tab-size: 4; -moz-tab-size: 4; word-break: break-word; }
   .gen-cond-list { list-style:disc;padding-left:24px; }
   .gen-cond-list li { font-size:13px;color:var(--gray-700);line-height:1.8;margin-bottom:2px; }
   .gen-voip-table { width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px; }
@@ -627,6 +629,12 @@ const T = {
 let lang = 'es';
 let selectedJornada = null;
 let ivaSuffix = ''; // " + IVA (19%)" — se agrega a cada precio cuando la cotización lo trae marcado
+
+// Escapa el texto libre de una nota (se muestra tal cual, con sus saltos de línea y sangrías)
+function escNota(t) {
+  return String(t == null ? '' : t).replace(/\r\n?/g, '\n')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/^\n+|\s+$/g, '');
+}
 
 function formatPrecio(precio, moneda) {
   if (!precio && precio !== 0) return '';
@@ -1485,7 +1493,7 @@ function renderGeneratedQuote(data) {
     var funcsHtml  = (svc.funciones || []).map(function(f){ return '<li>' + f + '</li>'; }).join('');
     var planLabel  = idioma === 'en' ? '📋 SERVICE PLAN' : '📋 PLAN DE SERVICIO';
     var scopeLabel = idioma === 'en' ? 'Duties and Scope of the Plan:' : 'Funciones y alcance del plan:';
-    var notaHtml   = svc.nota ? '<div class="gen-nota">' + svc.nota + '</div>' : '';
+    var notaHtml   = svc.nota ? '<div class="gen-nota texto-libre">' + escNota(svc.nota) + '</div>' : '';
     card2.innerHTML = '<div class="card-label">' + planLabel + '</div>'
       + '<p class="gen-svc-subtitle">' + scopeLabel + '</p>'
       + '<ul class="gen-func-list">' + funcsHtml + '</ul>' + notaHtml;
@@ -1576,7 +1584,7 @@ function renderGeneratedQuote(data) {
       voipCondHtml += '<div class="gen-nota" style="margin-top:16px;">' + ajTxtST + '</div>';
     }
     if (cd.condiciones_extras && cd.condiciones_extras.nota_personalizada) {
-      voipCondHtml += '<div class="gen-nota" style="margin-top:12px;">' + cd.condiciones_extras.nota_personalizada + '</div>';
+      voipCondHtml += '<div class="gen-nota texto-libre" style="margin-top:12px;">' + escNota(cd.condiciones_extras.nota_personalizada) + '</div>';
     }
     soloTelCard.innerHTML = voipCondHtml;
     container.insertBefore(soloTelCard, plansSectionEl);
@@ -1638,7 +1646,7 @@ function renderGeneratedQuote(data) {
     extrasCondHtml += '<div class="gen-nota" style="margin-top:16px;">' + notaAjuste + '</div>';
   }
   if (cd.condiciones_extras && cd.condiciones_extras.nota_personalizada) {
-    extrasCondHtml += '<div class="gen-nota" style="margin-top:12px;">' + cd.condiciones_extras.nota_personalizada + '</div>';
+    extrasCondHtml += '<div class="gen-nota texto-libre" style="margin-top:12px;">' + escNota(cd.condiciones_extras.nota_personalizada) + '</div>';
   }
 
   condCard.innerHTML = '<div class="card-label">' + condLabel + '</div>'
