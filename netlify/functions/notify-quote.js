@@ -2,6 +2,7 @@
 // ─────────────────────────────────────────────────────────────
 //  Netlify Function — Notificaciones internas de cotizaciones
 //  v3 FIX: Jornada + Precio en correo plan_selected
+//  v4: Cantidad de servicios + total a facturar (base × cantidad + IVA)
 //
 //  Variable de entorno necesaria en Netlify:
 //    RESEND_API_KEY  →  tu API key de resend.com
@@ -44,17 +45,51 @@ exports.handler = async function (event) {
     moneda,
     idioma,
     voip_selecciones,
-    timestamp
+    timestamp,
+    // v4 — enviados por viewer.html al confirmar
+    cantidad_servicios,
+    precio_unitario,
+    subtotal,
+    iva_aplica,
+    iva_porcentaje,
+    iva_monto,
+    total_facturar,
+    total_primeros_3_meses
   } = body;
 
   // LOG para diagnóstico (visible en Netlify Functions → Logs)
-  console.log('=== NOTIFY-QUOTE ===', JSON.stringify({ tipo, plan_nombre, jornada_nombre, precio, moneda }));
+  console.log('=== NOTIFY-QUOTE ===', JSON.stringify({ tipo, plan_nombre, jornada_nombre, precio, moneda, cantidad_servicios, total_facturar }));
 
   // Formatear precio
   const simbolos = { USD: '$', EUR: '€', COP: '$', MXN: '$' };
-  const precioFormateado = precio
-    ? `${simbolos[moneda] || '$'}${Number(precio).toLocaleString('es-VE')} ${moneda || 'USD'}`
+  const fmtMonto = (n) => `${simbolos[moneda] || '$'}${Number(n).toLocaleString('es-VE', { maximumFractionDigits: moneda === 'COP' ? 0 : 2 })} ${moneda || 'USD'}`;
+  const precioBase = precio != null && precio !== '' ? precio : (precio_unitario != null ? precio_unitario : null);
+  const precioFormateado = precioBase != null
+    ? fmtMonto(precioBase) + (iva_aplica ? ' (sin IVA)' : '')
     : null;
+  const cantidad = Number(cantidad_servicios) || 1;
+
+  // Bloque "Cantidad y monto a facturar" (solo si el visor envió el total)
+  const filaFact = (label, valor, estilo = '') => `
+              <tr>
+                <td style="padding:7px 0;border-bottom:1px solid #F3D98B;color:#7A5A00;">${label}</td>
+                <td style="padding:7px 0;border-bottom:1px solid #F3D98B;color:#0F1F3D;text-align:right;font-weight:600;${estilo}">${valor}</td>
+              </tr>`;
+  const facturacionHtml = total_facturar != null ? `
+          <div style="margin-top:20px;padding:16px 20px;background:#FFF8E1;border:1.5px solid #C89B3C;border-radius:8px;">
+            <p style="font-size:12px;color:#9A6000;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin:0 0 10px;">🧾 Cantidad y monto a facturar</p>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+              ${filaFact('Cantidad de servicios', `<span style="font-size:16px;font-weight:800;">${cantidad}</span>`)}
+              ${filaFact('Precio por servicio' + (iva_aplica ? ' (sin IVA)' : ''), fmtMonto(precio_unitario))}
+              ${iva_aplica ? filaFact('Subtotal (sin IVA)', fmtMonto(subtotal)) : ''}
+              ${iva_aplica ? filaFact(`IVA (${iva_porcentaje}%)`, fmtMonto(iva_monto)) : ''}
+              <tr>
+                <td style="padding:10px 0 0;color:#0F1F3D;font-weight:800;">Total mensual a facturar${total_primeros_3_meses ? ' (primeros 3 meses)' : ''}${iva_aplica ? ' — IVA incluido' : ''}</td>
+                <td style="padding:10px 0 0;color:#C89B3C;font-weight:800;font-size:18px;text-align:right;">${fmtMonto(total_facturar)}</td>
+              </tr>
+            </table>
+            <p style="font-size:11px;color:#8C8B85;margin:10px 0 0;">No incluye telefonía VoIP opcional (se detalla aparte si fue seleccionada).</p>
+          </div>` : '';
 
   // ── Construir asunto y contenido según el tipo de evento ──
   let asunto, contenidoHtml;
@@ -108,7 +143,7 @@ exports.handler = async function (event) {
     `;
 
   } else if (tipo === 'plan_selected') {
-    asunto = `✅ Plan seleccionado — ${cliente_empresa || cliente_nombre} eligió: ${plan_nombre || 'N/A'}`;
+    asunto = `✅ Plan seleccionado — ${cliente_empresa || cliente_nombre} eligió: ${plan_nombre || 'N/A'}${cantidad > 1 ? ` × ${cantidad}` : ''}`;
     contenidoHtml = `
       <div style="font-family:Segoe UI,system-ui,sans-serif;max-width:560px;margin:0 auto;">
         <div style="background:#0F1F3D;padding:20px 28px;border-radius:10px 10px 0 0;display:flex;align-items:center;">
@@ -121,7 +156,7 @@ exports.handler = async function (event) {
           <h2 style="font-size:20px;color:#0F1F3D;margin:0 0 20px;">Un cliente seleccionó su plan</h2>
           <div style="background:#D4EDDA;border-radius:8px;padding:16px 20px;margin-bottom:20px;text-align:center;">
             <p style="font-size:12px;color:#1E7A4A;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Plan elegido</p>
-            <p style="font-size:22px;font-weight:800;color:#0F1F3D;margin:0;">${plan_nombre || 'N/A'}</p>
+            <p style="font-size:22px;font-weight:800;color:#0F1F3D;margin:0;">${plan_nombre || 'N/A'}${cantidad > 1 ? ` <span style="color:#1E7A4A;">× ${cantidad}</span>` : ''}</p>
           </div>
           <table style="width:100%;border-collapse:collapse;font-size:14px;">
             <tr>
@@ -141,7 +176,7 @@ exports.handler = async function (event) {
               <td style="padding:10px 0;border-bottom:1px solid #EDEDEA;color:#0F1F3D;font-weight:600;">${jornada_nombre || '—'}</td>
             </tr>
             <tr>
-              <td style="padding:10px 0;border-bottom:1px solid #EDEDEA;color:#8C8B85;">Precio</td>
+              <td style="padding:10px 0;border-bottom:1px solid #EDEDEA;color:#8C8B85;">Precio por servicio</td>
               <td style="padding:10px 0;border-bottom:1px solid #EDEDEA;color:#C89B3C;font-weight:700;font-size:16px;">${precioFormateado || '—'}</td>
             </tr>
             <tr>
@@ -149,6 +184,7 @@ exports.handler = async function (event) {
               <td style="padding:10px 0;color:#0F1F3D;">${timestamp || '—'}</td>
             </tr>
           </table>
+          ${facturacionHtml}
           ${voip_selecciones && Object.keys(voip_selecciones).length > 0 ? `
           <div style="margin-top:20px;padding:16px 20px;background:#EFF9FF;border:1.5px solid #2E86C1;border-radius:8px;">
             <p style="font-size:12px;color:#2E86C1;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">📞 Telefonía VoIP seleccionada</p>
@@ -175,7 +211,7 @@ exports.handler = async function (event) {
           </div>
           ` : ''}
           <div style="margin-top:20px;padding:14px 16px;background:#FFF0CC;border-radius:8px;font-size:13px;color:#9A6000;">
-            🚀 <strong>Acción requerida:</strong> Inicia la búsqueda del perfil de <strong>${plan_nombre || ''}</strong> para <strong>${cliente_empresa || cliente_nombre || ''}</strong>. El cliente ya está esperando respuesta.
+            🚀 <strong>Acción requerida:</strong> Inicia la búsqueda ${cantidad > 1 ? `de <strong>${cantidad} perfiles</strong>` : 'del perfil'} de <strong>${plan_nombre || ''}</strong> para <strong>${cliente_empresa || cliente_nombre || ''}</strong>. El cliente ya está esperando respuesta.
           </div>
         </div>
         <div style="background:#F7F5F0;padding:14px 28px;border-radius:0 0 10px 10px;font-size:11px;color:#8C8B85;border:1px solid #EDEDEA;border-top:none;">
