@@ -121,6 +121,13 @@
     transition: border-color .18s, background .18s, transform .1s;
     margin-bottom: 10px; user-select: none;
   }
+  .qty-btn { min-width:46px; height:42px; padding:0 12px; border:2px solid #DEE2E6; background:white; border-radius:8px; font-size:15px; font-weight:700; color:#1B3A5C; cursor:pointer; transition:all .15s; }
+  .qty-btn:hover { border-color: var(--gold); }
+  .qty-btn.selected { border-color: var(--navy); background: var(--navy); color: white; }
+  .qty-summary { background:#F8F9FA; border:1px solid #E9ECEF; border-radius:10px; padding:14px 16px; font-size:14px; color:#343A40; }
+  .qty-row { display:flex; justify-content:space-between; gap:12px; padding:4px 0; }
+  .qty-row.total { border-top:1px solid #DEE2E6; margin-top:6px; padding-top:10px; font-size:16px; font-weight:800; color:#1B3A5C; }
+  .qty-iva-note { margin-top:10px; font-size:12px; color:#8A6D1B; background:#FFF8E1; border:1px solid #F3D98B; border-radius:6px; padding:8px 10px; }
   .plan-option:hover { border-color: var(--gold); background: #FFFDF5; }
   .plan-option.selected {
     border-color: var(--navy); background: #F0F4FF;
@@ -415,6 +422,15 @@
       <div id="v-service-divider" style="display:none;border-top:1px solid var(--gray-100);margin:16px 0;"></div>
       <div class="card-label" id="v-plans-label" style="margin-bottom:12px;"></div>
       <div id="v-plans-list"></div>
+
+      <!-- Cantidad de servicios + total a facturar (aparece al elegir un servicio) -->
+      <div id="v-qty-section" style="display:none;margin-top:20px;padding-top:16px;border-top:1px solid var(--gray-100);">
+        <div class="card-label" id="v-qty-label">🔢 Cantidad de servicios</div>
+        <p class="planes-intro" id="v-qty-intro" style="margin-bottom:10px;"></p>
+        <div id="v-qty-list" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
+        <div id="v-qty-summary"></div>
+      </div>
+
       <div class="confirm-section">
         <button class="btn-confirm" id="v-confirm-btn" disabled>Confirmar selección</button>
         <div class="confirm-note" id="v-confirm-note">Podrás cambiar tu selección antes de confirmar</div>
@@ -457,6 +473,10 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 let quoteData     = null;
 let selectedPlanId = null;
+// Cantidad de servicios que el cliente quiere contratar (1 a MAX_CANTIDAD_SERVICIOS)
+const MAX_CANTIDAD_SERVICIOS = 5;
+let selectedCantidad = 1;
+let ivaInfo = { aplica: false, pct: 0 }; // IVA a sumar al total (precios base sin IVA)
 
 function show(screenId) {
   ['screen-loading','screen-error','screen-expired','screen-viewer'].forEach(id => {
@@ -624,11 +644,18 @@ function renderViewer(data, quoteId, isPreview) {
 
   // Precios + IVA (hoy pensado para Colombia): la cotización trae condiciones_extras.iva_aplica
   // marcado desde el generador, con el porcentaje que corresponda (19% por defecto en Colombia).
+  // En pesos colombianos los precios son SIEMPRE base (sin IVA): si la cotización no trae la
+  // marca (cotizaciones anteriores a esa opción) se asume IVA 19%. Si el comercial la desmarcó
+  // explícitamente en el generador (iva_aplica === false), se respeta.
   const cdIva = data.cotizacion_data && data.cotizacion_data.condiciones_extras;
-  if (cdIva && cdIva.iva_aplica) {
-    const pct = cdIva.iva_porcentaje != null ? cdIva.iva_porcentaje : 19;
+  const ivaMarcado = cdIva && cdIva.iva_aplica === true;
+  const ivaCopPorDefecto = (data.moneda === 'COP') && !(cdIva && cdIva.iva_aplica === false);
+  if (ivaMarcado || ivaCopPorDefecto) {
+    const pct = (cdIva && cdIva.iva_porcentaje != null) ? Number(cdIva.iva_porcentaje) : 19;
+    ivaInfo = { aplica: true, pct: pct };
     ivaSuffix = lang === 'en' ? ` + VAT (${pct}%)` : ` + IVA (${pct}%)`;
   } else {
+    ivaInfo = { aplica: false, pct: 0 };
     ivaSuffix = '';
   }
 
@@ -774,6 +801,30 @@ function renderViewer(data, quoteId, isPreview) {
   }
   window.actualizarPreciosPlanes = actualizarPreciosPlanes;
 
+  // Precio unitario (base) del servicio seleccionado con la jornada seleccionada
+  window.getPrecioUnitarioSeleccion = function() {
+    if (!selectedPlanId) return null;
+    var servicios = window._serviciosGenerados || ((data.cotizacion_data || {}).servicios) || [];
+    var idx = (window._planesOfrecidos || []).findIndex(function(p){ return p.id === selectedPlanId; });
+    var svc = idx >= 0 ? servicios[idx] : null;
+    var jornada = selectedJornada;
+    var precio = null;
+    if (svc && jornada) {
+      if (jornada === 'media_3meses') {
+        precio = svc.precio_inicio != null ? svc.precio_inicio : (svc.precios && svc.precios.media_3meses != null ? svc.precios.media_3meses : null);
+      } else if (svc.precios && svc.precios[jornada] != null) precio = svc.precios[jornada];
+      else if (svc.precio_inicio != null && jornada === 'media') precio = svc.precio_inicio;
+      else if (svc.precio_full != null && jornada === 'completa') precio = svc.precio_full;
+    }
+    if (precio == null) {
+      var clave = jornada ? selectedPlanId + '|' + jornada : selectedPlanId;
+      var val = (window._preciosCombinaciones || {})[clave];
+      if (val != null) precio = val;
+    }
+    var n = precio != null ? Number(precio) : null;
+    return (n != null && !isNaN(n)) ? n : null;
+  };
+
   // Para cotizaciones generadas, usar servicios del cotizacion_data como planes
   // Para cotizaciones generadas usar servicios como opciones del selector
   var planesList = document.getElementById('v-plans-list');
@@ -871,6 +922,7 @@ function selectPlan(planId, el) {
   document.querySelectorAll('.plan-option[data-id]').forEach(p => p.classList.remove('selected'));
   el.classList.add('selected');
   selectedPlanId = planId;
+  renderCantidadServicios();
   checkConfirmReady();
 }
 
@@ -879,7 +931,167 @@ function selectJornada(jornada, el) {
   el.classList.add('selected');
   selectedJornada = jornada;
   if (window.actualizarPreciosPlanes) window.actualizarPreciosPlanes();
+  renderCantidadServicios();
   checkConfirmReady();
+}
+
+// ════════════════════════════════════════════════════════
+//  CANTIDAD DE SERVICIOS + TOTAL A FACTURAR
+// ════════════════════════════════════════════════════════
+function fmtMonto(n, moneda) {
+  const simbolos = { USD: '$', EUR: '€', COP: '$', MXN: '$' };
+  const dec = moneda === 'COP' ? 0 : 2;
+  const f = new Intl.NumberFormat('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: dec }).format(n);
+  return (simbolos[moneda] || '$') + f + ' ' + (moneda || 'USD');
+}
+function redondear(n, moneda) {
+  return moneda === 'COP' ? Math.round(n) : Math.round(n * 100) / 100;
+}
+// Moneda de un país de telefonía: España siempre en euros, el resto en la moneda de la cotización
+function monedaVoip(paisKey) {
+  return paisKey === 'es' ? 'EUR' : ((quoteData && quoteData.moneda) || 'USD');
+}
+// Telefonía VoIP opcional seleccionada, con su cantidad de líneas y totales
+function calcularVoipSeleccion() {
+  const sel = window._selectedVoipPlans || {};
+  return Object.keys(sel).map(function(k) {
+    const p = sel[k];
+    const mon = monedaVoip(k);
+    const cant = p.cantidad || 1;
+    const ivaPais = ivaInfo.aplica && (k === 'colombia' || k === 'co');
+    const ini = redondear(Number(p.precio_inicial) * cant, mon);
+    const men = redondear(Number(p.precio_mensual) * cant, mon);
+    const f = ivaPais ? (1 + ivaInfo.pct / 100) : 1;
+    return {
+      pais_key: k, nombre: p.nombre || k, minutos: p.minutos, cantidad: cant, moneda: mon,
+      precio_inicial_unit: Number(p.precio_inicial), precio_mensual_unit: Number(p.precio_mensual),
+      inicial_total: ini, mensual_total: men,
+      iva_aplica: ivaPais, iva_porcentaje: ivaPais ? ivaInfo.pct : 0,
+      inicial_con_iva: redondear(ini * f, mon), mensual_con_iva: redondear(men * f, mon)
+    };
+  });
+}
+// Devuelve el desglose de la selección actual (o null si no hay nada que totalizar)
+function calcularTotalSeleccion() {
+  const moneda = (quoteData && quoteData.moneda) || 'USD';
+  const unit = window.getPrecioUnitarioSeleccion ? window.getPrecioUnitarioSeleccion() : null;
+  const voip = calcularVoipSeleccion();
+  if (unit == null && voip.length === 0) return null;
+  const cantidad = selectedCantidad || 1;
+  const subtotal = unit != null ? redondear(unit * cantidad, moneda) : null;
+  const ivaMonto = (unit != null && ivaInfo.aplica) ? redondear(subtotal * ivaInfo.pct / 100, moneda) : 0;
+  return {
+    moneda, cantidad,
+    precio_unitario: unit,
+    subtotal,
+    iva_aplica: ivaInfo.aplica,
+    iva_porcentaje: ivaInfo.aplica ? ivaInfo.pct : 0,
+    iva_monto: ivaMonto,
+    total: unit != null ? redondear(subtotal + ivaMonto, moneda) : null,
+    primeros_3_meses: selectedJornada === 'media_3meses',
+    voip: voip
+  };
+}
+function selectCantidad(n) {
+  selectedCantidad = n;
+  // La telefonía acompaña a la cantidad de servicios mientras el cliente no la cambie a mano
+  const sel = window._selectedVoipPlans || {};
+  Object.keys(sel).forEach(function(k) {
+    if (!(window._voipQtyTouched || {})[k]) { sel[k].cantidad = n; renderVoipCantidad(k); }
+  });
+  renderCantidadServicios();
+}
+// Selector "¿Cuántas líneas?" dentro de la tarjeta de cada país de telefonía
+function renderVoipCantidad(paisKey) {
+  const box = document.getElementById('voip-qty-' + paisKey);
+  const p = (window._selectedVoipPlans || {})[paisKey];
+  if (!box) return;
+  if (!p) { box.style.display = 'none'; return; }
+  const en = lang === 'en';
+  const mon = monedaVoip(paisKey);
+  const cant = p.cantidad || 1;
+  let btns = '';
+  for (let i = 1; i <= MAX_CANTIDAD_SERVICIOS; i++) {
+    btns += '<button type="button" class="qty-btn' + (i === cant ? ' selected' : '') + '" style="min-width:40px;height:36px;font-size:14px;" onclick="selectVoipCantidad(\'' + paisKey + '\',' + i + ')">' + i + '</button>';
+  }
+  const per = en ? '/mo' : '/mes';
+  box.style.display = 'block';
+  box.innerHTML = '<div style="font-size:12px;font-weight:700;color:#1B3A5C;margin:14px 0 8px;">'
+    + (en ? '🔢 How many telephony lines?' : '🔢 ¿Cuántas líneas de telefonía deseas?') + '</div>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">' + btns + '</div>'
+    + '<div style="font-size:12px;color:#495057;">' + p.minutos + ' min × ' + cant + ' ' + (cant === 1 ? (en ? 'line' : 'línea') : (en ? 'lines' : 'líneas')) + ': '
+    + '<strong>' + fmtMonto(redondear(p.precio_inicial * cant, mon), mon) + '</strong> ' + (en ? 'first 3 months' : 'primeros 3 meses') + ' · '
+    + '<strong>' + fmtMonto(redondear(p.precio_mensual * cant, mon), mon) + per + '</strong> ' + (en ? 'from 4th month' : 'desde el 4° mes')
+    + ((ivaInfo.aplica && (paisKey === 'colombia' || paisKey === 'co')) ? ivaSuffix : '') + '</div>';
+}
+function selectVoipCantidad(paisKey, n) {
+  window._voipQtyTouched = window._voipQtyTouched || {};
+  window._voipQtyTouched[paisKey] = true;
+  if (window._selectedVoipPlans[paisKey]) window._selectedVoipPlans[paisKey].cantidad = n;
+  renderVoipCantidad(paisKey);
+  renderCantidadServicios();
+}
+function renderCantidadServicios() {
+  const sec = document.getElementById('v-qty-section');
+  if (!sec) return;
+  const esVoipOnly = !!(quoteData && quoteData.cotizacion_data && quoteData.cotizacion_data.telefonia && quoteData.cotizacion_data.telefonia.voip_only);
+  const hayVoip = Object.keys(window._selectedVoipPlans || {}).length > 0;
+  if (esVoipOnly ? !hayVoip : !selectedPlanId) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  const en = lang === 'en';
+  document.getElementById('v-qty-label').textContent = esVoipOnly
+    ? (en ? '🧾 Summary' : '🧾 Resumen')
+    : (en ? '🔢 Number of services' : '🔢 Cantidad de servicios');
+  document.getElementById('v-qty-intro').textContent = esVoipOnly ? '' : (en
+    ? 'How many of this service would you like to hire? Select the quantity to see the total amount.'
+    : '¿Cuántos servicios de este tipo deseas contratar? Selecciona la cantidad para ver el monto total.');
+  let btns = '';
+  if (!esVoipOnly) {
+    for (let i = 1; i <= MAX_CANTIDAD_SERVICIOS; i++) {
+      btns += '<button type="button" class="qty-btn' + (i === selectedCantidad ? ' selected' : '') + '" onclick="selectCantidad(' + i + ')">' + i + '</button>';
+    }
+  }
+  document.getElementById('v-qty-list').innerHTML = btns;
+  document.getElementById('v-qty-list').style.display = esVoipOnly ? 'none' : 'flex';
+
+  const sumEl = document.getElementById('v-qty-summary');
+  const jornadasOfrecidas = (quoteData && quoteData.jornadas_ofrecidas) || [];
+  if (!esVoipOnly && jornadasOfrecidas.length > 1 && !selectedJornada) {
+    sumEl.innerHTML = '<div class="qty-summary" style="color:#868E96;">' + (en ? 'Select the schedule above to see the total amount.' : 'Selecciona la modalidad de jornada para ver el monto total.') + '</div>';
+    return;
+  }
+  const t = calcularTotalSeleccion();
+  if (!t) { sumEl.innerHTML = ''; return; }
+  const per = t.primeros_3_meses ? (en ? ' (first 3 months)' : ' (primeros 3 meses)') : '';
+  const L = en
+    ? { unit: 'Price per service' + (t.iva_aplica ? ' (before VAT)' : ''), qty: 'Quantity', sub: 'Subtotal (before VAT)', iva: 'VAT (' + t.iva_porcentaje + '%)', total: 'Monthly total for services' + per,
+        voip: '📞 VoIP telephony', ini: 'Initial payment (3 months)', men: 'Monthly from 4th month', lines: 'lines', line: 'line', ivaInc: 'VAT incl.',
+        note: 'The prices shown in this proposal are base amounts and do not include VAT. VAT (' + t.iva_porcentaje + '%) is added to the total.' }
+    : { unit: 'Precio por servicio' + (t.iva_aplica ? ' (sin IVA)' : ''), qty: 'Cantidad', sub: 'Subtotal (sin IVA)', iva: 'IVA (' + t.iva_porcentaje + '%)', total: 'Total mensual de servicios' + per,
+        voip: '📞 Telefonía VoIP', ini: 'Pago inicial (3 meses)', men: 'Mensual desde el 4° mes', lines: 'líneas', line: 'línea', ivaInc: 'IVA incluido',
+        note: 'Los precios de esta propuesta son montos base y no incluyen IVA. El IVA (' + t.iva_porcentaje + '%) se suma al total.' };
+  let h = '<div class="qty-summary">';
+  if (t.precio_unitario != null) {
+    h += '<div class="qty-row"><span>' + L.unit + '</span><strong>' + fmtMonto(t.precio_unitario, t.moneda) + '</strong></div>'
+      + '<div class="qty-row"><span>' + L.qty + '</span><strong>× ' + t.cantidad + '</strong></div>';
+    if (t.iva_aplica) {
+      h += '<div class="qty-row"><span>' + L.sub + '</span><strong>' + fmtMonto(t.subtotal, t.moneda) + '</strong></div>'
+        + '<div class="qty-row"><span>' + L.iva + '</span><strong>' + fmtMonto(t.iva_monto, t.moneda) + '</strong></div>';
+    }
+    h += '<div class="qty-row total"><span>' + L.total + '</span><span>' + fmtMonto(t.total, t.moneda) + '</span></div>';
+  }
+  if (t.voip.length) {
+    h += '<div style="margin-top:' + (t.precio_unitario != null ? '14px' : '0') + ';font-size:13px;font-weight:800;color:#2E86C1;">' + L.voip + '</div>';
+    t.voip.forEach(function(v) {
+      const ivaTxt = v.iva_aplica ? ' <span style="font-weight:400;color:#868E96;">(' + L.ivaInc + ')</span>' : '';
+      h += '<div class="qty-row" style="font-weight:600;"><span>' + v.nombre + ' · ' + v.minutos + ' min × ' + v.cantidad + ' ' + (v.cantidad === 1 ? L.line : L.lines) + '</span></div>'
+        + '<div class="qty-row" style="padding-left:12px;"><span>' + L.ini + '</span><strong>' + fmtMonto(v.inicial_con_iva, v.moneda) + ivaTxt + '</strong></div>'
+        + '<div class="qty-row" style="padding-left:12px;"><span>' + L.men + '</span><strong>' + fmtMonto(v.mensual_con_iva, v.moneda) + ivaTxt + '</strong></div>';
+    });
+  }
+  if (t.iva_aplica && t.precio_unitario != null) h += '<div class="qty-iva-note">ℹ️ ' + L.note + '</div>';
+  h += '</div>';
+  sumEl.innerHTML = h;
 }
 
 function checkConfirmReady() {
@@ -895,7 +1107,11 @@ function checkConfirmReady() {
 window._selectedVoipPlans = {}; // { pais_key: {minutos, precio_inicial, precio_mensual, nombre} }
 
 function selectViewerVoipPlan(paisKey, minutos, precioInicial, precioMensual, nombre) {
-  window._selectedVoipPlans[paisKey] = { minutos, precio_inicial: precioInicial, precio_mensual: precioMensual, nombre };
+  var prevCant = window._selectedVoipPlans[paisKey] && window._selectedVoipPlans[paisKey].cantidad;
+  var cantVoip = ((window._voipQtyTouched || {})[paisKey] && prevCant) ? prevCant : (selectedCantidad || 1);
+  window._selectedVoipPlans[paisKey] = { minutos, precio_inicial: precioInicial, precio_mensual: precioMensual, nombre, cantidad: cantVoip };
+  renderVoipCantidad(paisKey);
+  renderCantidadServicios();
 
   // Update status label
   var statEl = document.getElementById('voip-stat-' + paisKey);
@@ -948,7 +1164,7 @@ async function confirmPlan(quoteId) {
       quote_uuid: quoteId,
       plan_uuid:  selectedPlanId,
       jornada_val: selectedJornada || null,
-      meta: { timestamp: new Date().toISOString() }
+      meta: { timestamp: new Date().toISOString(), cantidad_servicios: selectedCantidad, total_seleccion: calcularTotalSeleccion() }
     });
 
     if (error) throw new Error(error.message);
@@ -960,7 +1176,8 @@ async function confirmPlan(quoteId) {
     const planPrecio = precios[clavePrecio] != null ? precios[clavePrecio] : null;
 
     const voipSelecciones = Object.keys(window._selectedVoipPlans || {}).length > 0 ? window._selectedVoipPlans : null;
-    await notifyInternal('plan_selected', quoteId, quoteData, data.plan_nombre, jornadaNombre, planPrecio, voipSelecciones).catch(() => {});
+    const totalSel = calcularTotalSeleccion();
+    await notifyInternal('plan_selected', quoteId, quoteData, data.plan_nombre, jornadaNombre, planPrecio, voipSelecciones, totalSel).catch(() => {});
 
     document.getElementById('v-plans-section').style.display    = 'none';
     document.getElementById('v-jornada-section').style.display  = 'none';
@@ -969,7 +1186,10 @@ async function confirmPlan(quoteId) {
     document.getElementById('v-success-title').textContent = tx.successTitle;
     document.getElementById('v-success-msg').textContent   = tx.successMsg;
     document.getElementById('v-success-next').textContent  = tx.successNext;
-    document.getElementById('v-selected-plan-name').textContent = data.plan_nombre + (jornadaNombre ? ` · ${jornadaNombre}` : '');
+    document.getElementById('v-selected-plan-name').textContent = data.plan_nombre + (jornadaNombre ? ` · ${jornadaNombre}` : '')
+      + (selectedCantidad > 1 ? ` · ${lang === 'en' ? 'Quantity' : 'Cantidad'}: ${selectedCantidad}` : '')
+      + (totalSel ? ` · ${lang === 'en' ? 'Total' : 'Total'}: ${fmtMonto(totalSel.total, totalSel.moneda)}${totalSel.iva_aplica ? (lang === 'en' ? ' (VAT incl.)' : ' (IVA incluido)') : ''}` : '');
+    document.getElementById('v-qty-section').style.display = 'none';
 
   } catch(e) {
     btn.textContent = tx.confirmBtn; btn.disabled = false;
@@ -990,7 +1210,7 @@ async function confirmVoipOnlyPlan(quoteId) {
     // Construir nombre descriptivo de la selección
     var planNombre = Object.entries(voipSels).map(function(entry) {
       var pais = entry[0]; var sel = entry[1];
-      return pais.toUpperCase() + ' · ' + sel.minutos + ' min';
+      return pais.toUpperCase() + ' · ' + sel.minutos + ' min' + ((sel.cantidad || 1) > 1 ? ' × ' + sel.cantidad + ' líneas' : '');
     }).join(' / ');
 
     // Intentar marcar en BD usando la RPC existente con plan_uuid null
@@ -1006,7 +1226,7 @@ async function confirmVoipOnlyPlan(quoteId) {
     } catch(rpcErr) { /* continuar aunque la RPC falle */ }
 
     // Notificar al equipo interno con las selecciones VoIP
-    await notifyInternal('plan_selected', quoteId, quoteData, planNombre, null, null, voipSels).catch(function(){});
+    await notifyInternal('plan_selected', quoteId, quoteData, planNombre, null, null, voipSels, calcularTotalSeleccion()).catch(function(){});
 
     // Mostrar pantalla de éxito
     document.getElementById('v-plans-section').style.display   = 'none';
@@ -1026,7 +1246,7 @@ async function confirmVoipOnlyPlan(quoteId) {
 // ════════════════════════════════════════════════════════
 //  NOTIFICACIÓN INTERNA (Netlify Function)
 // ════════════════════════════════════════════════════════
-async function notifyInternal(tipo, quoteId, data, planNombre, jornadaNombre, planPrecio, voipSelecciones) {
+async function notifyInternal(tipo, quoteId, data, planNombre, jornadaNombre, planPrecio, voipSelecciones, totalSel) {
   await fetch(NOTIFY_FUNCTION_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1042,6 +1262,16 @@ async function notifyInternal(tipo, quoteId, data, planNombre, jornadaNombre, pl
       moneda: data.moneda || 'USD',
       idioma: data.idioma || 'es',
       voip_selecciones: voipSelecciones || null,
+      // Cantidad de servicios y monto a facturar (precio base × cantidad + IVA si aplica)
+      cantidad_servicios: totalSel ? totalSel.cantidad : 1,
+      precio_unitario: totalSel ? totalSel.precio_unitario : (planPrecio || null),
+      subtotal: totalSel ? totalSel.subtotal : null,
+      iva_aplica: totalSel ? totalSel.iva_aplica : false,
+      iva_porcentaje: totalSel ? totalSel.iva_porcentaje : 0,
+      iva_monto: totalSel ? totalSel.iva_monto : 0,
+      total_facturar: totalSel ? totalSel.total : null,
+      total_primeros_3_meses: totalSel ? totalSel.primeros_3_meses : false,
+      voip_totales: totalSel ? totalSel.voip : null,
       timestamp: new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' })
     })
   });
@@ -1146,6 +1376,7 @@ function renderGeneratedQuote(data) {
           + (pFlag ? pFlag + ' ' : '') + pName
           + ' <span id="voip-stat-' + paisKey + '" style="font-size:11px;font-weight:400;color:#F39C12;margin-left:6px;">' + vt.hint + '</span></div>'
           + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;">' + planCards + '</div>'
+          + '<div id="voip-qty-' + paisKey + '" style="display:none;"></div>'
           + '</div>';
       });
       var extrasHtml2 = (tel.extras || []).length
