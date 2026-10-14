@@ -1373,9 +1373,10 @@ function renderFuncTabs() {
           <label>Nota debajo de "Funciones y alcance del plan" (opcional, se muestra en amarillo al cliente)</label>
           <textarea rows="2" id="${svc.clave}_nota_funciones"
                     oninput="autoResize(this); updateNotaFunciones('${svc.clave}', this.value)"
+                    onkeydown="notaTabKey(event, this, '${svc.clave}')"
                     onfocus="autoResize(this)"
                     placeholder="Ej: Las funciones se desarrollarán de acuerdo con las prioridades operativas definidas por la empresa..."
-                    style="width:100%;font-size:13px;color:#744210;background:#FFFBEA;border:1px solid #F6E05E;border-radius:8px;padding:10px 14px;resize:vertical;box-sizing:border-box;">${escHtml(notaVal)}</textarea>
+                    style="width:100%;font-size:13px;color:#744210;background:#FFFBEA;border:1px solid #F6E05E;border-radius:8px;padding:10px 14px;resize:vertical;box-sizing:border-box;tab-size:4;">${escHtml(notaVal)}</textarea>
         </div>
       </div>
     `;
@@ -1385,6 +1386,15 @@ function renderFuncTabs() {
   tabContents.querySelectorAll('textarea').forEach(ta => autoResize(ta));
 }
 function updateNotaFunciones(clave, val) { if (serviceData[clave]) serviceData[clave].nota = val; }
+// Tecla Tab dentro de la nota: inserta una sangría en vez de saltar al siguiente campo
+function notaTabKey(e, el, clave) {
+  if (e.key !== 'Tab' || e.shiftKey) return;
+  e.preventDefault();
+  const a = el.selectionStart, b = el.selectionEnd;
+  el.value = el.value.slice(0, a) + '\t' + el.value.slice(b);
+  el.selectionStart = el.selectionEnd = a + 1;
+  updateNotaFunciones(clave, el.value);
+}
 
 function switchFuncTab(idx) {
   activeFuncTab = idx;
