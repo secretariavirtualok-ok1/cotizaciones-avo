@@ -2558,12 +2558,18 @@ async function saveQuotation(mode) {
       if (!existing) {
         previewQuoteId = null; // la eliminaron → se crea una nueva
       } else if (existing.estado !== 'en_revision') {
-        alert('Esta cotización ya fue enviada al cliente (posiblemente desde otro equipo), así que no se puede modificar desde aquí.\n\nSi necesitas una versión corregida, crea una nueva cotización.');
-        btn.disabled = false;
-        if (previewBtn) previewBtn.disabled = false;
-        btn.textContent = '✉️ Aprobar y enviar al cliente';
-        if (previewBtn) previewBtn.textContent = '🔄 Actualizar vista previa';
-        return;
+        // El borrador estaba vinculado a una cotización que YA se envió (p. ej. el cliente pidió
+        // otra cotización y se partió del borrador anterior). La enviada NO se toca: se ofrece
+        // guardar esto como una cotización NUEVA para el mismo cliente.
+        const ok = confirm('La cotización vinculada a este borrador ya fue enviada al cliente, así que esa no se modifica.\n\n¿Quieres guardar este trabajo como una cotización NUEVA para el mismo cliente?\n(La cotización enviada anteriormente se conserva tal cual.)');
+        if (!ok) {
+          btn.disabled = false;
+          if (previewBtn) previewBtn.disabled = false;
+          btn.textContent = '✉️ Aprobar y enviar al cliente';
+          if (previewBtn) previewBtn.textContent = '🔄 Actualizar vista previa';
+          return;
+        }
+        detachSentQuote(true);
       }
     }
 
@@ -2685,6 +2691,27 @@ function copyFromInput(inputId, btn) {
   const original = btn.textContent;
   btn.textContent = '✓ Copiado';
   setTimeout(() => { btn.textContent = original; }, 2000);
+}
+
+// El borrador apunta a una cotización que ya no está "en revisión" (enviada o eliminada):
+// se desvincula para que lo que se siga trabajando se guarde como borrador y cotización NUEVOS,
+// sin tocar la cotización ya enviada.
+function detachSentQuote(silencioso) {
+  previewQuoteId = null;
+  const pc = document.getElementById('preview-card');
+  if (pc) pc.classList.add('hidden');
+  if (!silencioso) setDraftStatus('ℹ️ La cotización anterior de este cliente ya fue enviada: lo que guardes ahora será una cotización nueva');
+  cloudDraftGone = false;
+  saveDraftLocal();
+  saveDraftCloud(false);
+}
+async function verifyLinkedQuoteStillDraft() {
+  if (!previewQuoteId) return;
+  try {
+    const { data } = await withTimeout(
+      sb.from('quotes').select('id, estado').eq('id', previewQuoteId).maybeSingle(), 15000, 'verificar cotización');
+    if (!data || data.estado !== 'en_revision') detachSentQuote(false);
+  } catch (e) { console.warn('No se pudo verificar la cotización del borrador:', e); }
 }
 
 function newQuotation() {
@@ -2971,6 +2998,8 @@ function applyDraftState(st) {
   } finally {
     draftRestoring = false;
   }
+  // Si este borrador quedó vinculado a una cotización que ya se envió, desvincularlo ya al abrirlo
+  verifyLinkedQuoteStillDraft();
 }
 
 async function initDraftRecovery() {
