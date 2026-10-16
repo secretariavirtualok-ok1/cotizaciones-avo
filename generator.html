@@ -2538,7 +2538,9 @@ async function saveQuotation(mode) {
       estado: isPreviewMode ? 'en_revision' : 'enviada',
       fecha_envio: new Date().toISOString(),
       vencimiento: isPreviewMode ? null : vencimiento,
-      notas_internas: document.getElementById('cond-notas-internas')?.value?.trim() || null
+      notas_internas: document.getElementById('cond-notas-internas')?.value?.trim() || null,
+      // Estado completo del generador, para poder reutilizar la cotización desde el admin
+      generator_state: stateForQuote()
     };
 
     // Si ya había una vista previa, verificar que siga existiendo y que nadie la haya enviado
@@ -2574,14 +2576,23 @@ async function saveQuotation(mode) {
     }
 
     let quote, qErr;
-    if (previewQuoteId) {
-      // Ya existe una vista previa → actualizar esa misma cotización (el enlace no cambia)
-      ({ data: quote, error: qErr } = await withTimeout(
-        sb.from('quotes').update(quoteData).eq('id', previewQuoteId).select().single(), 20000, 'actualizar cotización'));
-    } else {
-      quoteData.created_by = user.id;
-      ({ data: quote, error: qErr } = await withTimeout(
-        sb.from('quotes').insert(quoteData).select().single(), 20000, 'guardar cotización'));
+    const guardarQuote = async () => {
+      if (previewQuoteId) {
+        // Ya existe una vista previa → actualizar esa misma cotización (el enlace no cambia)
+        ({ data: quote, error: qErr } = await withTimeout(
+          sb.from('quotes').update(quoteData).eq('id', previewQuoteId).select().single(), 20000, 'actualizar cotización'));
+      } else {
+        quoteData.created_by = user.id;
+        ({ data: quote, error: qErr } = await withTimeout(
+          sb.from('quotes').insert(quoteData).select().single(), 20000, 'guardar cotización'));
+      }
+    };
+    await guardarQuote();
+    // Si la columna generator_state todavía no existe en la base de datos, se guarda sin ella
+    if (qErr && /generator_state/i.test(qErr.message || '')) {
+      console.warn('Falta la columna quotes.generator_state — se guarda sin el estado del generador.');
+      delete quoteData.generator_state;
+      await guardarQuote();
     }
     if (qErr) throw qErr;
     previewQuoteId = quote.id;
@@ -3002,6 +3013,167 @@ function applyDraftState(st) {
   verifyLinkedQuoteStillDraft();
 }
 
+// ══════════════════════════════════════════════════════════
+//  REUTILIZAR UNA COTIZACIÓN YA ENVIADA (desde el admin)
+//  generator.html?reuse=<id>&modo=mismo|nuevo
+//  Carga todos los datos de esa cotización como un BORRADOR NUEVO. Al enviar se crea una
+//  cotización nueva con su propio enlace; la cotización original no se modifica.
+// ══════════════════════════════════════════════════════════
+// Estado del generador que se guarda junto a cada cotización (para poder reutilizarla tal cual)
+function stateForQuote() {
+  const st = buildDraftState();
+  delete st.previewQuoteId;
+  delete st.currentDraftId;
+  // Las notas internas ya se guardan en su propia columna (notas_internas): no se duplican aquí
+  if (st.fields) delete st.fields['cond-notas-internas'];
+  return st;
+}
+
+// Cotizaciones anteriores a esta función no traen el estado del generador: se reconstruye
+// a partir de lo que se guardó para el cliente (cotizacion_data) y de la ficha del cliente.
+function reconstructStateFromQuote(q, cli) {
+  const cd = q.cotizacion_data || {};
+  const ce = cd.condiciones_extras || {};
+  const tg = cd.telefonia || {};
+  const voipOnly = !!tg.voip_only;
+  const sd = {}, claves = [];
+  let bil = false;
+
+  const telFrom = (t) => {
+    const info = (t && t.incluida_info) || {};
+    const mpj = info.minutos_por_jornada || {};
+    return {
+      tipo: (t && t.tipo) || 'none',
+      inclPais: info.pais_key || '',
+      inclMinutos: info.minutos != null ? String(info.minutos) : '',
+      inclMinutosPorJornada: { media: mpj.media != null ? String(mpj.media) : '', completa: mpj.completa != null ? String(mpj.completa) : '' },
+      inclExtras: (t && t.tipo === 'incluida') ? (info.extras || []).join('\n') : getDefaultVoipExtrasText(),
+      paisesSeleccionados: (t && t.paises_seleccionados) || [],
+      optExtras: (t && t.tipo === 'opcional') ? (t.extras || []).join('\n') : getDefaultVoipExtrasText()
+    };
+  };
+
+  (cd.servicios || []).forEach(s => {
+    const clave = s.imagen_key;
+    if (!clave || !serviceCatalog.find(c => c.clave === clave) || claves.includes(clave)) return;
+    claves.push(clave);
+    if (s.es_bilingue) bil = true;
+    const h = s.horario || {};
+    const d = {
+      funciones: (s.funciones || []).slice(),
+      jornadas: (s.jornadas || []).slice(),
+      precios: Object.assign({}, s.precios || {}),
+      horarios: Object.assign({}, s.horarios || {}),
+      nota: s.nota || '',
+      alias_activo: !!s.alias_cliente,
+      alias_cliente: s.alias_cliente || ''
+    };
+    if (s.precio_inicio != null) d.precio_inicio = s.precio_inicio;
+    if (s.precio_full != null) d.precio_full = s.precio_full;
+    if (h.texto_inicio) d.horario_inicio = h.texto_inicio;
+    if (h.texto_full) d.horario_full = h.texto_full;
+    const t = (cd.telefonia_por_servicio || {})[clave];
+    d.telefonia = telFrom(t);
+    sd[clave] = d;
+  });
+  // Formato antiguo: una sola telefonía global (no "solo telefonía") → se asigna al servicio vinculado o al primero
+  if (!voipOnly && cd.telefonia && !cd.telefonia_por_servicio && claves.length) {
+    const destino = (tg.vinculado_a_servicio && sd[tg.vinculado_a_servicio]) ? tg.vinculado_a_servicio : claves[0];
+    sd[destino].telefonia = telFrom(tg);
+  }
+
+  const fields = {
+    'client-nombre': (cli && cli.nombre_contacto) || '',
+    'client-empresa': (cli && cli.empresa) || '',
+    'client-email': (cli && cli.email) || '',
+    'client-telefono': (cli && cli.telefono) || '',
+    'gen-comercial': q.comercial || '',
+    'gen-idioma': q.idioma || 'es',
+    'gen-moneda': q.moneda || 'USD',
+    'is-bilingue': { c: bil },
+    'iva-aplica': { c: q.moneda === 'COP' ? ce.iva_aplica !== false : false },
+    'iva-porcentaje': ce.iva_porcentaje != null ? String(ce.iva_porcentaje) : '19',
+    'cond-tariff-note': ce.nota_ajuste_tarifas || '',
+    'cond-nota-especial': ce.nota_personalizada || '',
+    'cond-notas-internas': q.notas_internas || ''
+  };
+  if (voipOnly) {
+    const info = tg.incluida_info || {};
+    fields['voip-incl-pais'] = info.pais_key || '';
+    fields['voip-incl-minutos'] = info.minutos != null ? String(info.minutos) : '';
+    fields['voip-incl-extras'] = (info.extras || []).join('\n');
+    if (tg.tipo === 'opcional') fields['voip-opt-extras'] = (tg.extras || []).join('\n');
+  }
+  return {
+    v: 1, step: 1, fields,
+    selectedClientId: q.client_id || null,
+    selectedLeadId: null, leadName: '',
+    isBilingue: bil,
+    voipOnlyMode: voipOnly,
+    voipType: voipOnly ? (tg.tipo || 'none') : 'none',
+    selectedVoipCountries: voipOnly ? (tg.paises_seleccionados || []) : [],
+    selectedMinutesByCountry: {},
+    selectedServiceClaves: claves,
+    serviceData: sd,
+    emailBodyEdited: false,
+    activeFuncTab: 0, activePriceTab: 0, activeVoipTab: 0
+  };
+}
+
+async function loadReuseQuote(quoteId, modo) {
+  const { data: q, error } = await sb.from('quotes').select('*').eq('id', quoteId).maybeSingle();
+  if (error || !q) {
+    alert('No se encontró la cotización a reutilizar' + (error ? ': ' + error.message : '.'));
+    return;
+  }
+  let cli = null;
+  if (q.client_id) {
+    const r = await sb.from('clients').select('*').eq('id', q.client_id).maybeSingle();
+    cli = r.data || null;
+  }
+  const st = q.generator_state
+    ? JSON.parse(JSON.stringify(q.generator_state))
+    : reconstructStateFromQuote(q, cli);
+  st.previewQuoteId = null;
+  st.currentDraftId = null;
+  st.fields = st.fields || {};
+
+  if (modo === 'nuevo') {
+    // Modelo para otro cliente: se vacían los datos del cliente y lo que lo menciona
+    ['client-nombre', 'client-empresa', 'client-email', 'client-telefono', 'cond-notas-internas', 'email-cuerpo'].forEach(k => { delete st.fields[k]; });
+    st.selectedClientId = null;
+    st.selectedLeadId = null;
+    st.leadName = '';
+    st.emailBodyEdited = false;
+    st.step = 1;
+  } else {
+    // Mismo cliente: se asegura que los datos del cliente estén cargados
+    st.selectedClientId = q.client_id || st.selectedClientId || null;
+    if (q.notas_internas && !st.fields['cond-notas-internas']) st.fields['cond-notas-internas'] = q.notas_internas;
+    if (cli) {
+      st.fields['client-nombre'] = st.fields['client-nombre'] || cli.nombre_contacto || '';
+      st.fields['client-empresa'] = st.fields['client-empresa'] || cli.empresa || '';
+      st.fields['client-email'] = st.fields['client-email'] || cli.email || '';
+      st.fields['client-telefono'] = st.fields['client-telefono'] || cli.telefono || '';
+    }
+    st.step = 1;
+  }
+
+  currentDraftId = null;
+  previewQuoteId = null;
+  applyDraftState(st);
+
+  const fecha = q.fecha_envio ? new Date(q.fecha_envio).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+  const origen = (cli && (cli.empresa || cli.nombre_contacto)) || 'el cliente';
+  const aviso = modo === 'nuevo'
+    ? '♻️ Modelo tomado de la cotización de ' + origen + (fecha ? ' (' + fecha + ')' : '') + '. Escribe o busca el nuevo cliente en el paso 1.'
+    : '♻️ Copia de la cotización enviada a ' + origen + (fecha ? ' el ' + fecha : '') + '. Al enviarla se crea una cotización nueva; la anterior no se modifica.';
+  cloudDraftGone = false;
+  saveDraftLocal();
+  if (modo !== 'nuevo') await saveDraftCloud(false); // el de "otro cliente" se guarda en la nube en cuanto se escriba el nombre
+  setDraftStatus(aviso);
+}
+
 async function initDraftRecovery() {
   // Autoguardado: cualquier cambio dentro del generador
   const app = document.getElementById('app');
@@ -3016,6 +3188,14 @@ async function initDraftRecovery() {
 
   // ¿Viene desde el admin para retomar un borrador de la nube? (generator.html?draft=ID)
   const params = new URLSearchParams(location.search);
+  // ¿Viene desde el admin para reutilizar una cotización ya enviada? (generator.html?reuse=ID&modo=mismo|nuevo)
+  const reuseId = params.get('reuse');
+  if (reuseId) {
+    const modo = params.get('modo') === 'nuevo' ? 'nuevo' : 'mismo';
+    history.replaceState(null, '', location.pathname);
+    await loadReuseQuote(reuseId, modo);
+    return;
+  }
   const draftId = params.get('draft');
   if (draftId) {
     const { data, error } = await sb.from('quote_drafts').select('*').eq('id', draftId).maybeSingle();
