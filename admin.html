@@ -992,6 +992,16 @@
           <button class="btn btn-primary btn-sm" id="mq-preview-btn">👁 Ver cotización</button>
           <button class="btn btn-outline btn-sm" id="mq-download-pdf">📄 Descargar PDF</button>
         </div>
+        <!-- Reutilizar una cotización ya enviada: abre el generador con todos sus datos cargados
+             como un borrador NUEVO (la cotización enviada no se modifica). -->
+        <div id="mq-reuse" style="margin-top:12px;padding:12px 14px;background:#F0F7FF;border:1px solid #CFE2FF;border-radius:8px;">
+          <div style="font-size:12px;font-weight:700;color:#1A5296;margin-bottom:8px;">♻️ Reutilizar esta cotización</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" id="mq-reuse-same">✏️ Editar y reenviar al mismo cliente</button>
+            <button class="btn btn-outline btn-sm" id="mq-reuse-new">📄 Usar como modelo para otro cliente</button>
+          </div>
+          <p style="font-size:11px;color:var(--gray-500);margin:8px 0 0;">Se abre el generador con todos los datos cargados. Al enviarla se crea una cotización nueva (con su propio enlace); la enviada anteriormente se conserva tal cual.</p>
+        </div>
       </div>
 
       <div style="margin-top:20px;">
@@ -2098,6 +2108,8 @@ async function openQuoteModal(quoteId) {
 
   const link = `${VIEWER_BASE_URL}.html?id=${quoteId}`;
   document.getElementById('mq-link').textContent = link;
+  // Solo las cotizaciones hechas con el generador se pueden reutilizar (las de Word no tienen los datos)
+  document.getElementById('mq-reuse').style.display = (q.modo_cotizacion === 'generada' || (q.cotizacion_data && (q.cotizacion_data.servicios || q.cotizacion_data.telefonia))) ? 'block' : 'none';
 
   // planes edit — pasar jornadas guardadas para mostrar precios correctamente
   renderPlansGrid('mq-plans-edit', q.planes_ofrecidos || [], q.precios_combinaciones || {}, q.jornadas_ofrecidas || []);
@@ -2199,6 +2211,13 @@ document.getElementById('mq-copy-link').addEventListener('click', () => {
     setTimeout(() => { document.getElementById('mq-copy-link').textContent = '📋 Copiar enlace'; }, 2000);
   });
 });
+
+function reuseQuote(modo) {
+  if (!editingQuote) return;
+  window.open('generator.html?reuse=' + encodeURIComponent(editingQuote) + '&modo=' + modo, '_blank');
+}
+document.getElementById('mq-reuse-same').addEventListener('click', () => reuseQuote('mismo'));
+document.getElementById('mq-reuse-new').addEventListener('click', () => reuseQuote('nuevo'));
 
 document.getElementById('mq-preview-btn').addEventListener('click', () => {
   const link = document.getElementById('mq-link').textContent.trim();
