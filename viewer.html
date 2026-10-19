@@ -957,6 +957,13 @@ function redondear(n, moneda) {
 }
 // Moneda de un país de telefonía: España siempre en euros, el resto en la moneda de la cotización
 function monedaVoip(paisKey) {
+  // Moneda propia del país guardada en la cotización (ej. Europa en USD); si no, España en EUR
+  const cd = (quoteData && quoteData.cotizacion_data) || {};
+  const fuentes = [cd.telefonia].concat(Object.values(cd.telefonia_por_servicio || {}));
+  for (const t of fuentes) {
+    const pd = t && t.planes_por_pais && t.planes_por_pais[paisKey];
+    if (pd && !Array.isArray(pd) && pd.moneda) return pd.moneda;
+  }
   return paisKey === 'es' ? 'EUR' : ((quoteData && quoteData.moneda) || 'USD');
 }
 // Telefonía VoIP opcional seleccionada, con su cantidad de líneas y totales
@@ -1356,7 +1363,7 @@ function renderGeneratedQuote(data) {
         if (Array.isArray(d.todos_los_planes)) return d.todos_los_planes;
         return [];
       }
-      var defaultPaisNames = {us:'Estados Unidos',pr:'Puerto Rico',es:'España',mx:'México',cl:'Chile','do':'República Dominicana',uy:'Uruguay',colombia:'Colombia',pe:'Perú'};
+      var defaultPaisNames = {us:'Estados Unidos',pr:'Puerto Rico',es:'España',mx:'México',cl:'Chile','do':'República Dominicana',uy:'Uruguay',colombia:'Colombia',pe:'Perú',pa:'Panamá',eu:'Europa'};
       var voipCardsHtml = '';
       (tel.paises_seleccionados || []).forEach(function(paisKey) {
         var paisData = (tel.planes_por_pais || {})[paisKey];
@@ -1364,7 +1371,7 @@ function renderGeneratedQuote(data) {
         var pName = (typeof paisData === 'object' && !Array.isArray(paisData) && paisData && paisData.nombre) ? paisData.nombre : (defaultPaisNames[paisKey] || paisKey);
         var pFlag = (typeof paisData === 'object' && !Array.isArray(paisData) && paisData && paisData.flag) ? paisData.flag : '';
         // España siempre muestra precios en euros independientemente de la moneda de la cotización
-        var countrySym = paisKey === 'es' ? '€' : sym;
+        var countrySym = (paisData && !Array.isArray(paisData) && paisData.simbolo) ? paisData.simbolo : (paisKey === 'es' ? '€' : sym);
         // El IVA de esta cotización (si aplica) solo corresponde a los planes de Colombia,
         // aunque la cotización combine varios países de telefonía.
         var voipIvaSuffix = (paisKey === 'colombia' || paisKey === 'co') ? ivaSuffix : '';
